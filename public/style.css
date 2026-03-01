@@ -53,3 +53,46 @@ button:active { transform: scale(0.95); }
     .sidebar { display: none; } /* Скрываем боковую панель на телефонах */
     .app-container { width: 100vw; height: 100vh; }
 }
+
+/* Стили для формы входа */
+.auth-page {
+    background: linear-gradient(180deg, #6297DB 0%, #1D61C2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-header { text-align: center; margin-bottom: 30px; }
+.app-logo { font-size: 60px; color: var(--ios-blue); margin-bottom: 10px; }
+.auth-header h1 { font-size: 28px; font-weight: 700; color: #1c1c1e; }
+.auth-header p { color: #8e8e93; font-size: 14px; }
+
+.input-group {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    margin-bottom: 15px;
+}
+.input-group i { color: #8e8e93; margin-right: 10px; }
+.input-group input { background: transparent; margin: 0; }
+
+.auth-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.btn-primary { 
+    background: #007AFF; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+}
+.btn-secondary { background: transparent; color: #007AFF; }
+
+/* Спиннер загрузки iOS */
+.ios-spinner {
+    width: 40px; height: 40px;
+    border: 4px solid rgba(255,255,255,0.3);
+    border-top: 4px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
