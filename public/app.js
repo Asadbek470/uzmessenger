@@ -35,6 +35,10 @@ function initChat() {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") sendText();
   });
+
+  if (window.innerWidth > 768) {
+    document.getElementById("sidebar").classList.remove("active-mobile");
+  }
 }
 
 function connectWS() {
@@ -150,7 +154,7 @@ async function loadChatList() {
   const chats = await res.json();
 
   block.innerHTML = chats.map((chat) => `
-    <div class="chat-item ${currentChat === chat.username ? "active" : ""}" onclick="switchChat('${chat.username}')">
+    <div class="chat-item ${currentChat === chat.username ? "active" : ""}" data-chat="${chat.username}" onclick="switchChat('${chat.username}')">
       <div class="avatar-circle">
         ${chat.avatar ? `<img src="${chat.avatar}" alt="">` : `<span>${(chat.displayName || chat.username).charAt(0).toUpperCase()}</span>`}
       </div>
@@ -179,6 +183,11 @@ function switchChat(name) {
   document.getElementById("chatStatus").textContent = name === "global" ? "общение со всеми" : "личный чат";
 
   loadMessages(name);
+
+  if (window.innerWidth <= 768) {
+    const sidebar = document.getElementById("sidebar");
+    sidebar.classList.remove("active-mobile");
+  }
 }
 
 function sendText() {
@@ -376,6 +385,6 @@ function setAvatarBlock(id, profile) {
 function toggleSidebarMobile() {
   const sidebar = document.getElementById("sidebar");
   if (window.innerWidth <= 768) {
-    sidebar.style.display = sidebar.style.display === "flex" ? "none" : "flex";
+    sidebar.classList.toggle("active-mobile");
   }
 }
