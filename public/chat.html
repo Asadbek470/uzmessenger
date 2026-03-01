@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Messenger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar" id="sidebar">
+            <div class="header-ui">
+                <h3>Чаты</h3>
+            </div>
+            <div class="chat-list">
+                <div class="chat-item active" onclick="selectChat('Общий чат')">
+                    <div class="avatar">#</div>
+                    <div class="info"><strong>Общий чат</strong><p>Global Room</p></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-chat">
+            <div class="chat-header">
+                <button class="mobile-only" onclick="toggleSidebar(true)">☰</button>
+                <div class="avatar">#</div>
+                <div class="info"><strong id="chatTitle">Общий чат</strong><p>online</p></div>
+            </div>
+            <div class="messages" id="messages"></div>
+            <div class="input-row">
+                <input type="text" id="msgInput" placeholder="Сообщение..." autocomplete="off">
+                <button id="sendBtn">➤</button>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
