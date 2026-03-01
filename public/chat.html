@@ -3,170 +3,129 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Uz Messenger — Авторизация</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
-  <style>
-    body {
-      background: #f4f4f5;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      font-family: 'Roboto', sans-serif;
-      margin: 0;
-    }
-
-    .tg-card {
-      width: 100%;
-      max-width: 360px;
-      background: #fff;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-      text-align: center;
-    }
-
-    .tg-logo {
-      width: 100px;
-      height: 100px;
-      background: #33a6e3;
-      border-radius: 50%;
-      margin: 0 auto 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .tg-logo svg {
-      width: 50px;
-      fill: white;
-    }
-
-    h1 {
-      font-size: 26px;
-      margin: 0 0 10px;
-      color: #1c1c1c;
-    }
-
-    p {
-      color: #707579;
-      font-size: 15px;
-      line-height: 1.4;
-      margin-bottom: 30px;
-    }
-
-    .input-box {
-      position: relative;
-      margin-bottom: 16px;
-    }
-
-    input {
-      width: 100%;
-      padding: 14px 15px;
-      border: 1px solid #dadce0;
-      border-radius: 10px;
-      font-size: 16px;
-      outline: none;
-      box-sizing: border-box;
-      transition: 0.2s;
-    }
-
-    input:focus {
-      border-color: #33a6e3;
-    }
-
-    .btn-main {
-      width: 100%;
-      background: #33a6e3;
-      color: white;
-      border: none;
-      padding: 14px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      text-transform: uppercase;
-      margin-top: 10px;
-    }
-
-    .btn-alt {
-      background: none;
-      border: none;
-      color: #33a6e3;
-      margin-top: 15px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .hint {
-      font-size: 12px;
-      color: #7a7f86;
-      text-align: left;
-      margin-top: -6px;
-      margin-bottom: 10px;
-    }
-  </style>
+  <title>One Messenger — iOS 26 Ultra</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
-<body>
-  <div class="tg-card">
-    <div class="tg-logo">
-      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM16.64 8.8C16.49 10.38 15.84 14.19 15.51 15.96C15.37 16.71 15.09 16.96 14.82 16.99C14.24 17.04 13.8 16.6 13.24 16.23C12.36 15.65 11.86 15.29 11 14.72C10.01 14.07 10.65 13.71 11.22 13.13C11.37 12.97 13.94 10.63 13.99 10.42C14 10.39 14 10.28 13.93 10.22C13.86 10.16 13.77 10.18 13.71 10.19C13.62 10.21 12.23 11.13 9.53 12.95C9.14 13.22 8.78 13.35 8.46 13.34C8.11 13.33 7.42 13.14 6.91 12.98C6.28 12.77 5.79 12.66 5.83 12.31C5.85 12.13 6.1 11.95 6.58 11.77C9.55 10.47 11.53 9.61 12.51 9.2C15.32 8.03 15.91 7.83 16.29 7.83C16.37 7.83 16.56 7.85 16.68 7.95C16.78 8.03 16.81 8.16 16.82 8.25C16.81 8.32 16.82 8.6 16.64 8.8Z"/></svg>
-    </div>
+<body onload="initChat()">
 
-    <h1>Uz Messenger</h1>
-    <p>Введите данные для входа в ваш аккаунт.</p>
+  <div class="app-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="search-container">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="userSearch" placeholder="Поиск @username..." oninput="searchUsers(this.value)" />
+        </div>
+      </div>
 
-    <div class="input-box">
-      <input type="text" id="userInput" placeholder="Юзернейм (@username)" />
-    </div>
+      <div class="chats-list" id="chatsList">
+        <div class="chat-item active" data-chat="global" onclick="switchChat('global')">
+          <div class="avatar-circle global-avatar">
+            <i class="fa-solid fa-earth-americas"></i>
+          </div>
+          <div class="chat-meta">
+            <span class="name">Общий чат</span>
+            <span class="preview">Напишите сообщение...</span>
+          </div>
+        </div>
 
-    <div class="input-box">
-      <input type="password" id="passInput" placeholder="Пароль" />
-    </div>
+        <div id="privateChatsBlock"></div>
+        <div id="searchResults"></div>
+      </div>
 
-    <div class="input-box">
-      <input type="password" id="pinInput" placeholder="Второй код (6 цифр)" maxlength="6" />
-    </div>
-    <div class="hint">При регистрации этот код создаётся один раз, а потом запрашивается при входе.</div>
+      <div class="sidebar-footer">
+        <button class="settings-btn" onclick="openSettings()">
+          <i class="fa-solid fa-circle-user"></i> Настройки профиля
+        </button>
+      </div>
+    </aside>
 
-    <button class="btn-main" id="loginBtn" onclick="handleAuth('login')">Войти</button>
-    <button class="btn-alt" id="regBtn" onclick="handleAuth('reg')">Создать аккаунт</button>
+    <main class="main-chat">
+      <header class="chat-header">
+        <div class="header-left">
+          <button class="back-btn" onclick="toggleSidebarMobile()"><i class="fa-solid fa-chevron-left"></i></button>
+          <div class="current-chat-info" onclick="openCurrentProfile()" style="cursor:pointer;">
+            <h2 id="chatTitle">Общий чат</h2>
+            <span class="status" id="chatStatus">в сети</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <i class="fa-solid fa-user" onclick="openCurrentProfile()"></i>
+        </div>
+      </header>
+
+      <section class="messages-area" id="messagesContainer"></section>
+
+      <footer class="input-panel">
+        <button class="icon-btn attach-btn" onclick="document.getElementById('fileInput').click()">
+          <i class="fa-solid fa-paperclip"></i>
+        </button>
+        <input type="file" id="fileInput" hidden accept="image/*,video/*" onchange="uploadMedia(this)" />
+
+        <div class="text-input-wrapper">
+          <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
+          <button class="emoji-btn" type="button"><i class="fa-regular fa-face-smile"></i></button>
+        </div>
+
+        <div class="actions-group">
+          <button class="icon-btn voice-btn" id="voiceBtn" onclick="toggleAudioRec()">
+            <i class="fa-solid fa-microphone"></i>
+          </button>
+          <button class="send-btn" onclick="sendText()">
+            <i class="fa-solid fa-arrow-up"></i>
+          </button>
+        </div>
+      </footer>
+    </main>
   </div>
 
-  <script>
-    async function handleAuth(type) {
-      const username = document.getElementById('userInput').value.trim();
-      const password = document.getElementById('passInput').value.trim();
-      const pin = document.getElementById('pinInput').value.trim();
+  <div id="settingsModal" class="modal-backdrop" style="display: none;">
+    <div class="settings-card glass">
+      <header class="modal-header">
+        <h3>Настройки профиля</h3>
+        <button class="close-btn" onclick="closeSettings()">✕</button>
+      </header>
 
-      if (!username || !password || !pin) {
-        return alert("Заполните все поля!");
-      }
+      <div class="settings-body">
+        <div class="profile-avatar-edit">
+          <div class="avatar-large" id="profilePreview"></div>
+          <button onclick="document.getElementById('avatarInput').click()">Изменить фото</button>
+          <input type="file" id="avatarInput" hidden accept="image/*" onchange="previewAvatar(this)" />
+        </div>
 
-      if (!/^\d{6}$/.test(pin)) {
-        return alert("Второй код должен быть из 6 цифр.");
-      }
+        <div class="input-field">
+          <label>Ваше имя</label>
+          <input type="text" id="editName" placeholder="Введите имя" />
+        </div>
 
-      try {
-        const res = await fetch(`/api/auth/${type}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, pin })
-        });
+        <div class="input-field">
+          <label>О себе (Bio)</label>
+          <input type="text" id="editBio" placeholder="Расскажите о себе" />
+        </div>
 
-        const data = await res.json();
+        <button class="save-profile-btn" onclick="saveProfile()">Сохранить изменения</button>
+      </div>
+    </div>
+  </div>
 
-        if (data.success) {
-          localStorage.setItem('user', username.replace(/^@+/, '').toLowerCase());
-          window.location.href = 'chat.html';
-        } else {
-          alert("Ошибка: " + data.error);
-        }
-      } catch (err) {
-        alert("Ошибка сервера. Проверьте деплой на Render.");
-      }
-    }
-  </script>
+  <div id="profileModal" class="modal-backdrop" style="display: none;">
+    <div class="settings-card glass">
+      <header class="modal-header">
+        <h3>Профиль</h3>
+        <button class="close-btn" onclick="closeProfile()">✕</button>
+      </header>
+
+      <div class="settings-body">
+        <div class="profile-avatar-edit">
+          <div class="avatar-large" id="viewProfileAvatar"></div>
+        </div>
+        <div class="profile-view-line"><b>Юзернейм:</b> <span id="viewProfileUsername"></span></div>
+        <div class="profile-view-line"><b>Имя:</b> <span id="viewProfileName"></span></div>
+        <div class="profile-view-line"><b>Bio:</b> <span id="viewProfileBio"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>
