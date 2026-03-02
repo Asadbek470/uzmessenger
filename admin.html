@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>One Messenger Admin</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f1720;
+      color: white;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #17212b;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 18px;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.25);
+    }
+
+    h1, h2 {
+      margin-top: 0;
+    }
+
+    input, select, button {
+      font: inherit;
+      border-radius: 10px;
+      border: none;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+
+    input, select {
+      width: 100%;
+      background: #223142;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    button {
+      background: #2481cc;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.95;
+    }
+
+    .login-box {
+      max-width: 400px;
+      margin: 40px auto;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .user-row {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items: center;
+      background: #1d2a39;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .mini {
+      font-size: 13px;
+      color: #b8c7d8;
+      margin-top: 4px;
+    }
+
+    .danger {
+      background: #b53030;
+    }
+
+    .gray {
+      background: #43586f;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #243241;
+      font-size: 12px;
+      margin-right: 6px;
+      margin-top: 6px;
+    }
+
+    @media (max-width: 800px) {
+      .user-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="loginCard" class="card login-box">
+      <h1>Админ-панель</h1>
+      <input id="adminUser" placeholder="Логин администратора" value="admin" />
+      <input id="adminPin" placeholder="Код администратора" value="090909" />
+      <button onclick="adminLogin()">Войти</button>
+    </div>
+
+    <div id="adminPanel" class="hidden">
+      <div class="card">
+        <h2>Пользователи</h2>
+        <div class="grid-2">
+          <input id="searchAdminUser" placeholder="Поиск по @username" oninput="loadAdminUsers()" />
+          <button class="gray" onclick="logoutAdmin()">Выйти</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="usersList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
