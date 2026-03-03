@@ -129,6 +129,18 @@ function getRestrictionField(type) {
   return null;
 }
 
+function cleanupLocalUpload(mediaUrl = "") {
+  try {
+    if (!mediaUrl || !mediaUrl.startsWith("/uploads/")) return;
+    const filePath = path.join(__dirname, "public", mediaUrl);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  } catch (err) {
+    console.log("Upload cleanup skipped:", err.message);
+  }
+}
+
 /* -------------------- admin -------------------- */
 
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -410,6 +422,19 @@ wss.on("connection", (ws, req) => {
   ws.on("message", async (raw) => {
     try {
       const data = JSON.parse(raw.toString());
+
+      if (
+        ["call-offer", "call-answer", "ice-candidate", "call-reject", "call-end"].includes(data.type)
+      ) {
+        const from = normalizeUsername(data.from);
+        const to = normalizeUsername(data.to);
+
+        if (!from || !to) return;
+
+        sendToUser(to, data);
+        return;
+      }
+
       if (data.type !== "text") return;
 
       const sender = normalizeUsername(data.sender);
@@ -435,10 +460,13 @@ wss.on("connection", (ws, req) => {
         [sender, receiver, text, createdAt]
       );
 
+      const inserted = await get(`SELECT * FROM messages WHERE id = last_insert_rowid()`);
+
       const senderProfile = await sanitizeProfileForViewer(sender, sender);
 
       const payload = {
         type: "message",
+        id: inserted?.id,
         sender,
         receiver,
         text,
@@ -695,6 +723,12 @@ app.post("/api/me", requireUser, upload.single("avatar"), async (req, res) => {
       await run(`UPDATE contacts SET owner = ? WHERE owner = ?`, [newUsername, req.currentUser]);
       await run(`UPDATE contacts SET contact = ? WHERE contact = ?`, [newUsername, req.currentUser]);
       await run(`UPDATE stories SET owner = ? WHERE owner = ?`, [newUsername, req.currentUser]);
+
+      const oldSocket = onlineUsers.get(req.currentUser);
+      if (oldSocket) {
+        onlineUsers.delete(req.currentUser);
+        onlineUsers.set(newUsername, oldSocket);
+      }
     }
 
     const updated = await getFullUser(newUsername);
@@ -1089,6 +1123,50 @@ app.get("/api/messages", requireUser, async (req, res) => {
   }
 });
 
+app.delete("/api/messages/:id", requireUser, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Некорректный id сообщения" });
+    }
+
+    const message = await get(`SELECT * FROM messages WHERE id = ?`, [id]);
+    if (!message) {
+      return res.status(404).json({ success: false, error: "Сообщение не найдено" });
+    }
+
+    if (message.sender !== req.currentUser) {
+      return res.status(403).json({ success: false, error: "Можно удалять только свои сообщения" });
+    }
+
+    await run(`DELETE FROM messages WHERE id = ?`, [id]);
+
+    if (message.mediaUrl) {
+      cleanupLocalUpload(message.mediaUrl);
+    }
+
+    const payload = {
+      type: "messageDeleted",
+      id
+    };
+
+    if (message.receiver === "global") {
+      for (const [, client] of onlineUsers) {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify(payload));
+        }
+      }
+    } else {
+      sendToUser(message.sender, payload);
+      sendToUser(message.receiver, payload);
+    }
+
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ success: false, error: "Ошибка удаления сообщения" });
+  }
+});
+
 app.post("/api/upload", requireUser, upload.single("file"), async (req, res) => {
   try {
     const receiver = normalizeUsername(req.body.receiver || "global");
@@ -1119,10 +1197,12 @@ app.post("/api/upload", requireUser, upload.single("file"), async (req, res) => 
       [sender, receiver, text, mediaType, mediaUrl, createdAt]
     );
 
+    const inserted = await get(`SELECT * FROM messages WHERE id = last_insert_rowid()`);
     const senderProfile = await sanitizeProfileForViewer(sender, sender);
 
     const payload = {
       type: "message",
+      id: inserted?.id,
       sender,
       receiver,
       text,
