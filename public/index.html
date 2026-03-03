@@ -2,283 +2,61 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Uz Messenger — Авторизация</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
-  <style>
-    body {
-      background: #f4f4f5;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      font-family: 'Roboto', sans-serif;
-      margin: 0;
-    }
-
-    .tg-card {
-      width: 100%;
-      max-width: 360px;
-      background: #fff;
-      padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-      text-align: center;
-    }
-
-    .tg-logo {
-      width: 100px;
-      height: 100px;
-      background: #33a6e3;
-      border-radius: 50%;
-      margin: 0 auto 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .tg-logo svg {
-      width: 50px;
-      fill: white;
-    }
-
-    h1 {
-      font-size: 26px;
-      margin: 0 0 10px;
-      color: #1c1c1c;
-    }
-
-    p {
-      color: #707579;
-      font-size: 15px;
-      line-height: 1.4;
-      margin-bottom: 24px;
-    }
-
-    .input-box {
-      position: relative;
-      margin-bottom: 16px;
-    }
-
-    input {
-      width: 100%;
-      padding: 14px 15px;
-      border: 1px solid #dadce0;
-      border-radius: 10px;
-      font-size: 16px;
-      outline: none;
-      box-sizing: border-box;
-      transition: 0.2s;
-    }
-
-    input:focus {
-      border-color: #33a6e3;
-    }
-
-    .btn-main {
-      width: 100%;
-      background: #33a6e3;
-      color: white;
-      border: none;
-      padding: 14px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      text-transform: uppercase;
-      margin-top: 10px;
-    }
-
-    .btn-alt {
-      background: none;
-      border: none;
-      color: #33a6e3;
-      margin-top: 15px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .hint {
-      font-size: 12px;
-      color: #7a7f86;
-      text-align: left;
-      margin-top: -6px;
-      margin-bottom: 10px;
-    }
-
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(12, 20, 31, 0.55);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-      z-index: 9999;
-      animation: fadeIn 0.25s ease;
-    }
-
-    .modal-backdrop.show {
-      display: flex;
-    }
-
-    .blocked-modal {
-      width: 100%;
-      max-width: 400px;
-      background: #ffffff;
-      border-radius: 22px;
-      padding: 22px;
-      box-shadow: 0 18px 50px rgba(0,0,0,0.18);
-      text-align: center;
-      animation: popIn 0.28s ease;
-    }
-
-    .blocked-icon {
-      width: 72px;
-      height: 72px;
-      margin: 0 auto 14px;
-      border-radius: 50%;
-      background: #ffe8e8;
-      color: #d92d2d;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 34px;
-      animation: pulseSoft 1.8s infinite;
-    }
-
-    .blocked-modal h2 {
-      margin: 0 0 10px;
-      color: #1c1c1c;
-      font-size: 24px;
-    }
-
-    .blocked-modal p {
-      margin: 0 0 18px;
-      color: #5f6b78;
-      font-size: 15px;
-      line-height: 1.5;
-    }
-
-    .blocked-btn {
-      width: 100%;
-      border: none;
-      border-radius: 12px;
-      padding: 13px;
-      background: #2481cc;
-      color: white;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    @keyframes popIn {
-      from {
-        opacity: 0;
-        transform: scale(0.92) translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
-    }
-
-    @keyframes pulseSoft {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.06); }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>One Messenger — Вход</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <div class="tg-card">
-    <div class="tg-logo">
-      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM16.64 8.8C16.49 10.38 15.84 14.19 15.51 15.96C15.37 16.71 15.09 16.96 14.82 16.99C14.24 17.04 13.8 16.6 13.24 16.23C12.36 15.65 11.86 15.29 11 14.72C10.01 14.07 10.65 13.71 11.22 13.13C11.37 12.97 13.94 10.63 13.99 10.42C14 10.39 14 10.28 13.93 10.22C13.86 10.16 13.77 10.18 13.71 10.19C13.62 10.21 12.23 11.13 9.53 12.95C9.14 13.22 8.78 13.35 8.46 13.34C8.11 13.33 7.42 13.14 6.91 12.98C6.28 12.77 5.79 12.66 5.83 12.31C5.85 12.13 6.1 11.95 6.58 11.77C9.55 10.47 11.53 9.61 12.51 9.2C15.32 8.03 15.91 7.83 16.29 7.83C16.37 7.83 16.56 7.85 16.68 7.95C16.78 8.03 16.81 8.16 16.82 8.25C16.81 8.32 16.82 8.6 16.64 8.8Z"/></svg>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">OM</div>
+    <h1>One Messenger</h1>
+    <p class="auth-sub">Вход и регистрация без номера телефона. Нужен только @username и 6-значный PIN.</p>
+
+    <label class="auth-label">Username</label>
+    <input id="userInput" class="auth-input" placeholder="@username" autocomplete="username" />
+
+    <label class="auth-label">PIN (6 цифр)</label>
+    <input id="pinInput" class="auth-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="current-password" />
+
+    <div class="auth-actions">
+      <button class="btn-primary" onclick="handleAuth('login')">Войти</button>
+      <button class="btn-ghost" onclick="handleAuth('reg')">Создать аккаунт</button>
     </div>
 
-    <h1>Uz Messenger</h1>
-    <p>Аккаунт сохраняется вместе с чатами. Для входа нужен только юзернейм и 6-значный код.</p>
-
-    <div class="input-box">
-      <input type="text" id="userInput" placeholder="Юзернейм (@username)" />
-    </div>
-
-    <div class="input-box">
-      <input type="password" id="pinInput" placeholder="Цифровой код (6 цифр)" maxlength="6" />
-    </div>
-
-    <div class="hint">
-      При создании аккаунта пользователь задаёт свой 6-значный код. Потом этот код запрашивается при каждом входе.
-    </div>
-
-    <button class="btn-main" onclick="handleAuth('login')">Войти</button>
-    <button class="btn-alt" onclick="handleAuth('reg')">Создать аккаунт</button>
-  </div>
-
-  <div id="blockedModal" class="modal-backdrop">
-    <div class="blocked-modal">
-      <div class="blocked-icon">⛔</div>
-      <h2>Аккаунт заблокирован</h2>
-      <p id="blockedText">Ваш доступ временно ограничен.</p>
-      <button class="blocked-btn" onclick="closeBlockedModal()">Понятно</button>
+    <div class="auth-hint">
+      PIN нужно запомнить. Без него войти нельзя.
     </div>
   </div>
 
   <script>
-    function showBlockedModal(text) {
-      document.getElementById("blockedText").textContent = text || "Ваш доступ временно ограничен.";
-      document.getElementById("blockedModal").classList.add("show");
-    }
-
-    function closeBlockedModal() {
-      document.getElementById("blockedModal").classList.remove("show");
+    function normUser(u) {
+      return String(u || "").trim().replace(/^@+/, "").toLowerCase();
     }
 
     async function handleAuth(type) {
-      const username = document.getElementById('userInput').value.trim();
-      const pin = document.getElementById('pinInput').value.trim();
+      const username = normUser(document.getElementById("userInput").value);
+      const pin = String(document.getElementById("pinInput").value || "").trim();
 
-      if (!username || !pin) {
-        return alert("Заполните все поля!");
+      if (!username || !/^\d{6}$/.test(pin)) {
+        alert("Введите username и PIN из 6 цифр.");
+        return;
       }
 
-      if (!/^\d{6}$/.test(pin)) {
-        return alert("Цифровой код должен быть из 6 цифр.");
+      const res = await fetch(`/api/auth/${type}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, pin })
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(data.error || "Ошибка.");
+        return;
       }
 
-      try {
-        const res = await fetch(`/api/auth/${type}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, pin })
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          localStorage.setItem('user', username.replace(/^@+/, '').toLowerCase());
-          window.location.href = 'chat.html';
-          return;
-        }
-
-        const errText = String(data.error || "");
-
-        if (
-          errText.toLowerCase().includes("заблокирован") ||
-          errText.toLowerCase().includes("ограничен")
-        ) {
-          showBlockedModal(errText);
-          return;
-        }
-
-        alert("Ошибка: " + errText);
-      } catch (err) {
-        alert("Ошибка сервера. Проверьте деплой.");
-      }
+      localStorage.setItem("user", username);
+      location.href = "chat.html";
     }
   </script>
 </body>
