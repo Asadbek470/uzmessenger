@@ -106,6 +106,92 @@
       margin-top: -6px;
       margin-bottom: 10px;
     }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(12, 20, 31, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+      animation: fadeIn 0.25s ease;
+    }
+
+    .modal-backdrop.show {
+      display: flex;
+    }
+
+    .blocked-modal {
+      width: 100%;
+      max-width: 400px;
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+      text-align: center;
+      animation: popIn 0.28s ease;
+    }
+
+    .blocked-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 14px;
+      border-radius: 50%;
+      background: #ffe8e8;
+      color: #d92d2d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      animation: pulseSoft 1.8s infinite;
+    }
+
+    .blocked-modal h2 {
+      margin: 0 0 10px;
+      color: #1c1c1c;
+      font-size: 24px;
+    }
+
+    .blocked-modal p {
+      margin: 0 0 18px;
+      color: #5f6b78;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .blocked-btn {
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      padding: 13px;
+      background: #2481cc;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: scale(0.92) translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
   </style>
 </head>
 <body>
@@ -133,7 +219,25 @@
     <button class="btn-alt" onclick="handleAuth('reg')">Создать аккаунт</button>
   </div>
 
+  <div id="blockedModal" class="modal-backdrop">
+    <div class="blocked-modal">
+      <div class="blocked-icon">⛔</div>
+      <h2>Аккаунт заблокирован</h2>
+      <p id="blockedText">Ваш доступ временно ограничен.</p>
+      <button class="blocked-btn" onclick="closeBlockedModal()">Понятно</button>
+    </div>
+  </div>
+
   <script>
+    function showBlockedModal(text) {
+      document.getElementById("blockedText").textContent = text || "Ваш доступ временно ограничен.";
+      document.getElementById("blockedModal").classList.add("show");
+    }
+
+    function closeBlockedModal() {
+      document.getElementById("blockedModal").classList.remove("show");
+    }
+
     async function handleAuth(type) {
       const username = document.getElementById('userInput').value.trim();
       const pin = document.getElementById('pinInput').value.trim();
@@ -158,9 +262,20 @@
         if (data.success) {
           localStorage.setItem('user', username.replace(/^@+/, '').toLowerCase());
           window.location.href = 'chat.html';
-        } else {
-          alert("Ошибка: " + data.error);
+          return;
         }
+
+        const errText = String(data.error || "");
+
+        if (
+          errText.toLowerCase().includes("заблокирован") ||
+          errText.toLowerCase().includes("ограничен")
+        ) {
+          showBlockedModal(errText);
+          return;
+        }
+
+        alert("Ошибка: " + errText);
       } catch (err) {
         alert("Ошибка сервера. Проверьте деплой.");
       }
