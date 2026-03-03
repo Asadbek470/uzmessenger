@@ -2,37 +2,30 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
   <title>One Messenger</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
 <body onload="initChat()">
-  <div class="app-container">
+  <div class="app">
     <aside class="sidebar active-mobile" id="sidebar">
-      <div class="sidebar-header">
-        <div class="search-container">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="userSearch" placeholder="Поиск @username..." oninput="searchUsers(this.value)" />
+      <div class="side-top">
+        <div class="searchbox">
+          <input id="userSearch" placeholder="Поиск @username или телефон…" oninput="searchUsers(this.value)" />
+        </div>
+
+        <div class="stories">
+          <button class="story-add" onclick="openStoryComposer()">＋</button>
+          <div class="stories-list" id="storiesList"></div>
         </div>
       </div>
 
-      <!-- STORIES STRIP -->
-      <div class="stories-strip" id="storiesStrip">
-        <button class="story-add" onclick="openStoryComposer()" title="Добавить сторис">
-          <i class="fa-solid fa-plus"></i>
-        </button>
-        <div class="stories-list" id="storiesList"></div>
-      </div>
-
-      <div class="chats-list" id="chatsList">
+      <div class="chats" id="chatsList">
         <div class="chat-item active" data-chat="global" onclick="switchChat('global')">
-          <div class="avatar-circle global-avatar">
-            <i class="fa-solid fa-earth-americas"></i>
-          </div>
-          <div class="chat-meta">
-            <span class="name">Общий чат</span>
-            <span class="preview">Напишите сообщение...</span>
+          <div class="avatar">🌍</div>
+          <div class="meta">
+            <div class="name">Общий чат</div>
+            <div class="preview">сообщения для всех</div>
           </div>
         </div>
 
@@ -40,127 +33,100 @@
         <div id="searchResults"></div>
       </div>
 
-      <div class="sidebar-footer">
-        <button class="settings-btn" onclick="openSettings()">
-          <i class="fa-solid fa-circle-user"></i> Настройки профиля
-        </button>
+      <div class="side-bottom">
+        <button class="btn-ghost full" onclick="openSettings()">Настройки профиля</button>
+        <button class="btn-danger full" onclick="logout()">Выйти</button>
       </div>
     </aside>
 
-    <main class="main-chat">
-      <header class="chat-header">
-        <div class="header-left">
-          <button class="back-btn" onclick="toggleSidebarMobile()"><i class="fa-solid fa-chevron-left"></i></button>
-          <div class="current-chat-info" onclick="openCurrentProfile()" style="cursor:pointer;">
-            <h2 id="chatTitle">Общий чат</h2>
-            <span class="status" id="chatStatus">общение со всеми</span>
-          </div>
+    <main class="chat">
+      <header class="topbar">
+        <button class="icon" onclick="toggleSidebarMobile()">☰</button>
+        <div class="title" onclick="openCurrentProfile()">
+          <div id="chatTitle">Общий чат</div>
+          <div id="chatStatus" class="status">общение со всеми</div>
         </div>
-        <div class="header-right">
-          <button class="header-action-btn" id="callBtn" onclick="startCall()" title="Звонок">
-            <i class="fa-solid fa-phone"></i>
-          </button>
-          <i class="fa-solid fa-user" onclick="openCurrentProfile()" title="Профиль"></i>
+        <div class="top-actions">
+          <button class="icon" onclick="startCall()" title="Звонок">📞</button>
         </div>
       </header>
 
-      <!-- Birthday banner (поздравление внутри приложения) -->
-      <section class="birthday-banner hidden" id="birthdayBanner"></section>
+      <section class="msgs" id="messagesContainer"></section>
 
-      <section class="messages-area" id="messagesContainer"></section>
-
-      <footer class="input-panel">
-        <button class="icon-btn attach-btn" onclick="document.getElementById('fileInput').click()" title="Фото/Видео">
-          <i class="fa-solid fa-paperclip"></i>
-        </button>
-
-        <!-- accept включает image/video -->
+      <footer class="inputbar">
         <input type="file" id="fileInput" hidden accept="image/*,video/*" onchange="uploadMedia(this)" />
+        <button class="icon" onclick="document.getElementById('fileInput').click()" title="Фото/Видео">📎</button>
 
-        <div class="text-input-wrapper">
-          <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off" />
-          <button class="emoji-btn" type="button"><i class="fa-regular fa-face-smile"></i></button>
-        </div>
+        <input class="msg-input" id="messageInput" placeholder="Сообщение…" autocomplete="off" />
 
-        <div class="actions-group">
-          <!-- Голосовые: записываем и отправляем -->
-          <button class="icon-btn voice-btn" id="voiceBtn" onclick="toggleAudioRec()" title="Голосовое">
-            <i class="fa-solid fa-microphone"></i>
-          </button>
-
-          <button class="send-btn" onclick="sendText()" title="Отправить">
-            <i class="fa-solid fa-arrow-up"></i>
-          </button>
-        </div>
+        <button class="icon" onclick="toggleAudioRec()" title="Голосовое">🎤</button>
+        <button class="btn-primary send" onclick="sendText()">➤</button>
       </footer>
     </main>
   </div>
 
-  <!-- Remote audio -->
+  <!-- Audio for remote -->
   <audio id="remoteAudio" autoplay playsinline></audio>
 
   <!-- Incoming call -->
-  <div id="incomingCallModal" class="modal-backdrop" style="display:none;">
-    <div class="call-card">
-      <div class="call-icon">📞</div>
+  <div id="incomingCallModal" class="modal" style="display:none;">
+    <div class="modal-card">
       <h3>Входящий звонок</h3>
-      <p id="incomingCallText">@someone звонит тебе</p>
-      <div class="call-actions">
-        <button class="accept-call-btn" onclick="acceptIncomingCall()">Принять</button>
-        <button class="decline-call-btn" onclick="rejectIncomingCall()">Отклонить</button>
+      <p id="incomingCallText">@user звонит</p>
+      <div class="row">
+        <button class="btn-primary" onclick="acceptIncomingCall()">Принять</button>
+        <button class="btn-danger" onclick="rejectIncomingCall()">Отклонить</button>
       </div>
     </div>
   </div>
 
   <!-- Active call -->
-  <div id="activeCallModal" class="modal-backdrop" style="display:none;">
-    <div class="call-card call-card-wide">
-      <div class="call-top">
+  <div id="activeCallModal" class="modal" style="display:none;">
+    <div class="modal-card wide">
+      <div class="row space">
         <div>
-          <div class="call-title" id="activeCallTitle">Звонок</div>
-          <div class="call-status" id="activeCallStatus">Соединение...</div>
+          <div class="big" id="activeCallTitle">Звонок</div>
+          <div class="status" id="activeCallStatus">Соединение…</div>
         </div>
-        <button class="call-close-x" onclick="endCurrentCall()" title="Завершить">✕</button>
+        <button class="icon" onclick="endCurrentCall()">✕</button>
       </div>
 
-      <div class="call-videos">
-        <video id="remoteVideo" class="call-video" autoplay playsinline></video>
-        <video id="localVideo" class="call-video local" autoplay playsinline muted></video>
+      <div class="call-grid">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
       </div>
 
-      <div class="call-actions">
-        <button class="secondary-btn small-btn" id="muteBtn" onclick="toggleMuteCall()">Выключить микрофон</button>
-        <button class="secondary-btn small-btn" id="camBtn" onclick="toggleCamera()">Включить камеру</button>
-        <button class="decline-call-btn" onclick="endCurrentCall()">Завершить</button>
+      <div class="row">
+        <button class="btn-ghost" onclick="toggleMuteCall()">Mute</button>
+        <button class="btn-ghost" onclick="toggleCamera()">Camera</button>
+        <button class="btn-danger" onclick="endCurrentCall()">Завершить</button>
       </div>
     </div>
   </div>
 
-  <!-- STORY COMPOSER -->
-  <div id="storyComposerModal" class="modal-backdrop" style="display:none;">
-    <div class="story-card">
-      <div class="story-head">
-        <div class="story-title">Новая сторис</div>
-        <button class="call-close-x" onclick="closeStoryComposer()">✕</button>
+  <!-- Story composer -->
+  <div id="storyComposerModal" class="modal" style="display:none;">
+    <div class="modal-card">
+      <div class="row space">
+        <h3>Новая сторис</h3>
+        <button class="icon" onclick="closeStoryComposer()">✕</button>
       </div>
 
-      <div class="story-body">
-        <input type="file" id="storyFile" accept="image/*,video/*" />
-        <input type="text" id="storyText" placeholder="Текст (не обязательно)" maxlength="120" />
-        <button class="settings-btn" onclick="publishStory()">Опубликовать</button>
-      </div>
+      <input type="file" id="storyFile" accept="image/*,video/*" />
+      <input class="auth-input" id="storyText" placeholder="Текст (не обязательно)" maxlength="120" />
+      <button class="btn-primary full" onclick="publishStory()">Опубликовать</button>
     </div>
   </div>
 
-  <!-- STORY VIEW -->
-  <div id="storyViewModal" class="modal-backdrop" style="display:none;">
-    <div class="story-view-card">
-      <div class="story-head">
-        <div id="storyViewTitle" class="story-title">Сторис</div>
-        <button class="call-close-x" onclick="closeStoryView()">✕</button>
+  <!-- Story view -->
+  <div id="storyViewModal" class="modal" style="display:none;">
+    <div class="modal-card">
+      <div class="row space">
+        <h3 id="storyViewTitle">Сторис</h3>
+        <button class="icon" onclick="closeStoryView()">✕</button>
       </div>
-      <div id="storyViewContent" class="story-view-content"></div>
-      <div id="storyViewText" class="story-view-text"></div>
+      <div id="storyViewContent"></div>
+      <div class="story-text" id="storyViewText"></div>
     </div>
   </div>
 
