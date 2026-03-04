@@ -1,169 +1,114 @@
-function getAdminToken(){
-  return localStorage.getItem("admin_token") || "";
+let adminToken = localStorage.getItem("adminToken") || "";
+
+function $(id){ return document.getElementById(id); }
+
+function showAdminUI() {
+  $("adminWrap").classList.remove("hidden");
+  document.querySelector(".auth-card").classList.add("hidden");
+  loadUsers();
 }
 
-async function adminLogin(){
-  const username=document.getElementById("adminUser").value.trim();
-  const pin=document.getElementById("adminPin").value.trim();
+function hideAdminUI() {
+  $("adminWrap").classList.add("hidden");
+  document.querySelector(".auth-card").classList.remove("hidden");
+}
 
-  const res=await fetch("/api/admin/login",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({username,pin})
+if (adminToken) showAdminUI();
+
+async function adminLogin() {
+  const user = $("adminUser").value.trim();
+  const pass = $("adminPass").value.trim();
+  $("aerr").textContent = "";
+
+  const r = await fetch("/api/admin/login", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ user, pass })
   });
-
-  const data=await res.json();
-  if(!data.success){alert("Ошибка входа");return;}
-
-  localStorage.setItem("admin_token",data.token);
-  showAdminPanel();
-  loadAdminUsers();
-}
-
-function logoutAdmin(){
-  localStorage.removeItem("admin_token");
-  document.getElementById("loginCard").classList.remove("hidden");
-  document.getElementById("adminPanel").classList.add("hidden");
-}
-
-function showAdminPanel(){
-  document.getElementById("loginCard").classList.add("hidden");
-  document.getElementById("adminPanel").classList.remove("hidden");
-}
-
-async function loadAdminUsers(){
-  const q=document.getElementById("searchAdminUser").value.trim();
-
-  const res=await fetch(`/api/admin/users?q=${encodeURIComponent(q)}`,{
-    headers:{"x-admin-token":getAdminToken()}
-  });
-
-  const data=await res.json();
-  if(!data.success)return;
-
-  const now=Date.now();
-  const list=document.getElementById("usersList");
-
-  list.innerHTML=data.users.map(user=>`
-    <div class="user-row">
-      <div>
-        <b>@${user.username}</b>
-        <div class="flex">
-          ${user.isBanned?`<span class="badge red">Заблокирован</span>`:`<span class="badge green">Активен</span>`}
-          ${user.textBlocked?`<span class="badge blue">Text off</span>`:""}
-          ${user.imageBlocked?`<span class="badge blue">Photo off</span>`:""}
-          ${user.videoBlocked?`<span class="badge blue">Video off</span>`:""}
-          ${user.audioBlocked?`<span class="badge blue">Audio off</span>`:""}
-        </div>
-      </div>
-
-      <div class="flex">
-        <select id="ban_${user.username}">
-          <option value="0">Без бана</option>
-          <option value="86400000">1 день</option>
-          <option value="259200000">3 дня</option>
-          <option value="2592000000">30 дней</option>
-        </select>
-        <button class="btn-danger" onclick="setBan('${user.username}')">Бан</button>
-      </div>
-
-      <div class="flex">
-        <select id="restrictType_${user.username}">
-          <option value="text">Text</option>
-          <option value="image">Photo</option>
-          <option value="video">Video</option>
-          <option value="audio">Audio</option>
-        </select>
-        <select id="restrictTime_${user.username}">
-          <option value="3600000">1 час</option>
-          <option value="86400000">1 день</option>
-          <option value="259200000">3 дня</option>
-        </select>
-        <button class="btn-gray" onclick="setRestriction('${user.username}')">Ограничить</button>
-        <button class="btn-primary" onclick="clearRestrictions('${user.username}')">Снять всё</button>
-      </div>
-    </div>
-  `).join("");
-}
-
-async function setBan(username){
-  const durationMs=Number(document.getElementById(`ban_${username}`).value);
-
-  await fetch("/api/admin/ban",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-admin-token":getAdminToken()
-    },
-    body:JSON.stringify({username,durationMs})
-  });
-
-  loadAdminUsers();
-}
-
-async function setRestriction(username){
-  const type=document.getElementById(`restrictType_${username}`).value;
-  const durationMs=Number(document.getElementById(`restrictTime_${username}`).value);
-
-  await fetch("/api/admin/restrict",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-admin-token":getAdminToken()
-    },
-    body:JSON.stringify({username,type,durationMs})
-  });
-
-  loadAdminUsers();
-}
-
-async function clearRestrictions(username){
-  await fetch("/api/admin/clear",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-admin-token":getAdminToken()
-    },
-    body:JSON.stringify({username})
-  });
-
-  loadAdminUsers();
-}
-
-async function sendOfficial(){
-  const username=document.getElementById("officialUser").value.trim().replace("@","");
-  const text=document.getElementById("officialText").value;
-
-  await fetch("/api/admin/message",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-admin-token":getAdminToken()
-    },
-    body:JSON.stringify({username,text})
-  });
-
-  alert("Отправлено");
-}
-
-async function broadcastAll(){
-  const text=document.getElementById("broadcastText").value;
-
-  await fetch("/api/admin/broadcast",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "x-admin-token":getAdminToken()
-    },
-    body:JSON.stringify({text})
-  });
-
-  alert("Отправлено всем");
-}
-
-window.addEventListener("DOMContentLoaded",()=>{
-  if(getAdminToken()){
-    showAdminPanel();
-    loadAdminUsers();
+  const d = await r.json();
+  if (!d.ok) {
+    $("aerr").textContent = "Неверный логин/пароль";
+    return;
   }
-});
+
+  adminToken = d.token;
+  localStorage.setItem("adminToken", adminToken);
+  showAdminUI();
+}
+
+function adminLogout() {
+  localStorage.removeItem("adminToken");
+  adminToken = "";
+  hideAdminUI();
+}
+
+async function loadUsers() {
+  const r = await fetch("/api/admin/users", {
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  const d = await r.json();
+  if (!d.ok) return alert("Нет доступа");
+
+  const wrap = $("usersTable");
+  wrap.innerHTML = "";
+
+  d.users.forEach(u => {
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const until = Number(u.blockedUntil || 0);
+    const blocked = until > Date.now();
+
+    row.innerHTML = `
+      <div class="ar">
+        <div><b>@${u.username}</b> ${u.displayName ? `(${u.displayName})` : ""}</div>
+        <div class="small">${blocked ? `🚫 Заблокирован до: ${new Date(until).toLocaleString()}` : "✅ Не заблокирован"}</div>
+      </div>
+
+      <div class="ar-controls">
+        <label>Блок (минут)</label>
+        <input type="number" min="0" value="0" data-min="${u.username}" />
+        <button class="btn primary" onclick="applyBlock('${u.username}')">Применить</button>
+      </div>
+
+      <div class="ar-controls">
+        <label><input type="checkbox" ${u.canSendText ? "checked" : ""} data-t="${u.username}" /> Сообщения</label>
+        <label><input type="checkbox" ${u.canSendMedia ? "checked" : ""} data-m="${u.username}" /> Медиа</label>
+        <label><input type="checkbox" ${u.canCall ? "checked" : ""} data-c="${u.username}" /> Звонки</label>
+        <button class="btn ghost" onclick="saveRules('${u.username}')">Сохранить</button>
+      </div>
+    `;
+
+    wrap.appendChild(row);
+  });
+}
+
+async function applyBlock(username) {
+  const inp = document.querySelector(`input[data-min="${username}"]`);
+  const mins = Number(inp.value || 0);
+  const blockedUntil = mins > 0 ? Date.now() + mins * 60 * 1000 : 0;
+
+  await updateUser(username, { blockedUntil });
+  alert("Сохранено");
+  loadUsers();
+}
+
+async function saveRules(username) {
+  const canSendText = !!document.querySelector(`input[data-t="${username}"]`).checked;
+  const canSendMedia = !!document.querySelector(`input[data-m="${username}"]`).checked;
+  const canCall = !!document.querySelector(`input[data-c="${username}"]`).checked;
+
+  await updateUser(username, { canSendText, canSendMedia, canCall });
+  alert("Сохранено");
+  loadUsers();
+}
+
+async function updateUser(username, patch) {
+  const r = await fetch("/api/admin/user/update", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ username, ...patch })
+  });
+  const d = await r.json();
+  if (!d.ok) alert("Ошибка");
+}
