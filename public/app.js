@@ -4,24 +4,27 @@ if (!token) location.href = "index.html";
 let me = null;
 let currentChat = "global";
 let ws = null;
-let wsReady = false;
-let wsQueue = []; // если WS еще не открылся
+let wsQueue = [];
 
 // voice recorder
 let mediaRecorder = null;
 let chunks = [];
 let recording = false;
 
-// WebRTC audio call
+// WebRTC call (audio + optional video)
 let pc = null;
 let localStream = null;
 let remoteStream = null;
 let callPeer = null;
 let isMuted = false;
 
-// incoming call state (замена confirm)
 let pendingOffer = null;
 let pendingFrom = null;
+
+// video state
+let cameraOn = false;
+let facingMode = "user"; // "user" or "environment"
+let videoSender = null; // RTCRtpSender для видео
 
 const rtcCfg = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -38,6 +41,7 @@ function esc(s="") {
     .replaceAll("'","&#039;");
 }
 
+// ---------- init ----------
 async function initApp() {
   await loadMe();
   connectWS();
@@ -49,6 +53,9 @@ async function initApp() {
 
   document.getElementById("callBtn").style.display = "none";
   if (window.innerWidth <= 900) document.getElementById("sidebar").classList.add("mobile-hidden");
+
+  // по умолчанию прячем видео, пока камера не включена
+  syncVideoUI();
 }
 
 async function loadMe() {
@@ -68,7 +75,7 @@ function toggleSidebar() {
   document.getElementById("sidebar").classList.toggle("mobile-hidden");
 }
 
-// ---------------- WS ----------------
+// ---------- WS ----------
 function wsSend(obj) {
   const payload = JSON.stringify(obj);
   if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -87,17 +94,10 @@ function connectWS() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${proto}://${location.host}?token=${encodeURIComponent(token)}`);
 
-  ws.onopen = () => {
-    wsReady = true;
-    flushWsQueue();
-  };
+  ws.onopen = () => flushWsQueue();
 
   ws.onclose = () => {
-    wsReady = false;
-    // мягкая попытка переподключиться (без фанатизма)
-    setTimeout(() => {
-      if (!wsReady) connectWS();
-    }, 1200);
+    setTimeout(() => connectWS(), 1200);
   };
 
   ws.onmessage = async (e) => {
@@ -122,11 +122,11 @@ function connectWS() {
       return;
     }
 
-    // Call signaling
+    // signaling
     if (data.type === "call-offer") return onIncomingOffer(data);
     if (data.type === "call-answer") return onAnswer(data);
     if (data.type === "ice") return onIce(data);
-    if (data.type === "call-end") return onCallEnd(data);
+    if (data.type === "call-end") return onCallEnd();
     if (data.type === "call-reject") return onCallReject(data);
     if (data.type === "call-error") return alert(data.message || "Ошибка звонка");
   };
@@ -134,26 +134,22 @@ function connectWS() {
 
 function shouldRender(msg) {
   if (msg.chatType === "global") return currentChat === "global";
-
   const other = msg.sender === me.username ? msg.receiver : msg.sender;
   return currentChat === other;
 }
 
-// ---------------- CHAT ----------------
+// ---------- CHAT ----------
 async function openChat(chat, load = true) {
   currentChat = chat;
   document.getElementById("chatTitle").textContent = chat === "global" ? "Общий чат" : "@" + chat;
   document.getElementById("chatSub").textContent = chat === "global" ? "общение со всеми" : "личный чат";
 
-  // call button
   document.getElementById("callBtn").style.display = chat === "global" ? "none" : "inline-flex";
 
-  // set active
   document.querySelectorAll(".chatitem").forEach(b => b.classList.remove("active"));
   const btn = document.querySelector(`.chatitem[data-chat="${chat}"]`);
   if (btn) btn.classList.add("active");
 
-  // mobile close sidebar
   if (window.innerWidth <= 900) document.getElementById("sidebar").classList.add("mobile-hidden");
 
   if (load) await loadMessages();
@@ -181,15 +177,10 @@ function renderMessage(m) {
   const mine = m.sender === me.username;
 
   let body = "";
-  if (m.mediaType === "image") {
-    body = `<img class="mimg" src="${m.mediaUrl}" alt="">`;
-  } else if (m.mediaType === "video") {
-    body = `<video class="mvid" controls playsinline src="${m.mediaUrl}"></video>`;
-  } else if (m.mediaType === "audio") {
-    body = `<audio class="maud" controls src="${m.mediaUrl}"></audio>`;
-  } else {
-    body = `<div class="mtext">${esc(m.text || "")}</div>`;
-  }
+  if (m.mediaType === "image") body = `<img class="mimg" src="${m.mediaUrl}" alt="">`;
+  else if (m.mediaType === "video") body = `<video class="mvid" controls playsinline src="${m.mediaUrl}"></video>`;
+  else if (m.mediaType === "audio") body = `<audio class="maud" controls src="${m.mediaUrl}"></audio>`;
+  else body = `<div class="mtext">${esc(m.text || "")}</div>`;
 
   const del = mine ? `<button class="trash" onclick="deleteMsg(${m.id})" title="Удалить"><i class="fa-solid fa-trash"></i></button>` : "";
 
@@ -218,21 +209,14 @@ async function deleteMsg(id) {
   if (!d.ok) alert(d.error || "Ошибка удаления");
 }
 
-function onEnter(e) {
-  if (e.key === "Enter") sendText();
-}
+function onEnter(e) { if (e.key === "Enter") sendText(); }
 
 function sendText() {
   const input = document.getElementById("textInput");
   const text = input.value.trim();
   if (!text) return;
 
-  wsSend({
-    type: "text-message",
-    receiver: currentChat,
-    text
-  });
-
+  wsSend({ type: "text-message", receiver: currentChat, text });
   input.value = "";
 }
 
@@ -248,7 +232,6 @@ async function sendMedia(input) {
   const r = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: fd });
   const d = await r.json();
   if (!d.ok) alert(d.error || "Ошибка медиа");
-
   input.value = "";
 }
 
@@ -276,15 +259,12 @@ async function refreshChats() {
   });
 }
 
-// ---------------- SEARCH ----------------
+// ---------- SEARCH ----------
 async function searchUsers(val) {
   const qraw = String(val || "").trim();
   const results = document.getElementById("searchResults");
 
-  if (!qraw.startsWith("@") || qraw.length < 2) {
-    results.innerHTML = "";
-    return;
-  }
+  if (!qraw.startsWith("@") || qraw.length < 2) { results.innerHTML = ""; return; }
 
   const q = qraw.replace(/^@+/, "");
   const r = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
@@ -307,13 +287,10 @@ async function searchUsers(val) {
   });
 }
 
-// ---------------- PROFILE VIEW ----------------
+// ---------- PROFILE ----------
 async function openCurrentProfile() {
-  if (currentChat === "global") {
-    await openProfile(me.username, true);
-  } else {
-    await openProfile(currentChat, false);
-  }
+  if (currentChat === "global") await openProfile(me.username, true);
+  else await openProfile(currentChat, false);
 }
 
 async function openProfile(username, isMe) {
@@ -332,9 +309,8 @@ async function openProfile(username, isMe) {
   actions.innerHTML = "";
 
   let p = null;
-  if (isMe) {
-    p = me;
-  } else {
+  if (isMe) p = me;
+  else {
     const r = await fetch(`/api/users/${encodeURIComponent(username)}`, { headers: authHeaders() });
     const d = await r.json();
     if (!d.ok) { alert("Не найден"); return closeProfile(); }
@@ -344,7 +320,7 @@ async function openProfile(username, isMe) {
   avatar.innerHTML = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="">` : `<span>${esc((p.displayName||p.username)[0].toUpperCase())}</span>`;
   name.textContent = p.displayName || p.username;
   user.textContent = "@" + p.username;
-  bio.textContent = p.bio ? p.bio : "";
+  bio.textContent = p.bio || "";
   birth.textContent = p.birthDate ? ("🎂 " + p.birthDate) : "";
 
   if (!isMe) {
@@ -362,11 +338,9 @@ async function openProfile(username, isMe) {
   }
 }
 
-function closeProfile() {
-  document.getElementById("profileModal").classList.add("hidden");
-}
+function closeProfile() { document.getElementById("profileModal").classList.add("hidden"); }
 
-// ---------------- SETTINGS ----------------
+// ---------- SETTINGS ----------
 function openSettings() {
   document.getElementById("settingsModal").classList.remove("hidden");
   document.getElementById("setDisplayName").value = me.displayName || "";
@@ -375,9 +349,7 @@ function openSettings() {
   document.getElementById("setAvatarUrl").value = me.avatarUrl || "";
 }
 
-function closeSettings() {
-  document.getElementById("settingsModal").classList.add("hidden");
-}
+function closeSettings() { document.getElementById("settingsModal").classList.add("hidden"); }
 
 async function saveProfile() {
   const displayName = document.getElementById("setDisplayName").value.trim();
@@ -393,9 +365,7 @@ async function saveProfile() {
     fd.append("text", "");
     const r = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: fd });
     const d = await r.json();
-    if (d.ok && d.message && d.message.mediaUrl) {
-      avatarUrl = d.message.mediaUrl;
-    }
+    if (d.ok && d.message && d.message.mediaUrl) avatarUrl = d.message.mediaUrl;
   }
 
   const r2 = await fetch("/api/me", {
@@ -411,7 +381,7 @@ async function saveProfile() {
   alert("Профиль обновлён ✅");
 }
 
-// ---------------- VOICE MESSAGE ----------------
+// ---------- VOICE MESSAGE ----------
 async function toggleVoice() {
   const btn = document.getElementById("voiceBtn");
 
@@ -453,7 +423,7 @@ async function toggleVoice() {
   }
 }
 
-// ---------------- STORIES ----------------
+// ---------- STORIES ----------
 async function loadStories() {
   const r = await fetch("/api/stories", { headers: authHeaders() });
   const d = await r.json();
@@ -482,14 +452,12 @@ function openStoryComposer() {
   document.getElementById("storyFile").value = "";
   document.getElementById("storyText").value = "";
 }
-function closeStoryComposer() {
-  document.getElementById("storyModal").classList.add("hidden");
-}
+
+function closeStoryComposer() { document.getElementById("storyModal").classList.add("hidden"); }
 
 async function publishStory() {
   const file = document.getElementById("storyFile").files[0] || null;
   const text = document.getElementById("storyText").value.trim();
-
   if (!file && !text) return alert("Добавь файл или текст");
 
   const fd = new FormData();
@@ -510,7 +478,7 @@ function viewStory(s) {
   if (s.text) alert(`Сторис @${s.owner}:\n\n${s.text}`);
 }
 
-// ---------------- BIRTHDAYS ----------------
+// ---------- BIRTHDAYS ----------
 async function showBirthdays() {
   const banner = document.getElementById("birthdayBanner");
   const r = await fetch("/api/birthdays/today", { headers: authHeaders() });
@@ -537,32 +505,43 @@ async function showBirthdays() {
   `;
 }
 
-// ---------------- AUDIO CALL (WebRTC) ----------------
+// ===================== CALLS (Audio + Optional Video) =====================
 function openCallModal(title, status) {
   document.getElementById("callModal").classList.remove("hidden");
   document.getElementById("callTitle").textContent = title;
   document.getElementById("callStatus").textContent = status || "Соединение...";
+  syncVideoUI();
 }
 
-function closeCallModal() {
-  document.getElementById("callModal").classList.add("hidden");
-}
+function closeCallModal() { document.getElementById("callModal").classList.add("hidden"); }
 
 function showIncomingModal(from) {
   document.getElementById("incomingCallText").textContent = `@${from} звонит тебе`;
   document.getElementById("incomingCallModal").classList.remove("hidden");
 }
 
-function hideIncomingModal() {
-  document.getElementById("incomingCallModal").classList.add("hidden");
+function hideIncomingModal() { document.getElementById("incomingCallModal").classList.add("hidden"); }
+
+function syncVideoUI() {
+  const localV = document.getElementById("localVideo");
+  const remoteV = document.getElementById("remoteVideo");
+  const camBtn = document.getElementById("camBtn");
+  const flipBtn = document.getElementById("flipBtn");
+
+  if (camBtn) camBtn.textContent = cameraOn ? "Выключить камеру" : "Включить камеру";
+  if (flipBtn) flipBtn.disabled = !cameraOn;
+
+  // можно оставлять remote всегда, но часто красиво прятать если нет видео
+  if (localV) localV.style.display = cameraOn ? "block" : "none";
+  if (remoteV) remoteV.style.display = "block";
 }
 
-async function startAudioCall() {
+async function startCall() {
   if (currentChat === "global") return alert("Звонок только в личном чате");
   if (callPeer) return alert("Звонок уже идет");
 
   callPeer = currentChat;
-  openCallModal(`Аудиозвонок с @${callPeer}`, "Звоним...");
+  openCallModal(`Звонок с @${callPeer}`, "Звоним...");
 
   try {
     await createPeer(callPeer);
@@ -578,15 +557,12 @@ async function startAudioCall() {
 }
 
 async function onIncomingOffer(data) {
-  // если уже в звонке, отклоняем
   if (callPeer) {
     wsSend({ type: "call-reject", to: data.from });
     return;
   }
-
   pendingFrom = data.from;
   pendingOffer = data.offer;
-
   showIncomingModal(pendingFrom);
 }
 
@@ -595,9 +571,8 @@ async function acceptIncomingCall() {
 
   try {
     hideIncomingModal();
-
     callPeer = pendingFrom;
-    openCallModal(`Аудиозвонок с @${callPeer}`, "Подключение...");
+    openCallModal(`Звонок с @${callPeer}`, "Подключение...");
 
     await createPeer(callPeer);
     await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
@@ -634,7 +609,7 @@ async function onIce(data) {
 }
 
 function onCallEnd() {
-  alert(`Звонок завершён`);
+  alert("Звонок завершён");
   cleanupCall();
 }
 
@@ -649,9 +624,16 @@ async function createPeer(peer) {
   remoteStream = new MediaStream();
   document.getElementById("remoteAudio").srcObject = remoteStream;
 
-  // На телефонах важно: playsinline уже есть в HTML, это ок
+  const remoteVideo = document.getElementById("remoteVideo");
+  if (remoteVideo) remoteVideo.srcObject = remoteStream;
+
+  // аудио обязательно
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+  // ВАЖНО: создаём video-трансивер сразу, чтобы потом включать камеру без пересборки SDP
+  const vt = pc.addTransceiver("video", { direction: "sendrecv" });
+  videoSender = vt.sender;
 
   pc.onicecandidate = (ev) => {
     if (ev.candidate) wsSend({ type: "ice", to: peer, candidate: ev.candidate });
@@ -669,8 +651,13 @@ async function createPeer(peer) {
     if (st === "connected") document.getElementById("callStatus").textContent = "Разговор начался ✅";
     if (st === "failed" || st === "disconnected" || st === "closed") cleanupCall();
   };
+
+  cameraOn = false;
+  facingMode = "user";
+  syncVideoUI();
 }
 
+// ----- mic mute -----
 function toggleMute() {
   if (!localStream) return;
   isMuted = !isMuted;
@@ -678,6 +665,89 @@ function toggleMute() {
   document.getElementById("muteBtn").textContent = isMuted ? "Включить микрофон" : "Выключить микрофон";
 }
 
+// ----- camera toggle -----
+async function toggleCamera() {
+  if (!pc || !videoSender) return;
+
+  if (!cameraOn) {
+    try {
+      const vStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode } },
+        audio: false
+      });
+
+      const vTrack = vStream.getVideoTracks()[0];
+
+      // replaceTrack на videoSender
+      await videoSender.replaceTrack(vTrack);
+
+      // показываем local video
+      const localVideo = document.getElementById("localVideo");
+      if (localVideo) {
+        // делаем отдельный stream только с видео (чтобы не мешать аудио)
+        const s = new MediaStream([vTrack]);
+        localVideo.srcObject = s;
+      }
+
+      cameraOn = true;
+      syncVideoUI();
+      document.getElementById("callStatus").textContent = "Камера включена 📷";
+    } catch {
+      alert("Не удалось включить камеру (разрешение/браузер)");
+    }
+    return;
+  }
+
+  // выключаем камеру
+  try {
+    // остановить текущий трек
+    const localVideo = document.getElementById("localVideo");
+    const s = localVideo?.srcObject;
+    if (s && s.getTracks) s.getTracks().forEach(t => t.stop());
+    if (localVideo) localVideo.srcObject = null;
+
+    await videoSender.replaceTrack(null);
+
+    cameraOn = false;
+    syncVideoUI();
+    document.getElementById("callStatus").textContent = "Аудио режим 🎧";
+  } catch {
+    cameraOn = false;
+    syncVideoUI();
+  }
+}
+
+// ----- flip front/back -----
+async function flipCamera() {
+  if (!cameraOn) return;
+  facingMode = (facingMode === "user") ? "environment" : "user";
+
+  // просто берём новый трек и replaceTrack
+  try {
+    const vStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facingMode } },
+      audio: false
+    });
+    const vTrack = vStream.getVideoTracks()[0];
+
+    // остановить старый трек localVideo
+    const localVideo = document.getElementById("localVideo");
+    const old = localVideo?.srcObject;
+    if (old && old.getTracks) old.getTracks().forEach(t => t.stop());
+
+    await videoSender.replaceTrack(vTrack);
+
+    if (localVideo) {
+      localVideo.srcObject = new MediaStream([vTrack]);
+    }
+
+    document.getElementById("callStatus").textContent = (facingMode === "user") ? "Фронтальная камера" : "Задняя камера";
+  } catch {
+    alert("Не удалось переключить камеру");
+  }
+}
+
+// ----- end call -----
 function endCall() {
   if (callPeer) wsSend({ type: "call-end", to: callPeer });
   cleanupCall();
@@ -690,18 +760,40 @@ function cleanupCall() {
   try { pc && pc.close(); } catch {}
   pc = null;
 
+  // остановка local tracks (audio)
   if (localStream) localStream.getTracks().forEach(t => t.stop());
   localStream = null;
 
+  // остановка local video element tracks
+  const localVideo = document.getElementById("localVideo");
+  if (localVideo?.srcObject && localVideo.srcObject.getTracks) {
+    localVideo.srcObject.getTracks().forEach(t => t.stop());
+  }
+  if (localVideo) localVideo.srcObject = null;
+
+  // remote stream
   if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
   remoteStream = null;
 
   callPeer = null;
   isMuted = false;
 
+  // video reset
+  cameraOn = false;
+  facingMode = "user";
+  videoSender = null;
+
   document.getElementById("muteBtn").textContent = "Выключить микрофон";
-  document.getElementById("remoteAudio").srcObject = null;
+  document.getElementById("camBtn").textContent = "Включить камеру";
+  document.getElementById("flipBtn").disabled = true;
+
+  const remoteAudio = document.getElementById("remoteAudio");
+  if (remoteAudio) remoteAudio.srcObject = null;
+
+  const remoteVideo = document.getElementById("remoteVideo");
+  if (remoteVideo) remoteVideo.srcObject = null;
 
   pendingFrom = null;
   pendingOffer = null;
+  syncVideoUI();
 }
