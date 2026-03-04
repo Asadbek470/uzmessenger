@@ -1,352 +1,656 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
 const http = require("http");
 const WebSocket = require("ws");
-const multer = require("multer");
+const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
-const bcrypt = require("bcrypt");
-
-const PORT = process.env.PORT || 3000;
+const multer = require("multer");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-app.use(express.json());
-app.use(express.static("public"));
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_SECRET";
+const ADMIN_USER = process.env.ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.ADMIN_PASS || "090909";
 
-if (!fs.existsSync("uploads")) fs.mkdirSync("uploads");
-app.use("/uploads", express.static("uploads"));
+app.use(express.json({ limit: "30mb" }));
+app.use(express.static(path.join(__dirname, "public")));
 
-const upload = multer({ dest: "uploads/" });
-const db = new sqlite3.Database("./database.db");
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-function normUser(u = "") {
-  return String(u).trim().replace(/^@+/, "").toLowerCase();
-}
+app.use("/uploads", express.static(uploadsDir));
 
-function safeSend(ws, data) {
-  try { ws.send(JSON.stringify(data)); } catch {}
-}
+const upload = multer({ dest: uploadsDir });
+const db = new sqlite3.Database("database.db");
 
-const clients = new Map(); // username -> ws
-
-function broadcast(data) {
-  for (const ws of clients.values()) safeSend(ws, data);
-}
-
-function deliverMessage(msg) {
-  if (msg.receiver === "global") {
-    broadcast(msg);
-    return;
-  }
-  const a = clients.get(msg.receiver);
-  const b = clients.get(msg.sender);
-  if (a) safeSend(a, msg);
-  if (b) safeSend(b, msg);
-}
-
+// ---- DB init / migrations ----
 db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    username TEXT PRIMARY KEY,
-    pinHash TEXT
-  )`);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE,
+      passwordHash TEXT,
+      displayName TEXT DEFAULT '',
+      bio TEXT DEFAULT '',
+      avatarUrl TEXT DEFAULT '',
+      birthDate TEXT DEFAULT '',
+      createdAt INTEGER NOT NULL DEFAULT 0,
 
-  db.run(`CREATE TABLE IF NOT EXISTS profiles (
-    username TEXT PRIMARY KEY,
-    displayName TEXT,
-    bio TEXT,
-    avatar TEXT,
-    phone TEXT
-  )`);
+      blockedUntil INTEGER DEFAULT 0,
+      canSendText INTEGER DEFAULT 1,
+      canSendMedia INTEGER DEFAULT 1,
+      canCall INTEGER DEFAULT 1
+    )
+  `);
 
-  db.run(`CREATE TABLE IF NOT EXISTS messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender TEXT,
-    receiver TEXT,
-    text TEXT,
-    mediaUrl TEXT,
-    mediaType TEXT,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chatType TEXT NOT NULL,          -- 'global' | 'private'
+      user1 TEXT,                      -- для private: участник1
+      user2 TEXT,                      -- для private: участник2
+      sender TEXT NOT NULL,
+      receiver TEXT NOT NULL,          -- 'global' или username собеседника
+      text TEXT DEFAULT '',
+      mediaType TEXT DEFAULT 'text',   -- text|image|video|audio
+      mediaUrl TEXT DEFAULT '',
+      createdAt INTEGER NOT NULL
+    )
+  `);
 
-  db.run(`CREATE TABLE IF NOT EXISTS stories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    owner TEXT,
-    mediaUrl TEXT,
-    mediaType TEXT,
-    text TEXT,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS stories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner TEXT NOT NULL,
+      text TEXT DEFAULT '',
+      mediaType TEXT DEFAULT 'text',
+      mediaUrl TEXT DEFAULT '',
+      createdAt INTEGER NOT NULL,
+      expiresAt INTEGER NOT NULL
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(chatType, user1, user2, createdAt)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_stories_exp ON stories(expiresAt)`);
 });
 
-/* ================= AUTH ================= */
+// ---- helpers ----
+function now() { return Date.now(); }
 
-app.post("/api/auth/reg", async (req, res) => {
-  const username = normUser(req.body.username);
-  const pin = String(req.body.pin || "").trim();
+function signToken(user) {
+  return jwt.sign(
+    { username: user.username },
+    JWT_SECRET,
+    { expiresIn: "14d" }
+  );
+}
 
-  if (!username || !/^\d{6}$/.test(pin)) {
-    return res.json({ success: false, error: "Нужен username и 6-значный PIN." });
+function verifyAuth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
+  if (!token) return res.status(401).json({ ok: false, error: "Нет токена" });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    db.get(`SELECT * FROM users WHERE username = ?`, [decoded.username], (err, user) => {
+      if (!user) return res.status(401).json({ ok: false, error: "Пользователь не найден" });
+
+      if (Number(user.blockedUntil || 0) > now()) {
+        return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+      }
+
+      req.user = user;
+      next();
+    });
+  } catch {
+    return res.status(401).json({ ok: false, error: "Неверный токен" });
+  }
+}
+
+function canUser(user, rule) {
+  if (Number(user.blockedUntil || 0) > now()) return false;
+  if (rule === "text") return Number(user.canSendText) === 1;
+  if (rule === "media") return Number(user.canSendMedia) === 1;
+  if (rule === "call") return Number(user.canCall) === 1;
+  return true;
+}
+
+function guessMediaType(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.startsWith("image/")) return "image";
+  if (m.startsWith("video/")) return "video";
+  if (m.includes("audio")) return "audio";
+  return "file";
+}
+
+function safePublicUser(u) {
+  return {
+    username: u.username,
+    displayName: u.displayName || u.username,
+    bio: u.bio || "",
+    avatarUrl: u.avatarUrl || "",
+    birthDate: u.birthDate || ""
+  };
+}
+
+function cleanupExpiredStories() {
+  db.run(`DELETE FROM stories WHERE expiresAt <= ?`, [now()]);
+}
+setInterval(cleanupExpiredStories, 60 * 1000);
+
+// ---- AUTH ----
+app.post("/api/auth/register", async (req, res) => {
+  const usernameRaw = String(req.body.username || "").trim();
+  const password = String(req.body.password || "").trim();
+  const username = usernameRaw.replace(/^@+/, "").toLowerCase();
+
+  if (!/^[a-z0-9_]{4,20}$/.test(username)) {
+    return res.status(400).json({ ok: false, error: "Юзернейм 4-20: a-z,0-9,_" });
+  }
+  if (password.length < 4) {
+    return res.status(400).json({ ok: false, error: "Пароль слишком короткий" });
   }
 
-  const pinHash = await bcrypt.hash(pin, 10);
+  const hash = await bcrypt.hash(password, 10);
+  const createdAt = now();
 
-  db.run("INSERT INTO users (username, pinHash) VALUES (?,?)", [username, pinHash], err => {
-    if (err) return res.json({ success: false, error: "Такой username уже занят." });
+  db.run(
+    `INSERT INTO users (username, passwordHash, displayName, createdAt) VALUES (?,?,?,?)`,
+    [username, hash, username, createdAt],
+    function (err) {
+      if (err) return res.status(400).json({ ok: false, error: "Юзернейм занят" });
 
-    db.run(
-      "INSERT INTO profiles (username, displayName, bio, avatar, phone) VALUES (?,?,?,?,?)",
-      [username, username, "", "", ""]
-    );
-
-    res.json({ success: true });
-  });
+      db.get(`SELECT * FROM users WHERE username = ?`, [username], (e2, user) => {
+        const token = signToken(user);
+        res.json({ ok: true, token, user: safePublicUser(user) });
+      });
+    }
+  );
 });
 
 app.post("/api/auth/login", (req, res) => {
-  const username = normUser(req.body.username);
-  const pin = String(req.body.pin || "").trim();
+  const identifierRaw = String(req.body.identifier || req.body.username || "").trim();
+  const password = String(req.body.password || "").trim();
+  const username = identifierRaw.replace(/^@+/, "").toLowerCase();
 
-  if (!username || !/^\d{6}$/.test(pin)) {
-    return res.json({ success: false, error: "Нужен username и 6-значный PIN." });
-  }
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
+    if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
 
-  db.get("SELECT * FROM users WHERE username=?", [username], async (err, row) => {
-    if (!row) return res.json({ success: false, error: "Неверный username или PIN." });
+    if (Number(user.blockedUntil || 0) > now()) {
+      return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+    }
 
-    const ok = await bcrypt.compare(pin, row.pinHash);
-    if (!ok) return res.json({ success: false, error: "Неверный username или PIN." });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
 
-    res.json({ success: true });
+    res.json({ ok: true, token: signToken(user), user: safePublicUser(user) });
   });
 });
 
-/* ================= PROFILE ================= */
-
-app.get("/api/me", (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  db.get("SELECT * FROM profiles WHERE username=?", [user], (err, row) => {
-    res.json({ success: true, profile: row || null });
-  });
+// ---- PROFILE ----
+app.get("/api/me", verifyAuth, (req, res) => {
+  res.json({ ok: true, profile: safePublicUser(req.user) });
 });
 
-app.post("/api/me", (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  const displayName = String(req.body.displayName || "").slice(0, 40);
-  const bio = String(req.body.bio || "").slice(0, 160);
-  const phone = String(req.body.phone || "").slice(0, 30);
+app.put("/api/me", verifyAuth, (req, res) => {
+  const displayName = String(req.body.displayName || "").trim().slice(0, 40);
+  const bio = String(req.body.bio || "").trim().slice(0, 200);
+  const birthDate = String(req.body.birthDate || "").trim().slice(0, 20);
+  const avatarUrl = String(req.body.avatarUrl || "").trim().slice(0, 300);
 
   db.run(
-    "UPDATE profiles SET displayName=?, bio=?, phone=? WHERE username=?",
-    [displayName, bio, phone, user],
-    () => res.json({ success: true })
+    `UPDATE users SET displayName=?, bio=?, birthDate=?, avatarUrl=? WHERE username=?`,
+    [displayName, bio, birthDate, avatarUrl, req.user.username],
+    (err) => {
+      if (err) return res.status(500).json({ ok: false, error: "Ошибка обновления" });
+      db.get(`SELECT * FROM users WHERE username=?`, [req.user.username], (e2, user) => {
+        res.json({ ok: true, profile: safePublicUser(user) });
+      });
+    }
   );
 });
 
-/* ================= SEARCH ================= */
+app.get("/api/users/search", verifyAuth, (req, res) => {
+  const q = String(req.query.q || "").trim().replace(/^@+/, "").toLowerCase();
+  if (!q) return res.json({ ok: true, users: [] });
 
-app.get("/api/search", (req, res) => {
-  const qRaw = String(req.query.q || "").trim();
-  if (!qRaw) return res.json([]);
-
-  const q = "%" + qRaw + "%";
   db.all(
-    "SELECT username, displayName, phone FROM profiles WHERE username LIKE ? OR phone LIKE ? LIMIT 30",
-    [q, q],
-    (err, rows) => res.json(rows || [])
+    `SELECT username, displayName, bio, avatarUrl, birthDate
+     FROM users
+     WHERE username LIKE ?
+       AND username != ?
+     ORDER BY username ASC
+     LIMIT 20`,
+    [`%${q}%`, req.user.username],
+    (err, rows) => res.json({ ok: true, users: rows || [] })
   );
 });
 
-/* ================= CHATS ================= */
+app.get("/api/users/:username", verifyAuth, (req, res) => {
+  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  db.get(
+    `SELECT username, displayName, bio, avatarUrl, birthDate FROM users WHERE username=?`,
+    [u],
+    (err, row) => {
+      if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
+      res.json({ ok: true, user: row });
+    }
+  );
+});
 
-app.get("/api/chats", (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  if (!user) return res.json([]);
+// ---- CHATS LIST ----
+app.get("/api/chats", verifyAuth, (req, res) => {
+  const me = req.user.username;
 
   db.all(
     `
-    SELECT
-      CASE WHEN sender = ? THEN receiver ELSE sender END AS chatWith,
-      MAX(id) AS lastId
-    FROM messages
-    WHERE receiver != 'global' AND (sender = ? OR receiver = ?)
-    GROUP BY chatWith
-    ORDER BY lastId DESC
+    SELECT other, MAX(createdAt) AS lastAt
+    FROM (
+      SELECT CASE WHEN sender=? THEN receiver ELSE sender END AS other, createdAt
+      FROM messages
+      WHERE chatType='private' AND (sender=? OR receiver=?)
+    )
+    GROUP BY other
+    ORDER BY lastAt DESC
+    LIMIT 50
     `,
-    [user, user, user],
-    (err, rows) => res.json(rows || [])
+    [me, me, me],
+    (err, rows) => {
+      const others = (rows || []).map(r => r.other).filter(Boolean);
+      if (others.length === 0) return res.json({ ok: true, chats: [] });
+
+      const placeholders = others.map(() => "?").join(",");
+      db.all(
+        `SELECT username, displayName, avatarUrl, bio, birthDate FROM users WHERE username IN (${placeholders})`,
+        others,
+        (e2, users) => {
+          const map = new Map((users || []).map(u => [u.username, u]));
+          // preview
+          db.all(
+            `
+            SELECT id, sender, receiver, text, mediaType, createdAt
+            FROM messages
+            WHERE chatType='private' AND (sender=? OR receiver=?)
+            ORDER BY createdAt DESC
+            LIMIT 200
+            `,
+            [me, me],
+            (e3, msgs) => {
+              const preview = new Map();
+              (msgs || []).forEach(m => {
+                const other = m.sender === me ? m.receiver : m.sender;
+                if (!preview.has(other)) {
+                  preview.set(other, {
+                    text: m.mediaType !== "text" ? `[${m.mediaType}]` : (m.text || ""),
+                    at: m.createdAt
+                  });
+                }
+              });
+
+              const result = others.map(o => {
+                const u = map.get(o) || { username: o, displayName: o, avatarUrl: "", bio: "", birthDate: "" };
+                const p = preview.get(o) || { text: "", at: 0 };
+                return {
+                  username: u.username,
+                  displayName: u.displayName || u.username,
+                  avatarUrl: u.avatarUrl || "",
+                  bio: u.bio || "",
+                  birthDate: u.birthDate || "",
+                  preview: p.text,
+                  lastAt: p.at
+                };
+              });
+
+              res.json({ ok: true, chats: result });
+            }
+          );
+        }
+      );
+    }
   );
 });
 
-/* ================= MESSAGES ================= */
+// ---- MESSAGES ----
+app.get("/api/messages", verifyAuth, (req, res) => {
+  const chat = String(req.query.chat || "global");
+  const me = req.user.username;
 
-app.get("/api/messages", (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  const chatRaw = String(req.query.chat || "global");
-
-  if (chatRaw === "global") {
-    db.all("SELECT * FROM messages WHERE receiver='global' ORDER BY id ASC", (err, rows) => {
-      res.json(rows || []);
-    });
+  if (chat === "global") {
+    db.all(
+      `SELECT * FROM messages WHERE chatType='global' ORDER BY createdAt ASC LIMIT 500`,
+      (err, rows) => res.json({ ok: true, messages: rows || [] })
+    );
     return;
   }
 
-  const chat = normUser(chatRaw);
-
+  const other = chat.replace(/^@+/, "").toLowerCase();
   db.all(
-    `SELECT * FROM messages WHERE
-      (sender=? AND receiver=?) OR
-      (sender=? AND receiver=?)
-     ORDER BY id ASC`,
-    [user, chat, chat, user],
-    (err, rows) => res.json(rows || [])
+    `
+    SELECT * FROM messages
+    WHERE chatType='private'
+      AND (
+        (sender=? AND receiver=?)
+        OR
+        (sender=? AND receiver=?)
+      )
+    ORDER BY createdAt ASC
+    LIMIT 800
+    `,
+    [me, other, other, me],
+    (err, rows) => res.json({ ok: true, messages: rows || [] })
   );
 });
 
-app.delete("/api/messages/:id", (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
+app.delete("/api/messages/:id", verifyAuth, (req, res) => {
   const id = Number(req.params.id);
+  const me = req.user.username;
 
-  db.get("SELECT * FROM messages WHERE id=?", [id], (err, row) => {
-    if (!row) return res.json({ success: false, error: "Не найдено." });
-    if (row.sender !== user) return res.status(403).json({ success: false, error: "Нельзя." });
+  db.get(`SELECT * FROM messages WHERE id=?`, [id], (err, row) => {
+    if (!row) return res.status(404).json({ ok: false, error: "Не найдено" });
+    if (row.sender !== me) return res.status(403).json({ ok: false, error: "Можно удалить только своё" });
 
-    db.run("DELETE FROM messages WHERE id=?", [id], () => {
-      broadcast({ type: "messageDeleted", id });
-      res.json({ success: true });
+    db.run(`DELETE FROM messages WHERE id=?`, [id], (e2) => {
+      if (e2) return res.status(500).json({ ok: false, error: "Ошибка удаления" });
+
+      // notify via ws
+      broadcastToChat(row, { type: "messageDeleted", id });
+      res.json({ ok: true });
     });
   });
 });
 
-/* ================= UPLOAD ================= */
+// ---- UPLOAD (photo/video/audio + avatar + story media) ----
+app.post("/api/upload", verifyAuth, upload.single("file"), (req, res) => {
+  const me = req.user.username;
+  if (!canUser(req.user, "media")) return res.status(403).json({ ok: false, error: "Тебе запрещены медиа" });
 
-app.post("/api/upload", upload.single("file"), (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  const receiverRaw = String(req.body.receiver || "global");
-  const receiver = receiverRaw === "global" ? "global" : normUser(receiverRaw);
+  const receiver = String(req.body.receiver || "global").replace(/^@+/, "").toLowerCase();
+  const chatType = receiver === "global" ? "global" : "private";
+  const text = String(req.body.text || "").trim().slice(0, 2000);
 
-  if (!req.file) return res.json({ success: false, error: "Нет файла." });
+  if (!req.file) return res.status(400).json({ ok: false, error: "Нет файла" });
 
-  const ext = path.extname(req.file.originalname);
-  const filename = req.file.filename + ext;
-  const diskPath = path.join("uploads", filename);
-  fs.renameSync(req.file.path, diskPath);
+  const mediaType = guessMediaType(req.file.mimetype);
+  const ext = path.extname(req.file.originalname) || "";
+  const newName = `${req.file.filename}${ext}`;
+  const newPath = path.join(uploadsDir, newName);
 
-  let mediaType = "image";
-  if (req.file.mimetype.startsWith("video")) mediaType = "video";
-  if (req.file.mimetype.startsWith("audio")) mediaType = "audio";
+  fs.renameSync(req.file.path, newPath);
 
-  const mediaUrl = "/uploads/" + filename;
+  const mediaUrl = `/uploads/${newName}`;
+  const createdAt = now();
 
   db.run(
-    "INSERT INTO messages (sender,receiver,text,mediaUrl,mediaType) VALUES (?,?,?,?,?)",
-    [user, receiver, "", mediaUrl, mediaType],
-    function () {
+    `INSERT INTO messages (chatType,user1,user2,sender,receiver,text,mediaType,mediaUrl,createdAt)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [
+      chatType,
+      chatType === "private" ? me : null,
+      chatType === "private" ? receiver : null,
+      me,
+      receiver === "" ? "global" : receiver,
+      text,
+      mediaType === "file" ? "text" : mediaType,
+      mediaUrl,
+      createdAt
+    ],
+    function (err) {
+      if (err) return res.status(500).json({ ok: false, error: "Ошибка сохранения" });
+
       const msg = {
-        type: "message",
         id: this.lastID,
-        sender: user,
-        receiver,
-        text: "",
+        chatType,
+        sender: me,
+        receiver: receiver === "" ? "global" : receiver,
+        text,
+        mediaType: mediaType === "file" ? "text" : mediaType,
         mediaUrl,
-        mediaType
+        createdAt
       };
-      deliverMessage(msg);
-      res.json({ success: true });
+
+      broadcastToChat(msg, { type: "message", message: msg });
+      res.json({ ok: true, message: msg });
     }
   );
 });
 
-/* ================= STORIES ================= */
-
-app.get("/api/stories", (req, res) => {
-  db.all("SELECT * FROM stories ORDER BY id DESC LIMIT 50", (err, rows) => {
-    res.json(rows || []);
-  });
+// ---- STORIES ----
+app.get("/api/stories", verifyAuth, (req, res) => {
+  cleanupExpiredStories();
+  db.all(
+    `
+    SELECT s.*, u.displayName, u.avatarUrl
+    FROM stories s
+    LEFT JOIN users u ON u.username = s.owner
+    WHERE s.expiresAt > ?
+    ORDER BY s.createdAt DESC
+    LIMIT 200
+    `,
+    [now()],
+    (err, rows) => res.json({ ok: true, stories: rows || [] })
+  );
 });
 
-app.post("/api/stories", upload.single("story"), (req, res) => {
-  const user = normUser(req.headers["x-user"] || "");
-  const text = String(req.body.text || "").slice(0, 120);
+app.post("/api/stories", verifyAuth, upload.single("story"), (req, res) => {
+  const me = req.user.username;
+  const text = String(req.body.text || "").trim().slice(0, 120);
+  const createdAt = now();
+  const expiresAt = createdAt + 24 * 60 * 60 * 1000;
 
+  let mediaType = "text";
   let mediaUrl = "";
-  let mediaType = "";
 
   if (req.file) {
-    const ext = path.extname(req.file.originalname);
-    const filename = req.file.filename + ext;
-    const diskPath = path.join("uploads", filename);
-    fs.renameSync(req.file.path, diskPath);
+    mediaType = guessMediaType(req.file.mimetype);
+    const ext = path.extname(req.file.originalname) || "";
+    const newName = `story-${req.file.filename}${ext}`;
+    const newPath = path.join(uploadsDir, newName);
+    fs.renameSync(req.file.path, newPath);
+    mediaUrl = `/uploads/${newName}`;
+    if (mediaType === "file") mediaType = "text";
+  }
 
-    mediaUrl = "/uploads/" + filename;
-    mediaType = req.file.mimetype.startsWith("video") ? "video" : "image";
+  if (!text && !mediaUrl) {
+    return res.status(400).json({ ok: false, error: "Сторис пустая" });
   }
 
   db.run(
-    "INSERT INTO stories (owner,mediaUrl,mediaType,text) VALUES (?,?,?,?)",
-    [user, mediaUrl, mediaType, text],
-    () => res.json({ success: true })
+    `INSERT INTO stories (owner,text,mediaType,mediaUrl,createdAt,expiresAt) VALUES (?,?,?,?,?,?)`,
+    [me, text, mediaType, mediaUrl, createdAt, expiresAt],
+    function (err) {
+      if (err) return res.status(500).json({ ok: false, error: "Ошибка сторис" });
+      res.json({ ok: true, id: this.lastID });
+    }
   );
 });
 
-/* ================= WEBSOCKET ================= */
-
-wss.on("connection", (ws, req) => {
-  const params = new URLSearchParams(req.url.replace("/?", ""));
-  const user = normUser(params.get("user") || "");
-
-  if (user) clients.set(user, ws);
-
-  ws.on("message", (raw) => {
-    let data;
-    try { data = JSON.parse(raw); } catch { return; }
-
-    // TEXT MESSAGE
-    if (data.type === "text") {
-      const sender = normUser(data.sender);
-      const receiverRaw = String(data.receiver || "global");
-      const receiver = receiverRaw === "global" ? "global" : normUser(receiverRaw);
-      const text = String(data.text || "").slice(0, 4000);
-
-      db.run(
-        "INSERT INTO messages (sender,receiver,text) VALUES (?,?,?)",
-        [sender, receiver, text],
-        function () {
-          const msg = {
-            type: "message",
-            id: this.lastID,
-            sender,
-            receiver,
-            text,
-            mediaUrl: "",
-            mediaType: ""
-          };
-          deliverMessage(msg);
-        }
-      );
-      return;
-    }
-
-    // CALL SIGNALING
-    if (
-      data.type === "call-offer" ||
-      data.type === "call-answer" ||
-      data.type === "ice-candidate" ||
-      data.type === "call-end" ||
-      data.type === "call-decline"
-    ) {
-      const to = normUser(data.to || "");
-      const target = clients.get(to);
-      if (target) safeSend(target, data);
-      return;
-    }
-  });
-
-  ws.on("close", () => {
-    if (user) clients.delete(user);
-  });
+// ---- BIRTHDAYS TODAY ----
+app.get("/api/birthdays/today", verifyAuth, (req, res) => {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  // ожидаем формат birthDate: YYYY-MM-DD
+  db.all(
+    `SELECT username, displayName, avatarUrl, birthDate
+     FROM users
+     WHERE substr(birthDate, 6, 2) = ? AND substr(birthDate, 9, 2) = ?`,
+    [mm, dd],
+    (err, rows) => res.json({ ok: true, list: rows || [] })
+  );
 });
 
-server.listen(PORT, () => console.log("Server running on port", PORT));
+// ---- ADMIN (без чтения переписок) ----
+app.post("/api/admin/login", (req, res) => {
+  const user = String(req.body.user || "");
+  const pass = String(req.body.pass || "");
+  if (user !== ADMIN_USER || pass !== ADMIN_PASS) return res.status(403).json({ ok: false });
+
+  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: "2h" });
+  res.json({ ok: true, token });
+});
+
+function verifyAdmin(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
+  if (!token) return res.status(401).json({ ok: false });
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.admin) return res.status(403).json({ ok: false });
+    next();
+  } catch {
+    return res.status(401).json({ ok: false });
+  }
+}
+
+app.get("/api/admin/users", verifyAdmin, (req, res) => {
+  db.all(
+    `SELECT username, displayName, blockedUntil, canSendText, canSendMedia, canCall FROM users ORDER BY createdAt DESC LIMIT 500`,
+    (err, rows) => res.json({ ok: true, users: rows || [] })
+  );
+});
+
+app.post("/api/admin/user/update", verifyAdmin, (req, res) => {
+  const username = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const blockedUntil = Number(req.body.blockedUntil || 0);
+  const canSendText = req.body.canSendText ? 1 : 0;
+  const canSendMedia = req.body.canSendMedia ? 1 : 0;
+  const canCall = req.body.canCall ? 1 : 0;
+
+  db.run(
+    `UPDATE users SET blockedUntil=?, canSendText=?, canSendMedia=?, canCall=? WHERE username=?`,
+    [blockedUntil, canSendText, canSendMedia, canCall, username],
+    (err) => {
+      if (err) return res.status(500).json({ ok: false });
+      res.json({ ok: true });
+    }
+  );
+});
+
+// ---- WEBSOCKET: messages + audio-call signaling ----
+const online = new Map(); // username -> ws
+
+function wsSend(ws, payload) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+}
+
+function broadcastToChat(messageRow, payload) {
+  // payload: {type:'message', message:{...}} or {type:'messageDeleted', id}
+  if (messageRow.chatType === "global") {
+    for (const ws of online.values()) wsSend(ws, payload);
+    return;
+  }
+  const a = messageRow.sender;
+  const b = messageRow.receiver;
+  wsSend(online.get(a), payload);
+  wsSend(online.get(b), payload);
+}
+
+wss.on("connection", (ws, req) => {
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const token = url.searchParams.get("token") || "";
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const username = String(decoded.username || "");
+
+    db.get(`SELECT * FROM users WHERE username=?`, [username], (err, user) => {
+      if (!user) return ws.close();
+
+      if (Number(user.blockedUntil || 0) > now()) {
+        wsSend(ws, { type: "blocked", until: user.blockedUntil });
+        return ws.close();
+      }
+
+      ws.username = username;
+      online.set(username, ws);
+
+      wsSend(ws, { type: "ws-ready", username });
+
+      ws.on("message", (raw) => {
+        let data;
+        try { data = JSON.parse(raw.toString()); } catch { return; }
+        if (!data || !data.type) return;
+
+        // Audio call signaling (WebRTC audio only)
+        const from = ws.username;
+
+        if (data.type === "call-offer" || data.type === "call-answer" || data.type === "ice" || data.type === "call-end" || data.type === "call-reject") {
+          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
+            if (!fresh || !canUser(fresh, "call")) {
+              return wsSend(ws, { type: "call-error", message: "Тебе запрещены звонки" });
+            }
+            const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
+            const target = online.get(to);
+            if (!target) return wsSend(ws, { type: "call-error", message: "Пользователь не онлайн" });
+
+            wsSend(target, { ...data, from });
+          });
+          return;
+        }
+
+        // Chat text message (через ws)
+        if (data.type === "text-message") {
+          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
+            if (!fresh || !canUser(fresh, "text")) {
+              return wsSend(ws, { type: "moderation", message: "Тебе запрещены сообщения" });
+            }
+
+            const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
+            const chatType = receiver === "global" ? "global" : "private";
+            const text = String(data.text || "").trim().slice(0, 2000);
+            if (!text) return;
+
+            const createdAt = now();
+
+            db.run(
+              `INSERT INTO messages (chatType,user1,user2,sender,receiver,text,mediaType,mediaUrl,createdAt)
+               VALUES (?,?,?,?,?,?,?,?,?)`,
+              [
+                chatType,
+                chatType === "private" ? from : null,
+                chatType === "private" ? receiver : null,
+                from,
+                receiver === "" ? "global" : receiver,
+                text,
+                "text",
+                "",
+                createdAt
+              ],
+              function (err) {
+                if (err) return wsSend(ws, { type: "moderation", message: "Ошибка сохранения" });
+
+                const msg = {
+                  id: this.lastID,
+                  chatType,
+                  sender: from,
+                  receiver: receiver === "" ? "global" : receiver,
+                  text,
+                  mediaType: "text",
+                  mediaUrl: "",
+                  createdAt
+                };
+
+                broadcastToChat(msg, { type: "message", message: msg });
+              }
+            );
+          });
+
+          return;
+        }
+      });
+
+      ws.on("close", () => {
+        if (ws.username) online.delete(ws.username);
+      });
+    });
+  } catch {
+    ws.close();
+  }
+});
+
+server.listen(PORT, () => console.log("Server running on", PORT));
