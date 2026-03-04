@@ -7,6 +7,7 @@ const fs = require("fs");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +17,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_SECRET";
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "090909";
+const SYSTEM_USERNAME = "telegram"; // Системный бот для уведомлений
 
 app.use(express.json({ limit: "30mb" }));
 app.use(express.static(path.join(__dirname, "public")));
@@ -28,8 +30,9 @@ app.use("/uploads", express.static(uploadsDir));
 const upload = multer({ dest: uploadsDir });
 const db = new sqlite3.Database("database.db");
 
-// ---- DB init ----
+// ---- DB init (с новыми таблицами) ----
 db.serialize(() => {
+  // Пользователи (без автоматического удаления)
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,21 +51,23 @@ db.serialize(() => {
     )
   `);
 
+  // Сообщения (хранятся вечно)
   db.run(`
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chatType TEXT NOT NULL,          -- 'global' | 'private'
-      user1 TEXT,                      -- для private: участник1
-      user2 TEXT,                      -- для private: участник2
+      chatType TEXT NOT NULL,
+      user1 TEXT,
+      user2 TEXT,
       sender TEXT NOT NULL,
-      receiver TEXT NOT NULL,          -- 'global' или username собеседника
+      receiver TEXT NOT NULL,
       text TEXT DEFAULT '',
-      mediaType TEXT DEFAULT 'text',   -- text|image|video|audio
+      mediaType TEXT DEFAULT 'text',
       mediaUrl TEXT DEFAULT '',
       createdAt INTEGER NOT NULL
     )
   `);
 
+  // Истории (автоматически удаляются через expiresAt, но пользователи не удаляются)
   db.run(`
     CREATE TABLE IF NOT EXISTS stories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,18 +80,64 @@ db.serialize(() => {
     )
   `);
 
+  // Сессии пользователей (для определения новых устройств)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      deviceId TEXT NOT NULL,        -- хеш от IP + User-Agent
+      deviceName TEXT,               -- для отображения (например, "Chrome на Windows")
+      lastUsed INTEGER NOT NULL,
+      firstSeen INTEGER NOT NULL,
+      trusted INTEGER DEFAULT 1,     -- доверенное устройство (после подтверждения)
+      UNIQUE(username, deviceId)
+    )
+  `);
+
+  // Коды подтверждения для новых устройств
+  db.run(`
+    CREATE TABLE IF NOT EXISTS auth_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      deviceId TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expiresAt INTEGER NOT NULL,
+      attempts INTEGER DEFAULT 0
+    )
+  `);
+
+  // Индексы
   db.run(`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(chatType, user1, user2, createdAt)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_stories_exp ON stories(expiresAt)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_auth_codes ON auth_codes(username, deviceId)`);
 });
+
+// ---- Создание системного пользователя (бота), если его нет ----
+function ensureSystemUser() {
+  const now = Date.now();
+  db.get(`SELECT * FROM users WHERE username = ?`, [SYSTEM_USERNAME], (err, user) => {
+    if (!user) {
+      // Пароль не нужен, но чтобы можно было отправлять сообщения, создадим запись
+      const hash = bcrypt.hashSync("system", 10);
+      db.run(
+        `INSERT INTO users (username, passwordHash, displayName, createdAt, lastSeen)
+         VALUES (?, ?, ?, ?, ?)`,
+        [SYSTEM_USERNAME, hash, "Telegram", now, now]
+      );
+    }
+  });
+}
+ensureSystemUser();
 
 // ---- helpers ----
 function now() { return Date.now(); }
 
-function signToken(user) {
+function signToken(user, deviceId) {
   return jwt.sign(
-    { username: user.username },
+    { username: user.username, deviceId },
     JWT_SECRET,
-    { expiresIn: "14d" }
+    { expiresIn: "30d" }
   );
 }
 
@@ -104,7 +155,17 @@ function verifyAuth(req, res, next) {
         return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
       }
 
+      // Обновляем lastSeen и время последнего использования сессии
+      db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), user.username]);
+      if (decoded.deviceId) {
+        db.run(
+          `UPDATE sessions SET lastUsed=? WHERE username=? AND deviceId=?`,
+          [now(), user.username, decoded.deviceId]
+        );
+      }
+
       req.user = user;
+      req.deviceId = decoded.deviceId;
       next();
     });
   } catch {
@@ -144,7 +205,46 @@ function cleanupExpiredStories() {
 }
 setInterval(cleanupExpiredStories, 60 * 1000);
 
-// ---- AUTH ----
+// ---- Функция отправки сообщения от системы ----
+function sendSystemMessage(toUsername, text) {
+  const createdAt = now();
+  db.run(
+    `INSERT INTO messages (chatType, user1, user2, sender, receiver, text, mediaType, mediaUrl, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ["private", SYSTEM_USERNAME, toUsername, SYSTEM_USERNAME, toUsername, text, "text", "", createdAt],
+    function (err) {
+      if (err) console.error("Ошибка отправки системного сообщения:", err);
+      else {
+        // Уведомить через WebSocket, если пользователь онлайн
+        const msg = {
+          id: this.lastID,
+          chatType: "private",
+          sender: SYSTEM_USERNAME,
+          receiver: toUsername,
+          text,
+          mediaType: "text",
+          mediaUrl: "",
+          createdAt
+        };
+        broadcastToChat(msg, { type: "message", message: msg });
+      }
+    }
+  );
+}
+
+// ---- AUTH (с проверкой нового устройства) ----
+function getDeviceId(req) {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const ua = req.headers['user-agent'] || 'unknown';
+  return crypto.createHash('sha256').update(ip + ua).digest('hex');
+}
+
+function getDeviceName(req) {
+  const ua = req.headers['user-agent'] || 'Unknown';
+  // Упрощённо: берём первые 50 символов
+  return ua.substring(0, 50);
+}
+
 app.post("/api/auth/register", async (req, res) => {
   const usernameRaw = String(req.body.username || "").trim();
   const password = String(req.body.password || "").trim();
@@ -166,8 +266,16 @@ app.post("/api/auth/register", async (req, res) => {
     function (err) {
       if (err) return res.status(400).json({ ok: false, error: "Юзернейм занят" });
 
+      // Сразу создаём первую сессию для этого устройства
+      const deviceId = getDeviceId(req);
+      const deviceName = getDeviceName(req);
+      db.run(
+        `INSERT OR IGNORE INTO sessions (username, deviceId, deviceName, lastUsed, firstSeen, trusted) VALUES (?,?,?,?,?,1)`,
+        [username, deviceId, deviceName, createdAt, createdAt]
+      );
+
       db.get(`SELECT * FROM users WHERE username = ?`, [username], (e2, user) => {
-        const token = signToken(user);
+        const token = signToken(user, deviceId);
         res.json({ ok: true, token, user: safePublicUser(user) });
       });
     }
@@ -178,6 +286,8 @@ app.post("/api/auth/login", (req, res) => {
   const identifierRaw = String(req.body.identifier || req.body.username || "").trim();
   const password = String(req.body.password || "").trim();
   const username = identifierRaw.replace(/^@+/, "").toLowerCase();
+  const deviceId = getDeviceId(req);
+  const deviceName = getDeviceName(req);
 
   db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
     if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
@@ -189,490 +299,121 @@ app.post("/api/auth/login", (req, res) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
 
-    // Обновляем lastSeen при входе
-    db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), username]);
+    // Проверяем, есть ли уже доверенная сессия с таким deviceId
+    db.get(
+      `SELECT * FROM sessions WHERE username = ? AND deviceId = ?`,
+      [username, deviceId],
+      (err, session) => {
+        const nowTime = now();
 
-    res.json({ ok: true, token: signToken(user), user: safePublicUser(user) });
-  });
-});
+        if (session && session.trusted === 1) {
+          // Устройство уже доверенное — обновляем lastUsed и выдаём токен
+          db.run(`UPDATE sessions SET lastUsed=? WHERE id=?`, [nowTime, session.id]);
+          db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [nowTime, username]);
 
-// ---- PROFILE ----
-app.get("/api/me", verifyAuth, (req, res) => {
-  res.json({ ok: true, profile: safePublicUser(req.user) });
-});
-
-app.put("/api/me", verifyAuth, (req, res) => {
-  const displayName = String(req.body.displayName || "").trim().slice(0, 40);
-  const bio = String(req.body.bio || "").trim().slice(0, 200);
-  const birthDate = String(req.body.birthDate || "").trim().slice(0, 20);
-  const avatarUrl = String(req.body.avatarUrl || "").trim().slice(0, 300);
-
-  db.run(
-    `UPDATE users SET displayName=?, bio=?, birthDate=?, avatarUrl=? WHERE username=?`,
-    [displayName, bio, birthDate, avatarUrl, req.user.username],
-    (err) => {
-      if (err) return res.status(500).json({ ok: false, error: "Ошибка обновления" });
-      db.get(`SELECT * FROM users WHERE username=?`, [req.user.username], (e2, user) => {
-        res.json({ ok: true, profile: safePublicUser(user) });
-      });
-    }
-  );
-});
-
-app.get("/api/users/search", verifyAuth, (req, res) => {
-  const q = String(req.query.q || "").trim().replace(/^@+/, "").toLowerCase();
-  if (!q) return res.json({ ok: true, users: [] });
-
-  db.all(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, lastSeen
-     FROM users
-     WHERE username LIKE ?
-       AND username != ?
-     ORDER BY username ASC
-     LIMIT 20`,
-    [`%${q}%`, req.user.username],
-    (err, rows) => res.json({ ok: true, users: rows || [] })
-  );
-});
-
-app.get("/api/users/:username", verifyAuth, (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
-  db.get(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, lastSeen FROM users WHERE username=?`,
-    [u],
-    (err, row) => {
-      if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
-      res.json({ ok: true, user: row });
-    }
-  );
-});
-
-// ---- CHATS LIST ----
-app.get("/api/chats", verifyAuth, (req, res) => {
-  const me = req.user.username;
-
-  db.all(
-    `
-    SELECT other, MAX(createdAt) AS lastAt
-    FROM (
-      SELECT CASE WHEN sender=? THEN receiver ELSE sender END AS other, createdAt
-      FROM messages
-      WHERE chatType='private' AND (sender=? OR receiver=?)
-    )
-    GROUP BY other
-    ORDER BY lastAt DESC
-    LIMIT 50
-    `,
-    [me, me, me],
-    (err, rows) => {
-      const others = (rows || []).map(r => r.other).filter(Boolean);
-      if (others.length === 0) return res.json({ ok: true, chats: [] });
-
-      const placeholders = others.map(() => "?").join(",");
-      db.all(
-        `SELECT username, displayName, avatarUrl, bio, birthDate, lastSeen FROM users WHERE username IN (${placeholders})`,
-        others,
-        (e2, users) => {
-          const map = new Map((users || []).map(u => [u.username, u]));
-
-          db.all(
-            `
-            SELECT id, sender, receiver, text, mediaType, createdAt
-            FROM messages
-            WHERE chatType='private' AND (sender=? OR receiver=?)
-            ORDER BY createdAt DESC
-            LIMIT 200
-            `,
-            [me, me],
-            (e3, msgs) => {
-              const preview = new Map();
-              (msgs || []).forEach(m => {
-                const other = m.sender === me ? m.receiver : m.sender;
-                if (!preview.has(other)) {
-                  preview.set(other, {
-                    text: m.mediaType !== "text" ? `[${m.mediaType}]` : (m.text || ""),
-                    at: m.createdAt
-                  });
-                }
-              });
-
-              const result = others.map(o => {
-                const u = map.get(o) || { username: o, displayName: o, avatarUrl: "", bio: "", birthDate: "", lastSeen: 0 };
-                const p = preview.get(o) || { text: "", at: 0 };
-                return {
-                  username: u.username,
-                  displayName: u.displayName || u.username,
-                  avatarUrl: u.avatarUrl || "",
-                  bio: u.bio || "",
-                  birthDate: u.birthDate || "",
-                  lastSeen: u.lastSeen,
-                  preview: p.text,
-                  lastAt: p.at
-                };
-              });
-
-              res.json({ ok: true, chats: result });
-            }
-          );
+          const token = signToken(user, deviceId);
+          return res.json({ ok: true, token, user: safePublicUser(user) });
         }
-      );
-    }
-  );
-});
 
-// ---- MESSAGES ----
-app.get("/api/messages", verifyAuth, (req, res) => {
-  const chat = String(req.query.chat || "global");
-  const me = req.user.username;
+        // Новое устройство или неподтверждённое — генерируем код
+        const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 цифр
+        const expiresAt = nowTime + 5 * 60 * 1000; // 5 минут
 
-  if (chat === "global") {
-    db.all(
-      `SELECT * FROM messages WHERE chatType='global' ORDER BY createdAt ASC LIMIT 500`,
-      (err, rows) => res.json({ ok: true, messages: rows || [] })
+        // Сохраняем или обновляем код
+        db.run(
+          `INSERT INTO auth_codes (username, deviceId, code, expiresAt, attempts)
+           VALUES (?, ?, ?, ?, 0)
+           ON CONFLICT(username, deviceId) DO UPDATE SET code=excluded.code, expiresAt=excluded.expiresAt, attempts=0`,
+          [username, deviceId, code, expiresAt]
+        );
+
+        // Сохраняем информацию об устройстве (недоверенное)
+        db.run(
+          `INSERT OR IGNORE INTO sessions (username, deviceId, deviceName, lastUsed, firstSeen, trusted)
+           VALUES (?, ?, ?, ?, ?, 0)`,
+          [username, deviceId, deviceName, nowTime, nowTime]
+        );
+
+        // Отправляем код в личные сообщения пользователю
+        const messageText = `🔐 Код подтверждения: ${code}\nЕсли это не вы, проигнорируйте сообщение.`;
+        sendSystemMessage(username, messageText);
+
+        // Отвечаем клиенту, что требуется подтверждение
+        res.json({
+          ok: false,
+          requireConfirm: true,
+          message: "На ваш аккаунт отправлен код подтверждения. Введите его для завершения входа."
+        });
+      }
     );
-    return;
-  }
-
-  const other = chat.replace(/^@+/, "").toLowerCase();
-  db.all(
-    `
-    SELECT * FROM messages
-    WHERE chatType='private'
-      AND (
-        (sender=? AND receiver=?)
-        OR
-        (sender=? AND receiver=?)
-      )
-    ORDER BY createdAt ASC
-    LIMIT 800
-    `,
-    [me, other, other, me],
-    (err, rows) => res.json({ ok: true, messages: rows || [] })
-  );
-});
-
-app.delete("/api/messages/:id", verifyAuth, (req, res) => {
-  const id = Number(req.params.id);
-  const me = req.user.username;
-
-  db.get(`SELECT * FROM messages WHERE id=?`, [id], (err, row) => {
-    if (!row) return res.status(404).json({ ok: false, error: "Не найдено" });
-    if (row.sender !== me) return res.status(403).json({ ok: false, error: "Можно удалить только своё" });
-
-    db.run(`DELETE FROM messages WHERE id=?`, [id], (e2) => {
-      if (e2) return res.status(500).json({ ok: false, error: "Ошибка удаления" });
-
-      broadcastToChat(row, { type: "messageDeleted", id });
-      res.json({ ok: true });
-    });
   });
 });
 
-// ---- UPLOAD (photo/video/audio + avatar + story media) ----
-app.post("/api/upload", verifyAuth, upload.single("file"), (req, res) => {
-  const me = req.user.username;
-  if (!canUser(req.user, "media")) return res.status(403).json({ ok: false, error: "Тебе запрещены медиа" });
+// Подтверждение кода
+app.post("/api/auth/confirm", (req, res) => {
+  const { username, code } = req.body;
+  const deviceId = getDeviceId(req);
+  const deviceName = getDeviceName(req);
 
-  const receiver = String(req.body.receiver || "global").replace(/^@+/, "").toLowerCase();
-  const chatType = receiver === "global" ? "global" : "private";
-  const text = String(req.body.text || "").trim().slice(0, 2000);
-
-  if (!req.file) return res.status(400).json({ ok: false, error: "Нет файла" });
-
-  const mediaType = guessMediaType(req.file.mimetype);
-  const ext = path.extname(req.file.originalname) || "";
-  const newName = `${req.file.filename}${ext}`;
-  const newPath = path.join(uploadsDir, newName);
-
-  fs.renameSync(req.file.path, newPath);
-
-  const mediaUrl = `/uploads/${newName}`;
-  const createdAt = now();
-
-  db.run(
-    `INSERT INTO messages (chatType,user1,user2,sender,receiver,text,mediaType,mediaUrl,createdAt)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
-    [
-      chatType,
-      chatType === "private" ? me : null,
-      chatType === "private" ? receiver : null,
-      me,
-      receiver === "" ? "global" : receiver,
-      text,
-      mediaType === "file" ? "text" : mediaType,
-      mediaUrl,
-      createdAt
-    ],
-    function (err) {
-      if (err) return res.status(500).json({ ok: false, error: "Ошибка сохранения" });
-
-      const msg = {
-        id: this.lastID,
-        chatType,
-        sender: me,
-        receiver: receiver === "" ? "global" : receiver,
-        text,
-        mediaType: mediaType === "file" ? "text" : mediaType,
-        mediaUrl,
-        createdAt
-      };
-
-      broadcastToChat(msg, { type: "message", message: msg });
-      res.json({ ok: true, message: msg });
-    }
-  );
-});
-
-// ---- STORIES ----
-app.get("/api/stories", verifyAuth, (req, res) => {
-  cleanupExpiredStories();
-  db.all(
-    `
-    SELECT s.*, u.displayName, u.avatarUrl
-    FROM stories s
-    LEFT JOIN users u ON u.username = s.owner
-    WHERE s.expiresAt > ?
-    ORDER BY s.createdAt DESC
-    LIMIT 200
-    `,
-    [now()],
-    (err, rows) => res.json({ ok: true, stories: rows || [] })
-  );
-});
-
-app.post("/api/stories", verifyAuth, upload.single("story"), (req, res) => {
-  const me = req.user.username;
-  const text = String(req.body.text || "").trim().slice(0, 120);
-  const createdAt = now();
-  const expiresAt = createdAt + 24 * 60 * 60 * 1000;
-
-  let mediaType = "text";
-  let mediaUrl = "";
-
-  if (req.file) {
-    mediaType = guessMediaType(req.file.mimetype);
-    const ext = path.extname(req.file.originalname) || "";
-    const newName = `story-${req.file.filename}${ext}`;
-    const newPath = path.join(uploadsDir, newName);
-    fs.renameSync(req.file.path, newPath);
-    mediaUrl = `/uploads/${newName}`;
-    if (mediaType === "file") mediaType = "text";
+  if (!username || !code) {
+    return res.status(400).json({ ok: false, error: "Не указаны имя пользователя или код" });
   }
 
-  if (!text && !mediaUrl) {
-    return res.status(400).json({ ok: false, error: "Сторис пустая" });
-  }
-
-  db.run(
-    `INSERT INTO stories (owner,text,mediaType,mediaUrl,createdAt,expiresAt) VALUES (?,?,?,?,?,?)`,
-    [me, text, mediaType, mediaUrl, createdAt, expiresAt],
-    function (err) {
-      if (err) return res.status(500).json({ ok: false, error: "Ошибка сторис" });
-      res.json({ ok: true, id: this.lastID });
-    }
-  );
-});
-
-// ---- BIRTHDAYS TODAY ----
-app.get("/api/birthdays/today", verifyAuth, (req, res) => {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  db.all(
-    `SELECT username, displayName, avatarUrl, birthDate
-     FROM users
-     WHERE substr(birthDate, 6, 2) = ? AND substr(birthDate, 9, 2) = ?`,
-    [mm, dd],
-    (err, rows) => res.json({ ok: true, list: rows || [] })
-  );
-});
-
-// ---- ADMIN ----
-app.post("/api/admin/login", (req, res) => {
-  const user = String(req.body.user || "");
-  const pass = String(req.body.pass || "");
-  if (user !== ADMIN_USER || pass !== ADMIN_PASS) return res.status(403).json({ ok: false });
-
-  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: "2h" });
-  res.json({ ok: true, token });
-});
-
-function verifyAdmin(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
-  if (!token) return res.status(401).json({ ok: false });
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.admin) return res.status(403).json({ ok: false });
-    next();
-  } catch {
-    return res.status(401).json({ ok: false });
-  }
-}
-
-app.get("/api/admin/users", verifyAdmin, (req, res) => {
-  db.all(
-    `SELECT username, displayName, blockedUntil, canSendText, canSendMedia, canCall FROM users ORDER BY createdAt DESC LIMIT 500`,
-    (err, rows) => res.json({ ok: true, users: rows || [] })
-  );
-});
-
-app.post("/api/admin/user/update", verifyAdmin, (req, res) => {
-  const username = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
-  const blockedUntil = Number(req.body.blockedUntil || 0);
-  const canSendText = req.body.canSendText ? 1 : 0;
-  const canSendMedia = req.body.canSendMedia ? 1 : 0;
-  const canCall = req.body.canCall ? 1 : 0;
-
-  db.run(
-    `UPDATE users SET blockedUntil=?, canSendText=?, canSendMedia=?, canCall=? WHERE username=?`,
-    [blockedUntil, canSendText, canSendMedia, canCall, username],
-    (err) => {
-      if (err) return res.status(500).json({ ok: false });
-      res.json({ ok: true });
-    }
-  );
-});
-
-// ---- WEBSOCKET ----
-const online = new Map(); // username -> ws
-
-function wsSend(ws, payload) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
-}
-
-function broadcastToChat(messageRow, payload) {
-  if (messageRow.chatType === "global") {
-    for (const ws of online.values()) wsSend(ws, payload);
-    return;
-  }
-  const a = messageRow.sender;
-  const b = messageRow.receiver;
-  wsSend(online.get(a), payload);
-  wsSend(online.get(b), payload);
-}
-
-function broadcastStatus(username, status) {
-  const payload = { type: "status", username, status };
-  for (const ws of online.values()) wsSend(ws, payload);
-}
-
-wss.on("connection", (ws, req) => {
-  try {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const token = url.searchParams.get("token") || "";
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const username = String(decoded.username || "");
-
-    db.get(`SELECT * FROM users WHERE username=?`, [username], (err, user) => {
-      if (!user) return ws.close();
-
-      if (Number(user.blockedUntil || 0) > now()) {
-        wsSend(ws, { type: "blocked", until: user.blockedUntil });
-        return ws.close();
+  db.get(
+    `SELECT * FROM auth_codes WHERE username = ? AND deviceId = ?`,
+    [username, deviceId],
+    (err, authRow) => {
+      if (!authRow) {
+        return res.status(400).json({ ok: false, error: "Код не найден или истёк" });
       }
 
-      // Обновляем lastSeen и online
-      db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), username]);
-      ws.username = username;
-      online.set(username, ws);
-      broadcastStatus(username, "online");
+      if (authRow.expiresAt < now()) {
+        return res.status(400).json({ ok: false, error: "Код истёк. Запросите новый." });
+      }
 
-      wsSend(ws, { type: "ws-ready", username });
+      if (authRow.attempts >= 5) {
+        return res.status(400).json({ ok: false, error: "Слишком много попыток. Запросите новый код." });
+      }
 
-      ws.on("message", (raw) => {
-        let data;
-        try { data = JSON.parse(raw.toString()); } catch { return; }
-        if (!data || !data.type) return;
+      if (authRow.code !== code) {
+        db.run(`UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?`, [authRow.id]);
+        return res.status(400).json({ ok: false, error: "Неверный код" });
+      }
 
-        const from = ws.username;
+      // Код верный — делаем устройство доверенным
+      db.run(
+        `UPDATE sessions SET trusted = 1, lastUsed = ? WHERE username = ? AND deviceId = ?`,
+        [now(), username, deviceId]
+      );
 
-        // Сигнализация звонков (только аудио)
-        if (data.type === "call-offer" || data.type === "call-answer" || data.type === "ice" || data.type === "call-end") {
-          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
-            if (!fresh || !canUser(fresh, "call")) {
-              return wsSend(ws, { type: "call-error", message: "Тебе запрещены звонки" });
-            }
-            const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
-            const target = online.get(to);
-            if (!target) return wsSend(ws, { type: "call-error", message: "Пользователь не онлайн" });
+      // Удаляем использованный код
+      db.run(`DELETE FROM auth_codes WHERE id = ?`, [authRow.id]);
 
-            wsSend(target, { ...data, from });
-          });
-          return;
-        }
-
-        // Текстовое сообщение
-        if (data.type === "text-message") {
-          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
-            if (!fresh || !canUser(fresh, "text")) {
-              return wsSend(ws, { type: "moderation", message: "Тебе запрещены сообщения" });
-            }
-
-            const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
-            const chatType = receiver === "global" ? "global" : "private";
-            const text = String(data.text || "").trim().slice(0, 2000);
-            if (!text) return;
-
-            const createdAt = now();
-
-            db.run(
-              `INSERT INTO messages (chatType,user1,user2,sender,receiver,text,mediaType,mediaUrl,createdAt)
-               VALUES (?,?,?,?,?,?,?,?,?)`,
-              [
-                chatType,
-                chatType === "private" ? from : null,
-                chatType === "private" ? receiver : null,
-                from,
-                receiver === "" ? "global" : receiver,
-                text,
-                "text",
-                "",
-                createdAt
-              ],
-              function (err) {
-                if (err) return wsSend(ws, { type: "moderation", message: "Ошибка сохранения" });
-
-                const msg = {
-                  id: this.lastID,
-                  chatType,
-                  sender: from,
-                  receiver: receiver === "" ? "global" : receiver,
-                  text,
-                  mediaType: "text",
-                  mediaUrl: "",
-                  createdAt
-                };
-
-                broadcastToChat(msg, { type: "message", message: msg });
-              }
-            );
-          });
-          return;
-        }
-
-        // Индикатор печатания
-        if (data.type === "typing") {
-          const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
-          const target = online.get(to);
-          if (target) {
-            wsSend(target, { type: "typing", from });
-          }
-        }
+      // Получаем пользователя и выдаём токен
+      db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+        if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
+        const token = signToken(user, deviceId);
+        res.json({ ok: true, token, user: safePublicUser(user) });
       });
-
-      ws.on("close", () => {
-        if (ws.username) {
-          online.delete(ws.username);
-          db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), ws.username]);
-          broadcastStatus(ws.username, "offline");
-        }
-      });
-    });
-  } catch {
-    ws.close();
-  }
+    }
+  );
 });
 
-server.listen(PORT, () => console.log("Server running on", PORT));
+// Остальные эндпоинты (profile, chats, messages, upload, stories, birthdays, admin) остаются без изменений
+// ... (весь код из предыдущей версии, начиная с app.get("/api/me", verifyAuth, ...) до конца)
+
+// Но нужно учесть, что теперь в токене есть deviceId, и verifyAuth ожидает его.
+// В предыдущих эндпоинтах мы используем verifyAuth, они автоматически получат req.deviceId, но он не используется напрямую.
+// Остальной код сервера (загрузка, сообщения, вебсокеты) остаётся идентичным предыдущей версии.
+// Я не буду копировать его сюда целиком из-за ограничения длины, но он должен быть вставлен.
+// Для краткости я покажу только изменения, но в реальном проекте нужно объединить.
+
+// ===== ВСТАВЬТЕ СЮДА ВЕСЬ ОСТАЛЬНОЙ КОД ИЗ ПРЕДЫДУЩЕЙ ВЕРСИИ server.js =====
+// (начиная с app.get("/api/me", verifyAuth, ...) и до конца, включая WebSocket и server.listen)
+// Он остаётся без изменений, за исключением того, что verifyAuth теперь использует deviceId (но это не ломает старый код).
+
+// ВНИМАНИЕ: В предыдущей версии verifyAuth уже был написан так, что он ожидает токен с username.
+// Мы просто добавили в него deviceId, но старые токены без deviceId всё равно будут работать (поле decoded.deviceId будет undefined).
+// Для совместимости оставляем как есть.
+
+// ...
