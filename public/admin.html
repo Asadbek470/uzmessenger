@@ -1,125 +1,37 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>One Messenger — Admin</title>
-
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  font-family:system-ui;
-  background:#0b1220;
-  color:#e5e7eb;
-  padding:20px;
-}
-.hidden{display:none}
-
-.card{
-  background:#111a2a;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:18px;
-  padding:18px;
-  margin-bottom:20px;
-}
-
-h1,h2{margin-bottom:12px}
-
-input,select,textarea{
-  width:100%;
-  padding:10px;
-  margin-top:8px;
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.08);
-  background:#0f172a;
-  color:white;
-  outline:none;
-}
-
-textarea{resize:vertical;min-height:80px}
-
-button{
-  margin-top:10px;
-  padding:10px 14px;
-  border-radius:12px;
-  border:none;
-  font-weight:700;
-  cursor:pointer;
-}
-
-.btn-primary{background:#2AABEE;color:#08121f}
-.btn-danger{background:#ef4444;color:white}
-.btn-gray{background:#334155;color:white}
-.btn-full{width:100%}
-
-.user-row{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  padding:12px;
-  border:1px solid rgba(255,255,255,.08);
-  border-radius:14px;
-  margin-top:10px;
-}
-
-.badge{
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:999px;
-  font-size:12px;
-  margin-right:6px;
-  background:#1f2937;
-}
-.badge.red{background:#7f1d1d}
-.badge.blue{background:#1e3a8a}
-.badge.green{background:#14532d}
-
-.flex{display:flex;gap:8px;flex-wrap:wrap}
-.space{justify-content:space-between;align-items:center}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — One Messenger</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="auth-body">
+  <div class="auth-card">
+    <h1>Admin Panel</h1>
+    <p>Только блокировки и ограничения</p>
 
-<!-- LOGIN -->
-<div id="loginCard" class="card">
-  <h2>Admin Login</h2>
-  <input id="adminUser" placeholder="Username">
-  <input id="adminPin" type="password" placeholder="PIN">
-  <button class="btn-primary btn-full" onclick="adminLogin()">Войти</button>
-</div>
+    <div class="form">
+      <label>Логин</label>
+      <input id="adminUser" placeholder="admin" />
 
-<!-- PANEL -->
-<div id="adminPanel" class="hidden">
+      <label>Пароль</label>
+      <input id="adminPass" type="password" placeholder="090909" />
 
-  <div class="card flex space">
-    <h1>Control Center</h1>
-    <button class="btn-danger" onclick="logoutAdmin()">Выйти</button>
+      <button class="btn primary" onclick="adminLogin()">Войти</button>
+      <div id="aerr" class="error"></div>
+    </div>
   </div>
 
-  <!-- Official message -->
-  <div class="card">
-    <h2>Официальное сообщение</h2>
-    <input id="officialUser" placeholder="@username">
-    <textarea id="officialText" placeholder="Текст сообщения..."></textarea>
-    <button class="btn-primary" onclick="sendOfficial()">Отправить</button>
+  <div class="admin-wrap hidden" id="adminWrap">
+    <div class="admin-top">
+      <h2>Пользователи</h2>
+      <button class="btn ghost" onclick="adminLogout()">Выйти</button>
+    </div>
+
+    <div id="usersTable" class="admin-table"></div>
   </div>
 
-  <!-- Broadcast -->
-  <div class="card">
-    <h2>Массовая рассылка</h2>
-    <textarea id="broadcastText" placeholder="Сообщение для всех пользователей..."></textarea>
-    <button class="btn-primary" onclick="broadcastAll()">Отправить всем</button>
-  </div>
-
-  <!-- Users -->
-  <div class="card">
-    <h2>Пользователи</h2>
-    <input id="searchAdminUser" placeholder="Поиск..." oninput="loadAdminUsers()">
-    <div id="usersList"></div>
-  </div>
-
-</div>
-
-<script src="admin.js"></script>
+  <script src="admin.js"></script>
 </body>
 </html>
