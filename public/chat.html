@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
 </head>
-<body onload="initApp()">
+<body>
   <div class="app">
     <aside id="sidebar" class="sidebar">
       <div class="side-top">
@@ -24,8 +24,8 @@
         </div>
       </div>
 
-      <div class="chatlist" id="chatList">
-        <button class="chatitem active" data-chat="global" onclick="openChat('global')">
+      <div class="chatlist">
+        <button class="chatitem active" data-chat="global" data-username="global" onclick="openChat('global')">
           <div class="avatar circle"><i class="fa-solid fa-earth-americas"></i></div>
           <div class="meta">
             <div class="name">Общий чат</div>
@@ -54,7 +54,7 @@
         </div>
 
         <div class="actions">
-          <button id="callBtn" class="iconbtn" onclick="startCall()" title="Звонок (аудио + камера)">
+          <button id="callBtn" class="iconbtn" onclick="startCall()" title="Аудиозвонок">
             <i class="fa-solid fa-phone"></i>
           </button>
           <button class="iconbtn" onclick="logout()" title="Выйти">
@@ -75,7 +75,7 @@
 
         <input id="textInput" class="text" placeholder="Сообщение..." onkeydown="onEnter(event)" />
 
-        <button id="voiceBtn" class="iconbtn" onclick="toggleVoice()" title="Голосовое">
+        <button id="voiceBtn" class="iconbtn" title="Голосовое (удерживать)">
           <i class="fa-solid fa-microphone"></i>
         </button>
 
@@ -157,7 +157,7 @@
     </div>
   </div>
 
-  <!-- REMOTE AUDIO -->
+  <!-- REMOTE AUDIO (для звонков) -->
   <audio id="remoteAudio" autoplay playsinline></audio>
 
   <!-- INCOMING CALL MODAL -->
@@ -177,7 +177,7 @@
     </div>
   </div>
 
-  <!-- ACTIVE CALL MODAL (Audio + Camera switch) -->
+  <!-- ACTIVE CALL MODAL (только аудио) -->
   <div id="callModal" class="modal hidden">
     <div class="card callcard">
       <div class="cardtop">
@@ -188,15 +188,8 @@
       <div class="callbody">
         <div id="callStatus" class="callstatus">Соединение...</div>
 
-        <div class="callvideos">
-          <video id="remoteVideo" autoplay playsinline class="callvideo"></video>
-          <video id="localVideo" autoplay playsinline muted class="callvideo local"></video>
-        </div>
-
         <div class="row">
           <button id="muteBtn" class="btn ghost" onclick="toggleMute()">Выключить микрофон</button>
-          <button id="camBtn" class="btn ghost" onclick="toggleCamera()">Включить камеру</button>
-          <button id="flipBtn" class="btn ghost" onclick="flipCamera()" disabled>Повернуть камеру</button>
         </div>
 
         <div class="row">
