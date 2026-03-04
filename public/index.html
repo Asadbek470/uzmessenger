@@ -2,60 +2,75 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>One Messenger — Вход</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="auth-page">
+<body class="auth-body">
   <div class="auth-card">
-    <div class="auth-logo">OM</div>
     <h1>One Messenger</h1>
-    <p class="auth-sub">Вход и регистрация без номера телефона. Нужен только @username и 6-значный PIN.</p>
+    <p>Вход без номера телефона</p>
 
-    <label class="auth-label">Username</label>
-    <input id="userInput" class="auth-input" placeholder="@username" autocomplete="username" />
-
-    <label class="auth-label">PIN (6 цифр)</label>
-    <input id="pinInput" class="auth-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="current-password" />
-
-    <div class="auth-actions">
-      <button class="btn-primary" onclick="handleAuth('login')">Войти</button>
-      <button class="btn-ghost" onclick="handleAuth('reg')">Создать аккаунт</button>
+    <div class="tabs">
+      <button id="tabLogin" class="tab active" onclick="setTab('login')">Войти</button>
+      <button id="tabReg" class="tab" onclick="setTab('reg')">Регистрация</button>
     </div>
 
-    <div class="auth-hint">
-      PIN нужно запомнить. Без него войти нельзя.
+    <div class="form">
+      <label>@username</label>
+      <input id="identifier" placeholder="asadbек000" autocomplete="username" />
+
+      <label>Пароль</label>
+      <input id="password" type="password" placeholder="••••" autocomplete="current-password" />
+
+      <button class="btn primary" onclick="submitAuth()">Продолжить</button>
+      <div id="authError" class="error"></div>
+    </div>
+
+    <div class="hint">
+      Юзернейм: 4-20 символов (a-z, 0-9, _)
     </div>
   </div>
 
   <script>
-    function normUser(u) {
-      return String(u || "").trim().replace(/^@+/, "").toLowerCase();
+    let mode = "login";
+    function setTab(m) {
+      mode = m;
+      document.getElementById("tabLogin").classList.toggle("active", m === "login");
+      document.getElementById("tabReg").classList.toggle("active", m === "reg");
+      document.getElementById("authError").textContent = "";
     }
 
-    async function handleAuth(type) {
-      const username = normUser(document.getElementById("userInput").value);
-      const pin = String(document.getElementById("pinInput").value || "").trim();
+    async function submitAuth() {
+      const identifier = document.getElementById("identifier").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const errEl = document.getElementById("authError");
+      errEl.textContent = "";
 
-      if (!username || !/^\d{6}$/.test(pin)) {
-        alert("Введите username и PIN из 6 цифр.");
+      if (!identifier || !password) {
+        errEl.textContent = "Заполни все поля";
         return;
       }
 
-      const res = await fetch(`/api/auth/${type}`, {
+      const url = mode === "reg" ? "/api/auth/register" : "/api/auth/login";
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, pin })
+        body: JSON.stringify(mode === "reg"
+          ? { username: identifier, password }
+          : { identifier, password }
+        )
       });
 
       const data = await res.json();
-
-      if (!data.success) {
-        alert(data.error || "Ошибка.");
+      if (!data.ok) {
+        errEl.textContent = data.error || "Ошибка";
         return;
       }
 
-      localStorage.setItem("user", username);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("me", JSON.stringify(data.user));
       location.href = "chat.html";
     }
   </script>
