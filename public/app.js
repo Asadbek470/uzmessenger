@@ -1,597 +1,644 @@
-let socket;
-let currentUser = localStorage.getItem("user");
+let token = localStorage.getItem("token");
+if (!token) location.href = "index.html";
+
+let me = null;
 let currentChat = "global";
+let ws = null;
 
+// voice recorder
 let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
+let chunks = [];
+let recording = false;
 
-let peerConnection = null;
+// WebRTC audio call
+let pc = null;
 let localStream = null;
-let currentCallPeer = null;
-
-let pendingIncomingOffer = null;
-let pendingIncomingFrom = null;
-
+let remoteStream = null;
+let callPeer = null;
 let isMuted = false;
-let cameraOn = false;
 
-const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const rtcCfg = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
-if (!currentUser) location.href = "index.html";
-
-function headers() { return { "x-user": currentUser }; }
-
-function escapeHtml(text = "") {
-  return String(text).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+function authHeaders() {
+  return { Authorization: `Bearer ${token}` };
 }
 
-/* ================= INIT ================= */
+function esc(s="") {
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
-function initChat() {
+async function initApp() {
+  await loadMe();
   connectWS();
-  loadChatList();
-  switchChat("global");
-  loadStories();
 
-  const input = document.getElementById("messageInput");
-  input.addEventListener("keydown", e => {
-    if (e.key === "Enter") sendText();
-  });
+  openChat("global", false);
+  await refreshChats();
+  await loadStories();
+  await showBirthdays();
+
+  document.getElementById("callBtn").style.display = "none";
+  if (window.innerWidth <= 900) document.getElementById("sidebar").classList.add("mobile-hidden");
 }
 
-/* ================= WS ================= */
+async function loadMe() {
+  const r = await fetch("/api/me", { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return logout();
+  me = d.profile;
+}
 
+function logout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("me");
+  location.href = "index.html";
+}
+
+function toggleSidebar() {
+  document.getElementById("sidebar").classList.toggle("mobile-hidden");
+}
+
+// ---------------- WS ----------------
 function connectWS() {
-  const protocol = location.protocol === "https:" ? "wss" : "ws";
-  socket = new WebSocket(`${protocol}://${location.host}?user=${currentUser}`);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}?token=${encodeURIComponent(token)}`);
 
-  socket.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
+  ws.onmessage = async (e) => {
+    const data = JSON.parse(e.data);
 
-    if (msg.type === "call-offer") return onIncomingOffer(msg);
-    if (msg.type === "call-answer") return onCallAnswer(msg);
-    if (msg.type === "ice-candidate") return onIce(msg);
-    if (msg.type === "call-end") return cleanupCall();
-    if (msg.type === "call-decline") return cleanupCall();
-
-    if (msg.type === "messageDeleted") {
-      document.querySelector(`[data-message-id="${msg.id}"]`)?.remove();
+    if (data.type === "blocked") {
+      alert("Аккаунт заблокирован");
+      logout();
       return;
     }
 
-    if (msg.type !== "message") return;
-
-    // message visibility
-    const to = msg.receiver || "global";
-
-    if (to === "global" && currentChat === "global") renderMessage(msg);
-
-    if (to !== "global") {
-      const visible =
-        (msg.sender === currentChat && to === currentUser) ||
-        (msg.sender === currentUser && to === currentChat);
-
-      if (visible) renderMessage(msg);
+    if (data.type === "message") {
+      const msg = data.message;
+      if (shouldRender(msg)) renderMessage(msg);
+      await refreshChats();
+      return;
     }
 
-    loadChatList();
+    if (data.type === "messageDeleted") {
+      const el = document.querySelector(`[data-mid="${data.id}"]`);
+      if (el) el.remove();
+      return;
+    }
+
+    // Call signaling
+    if (data.type === "call-offer") return onIncomingOffer(data);
+    if (data.type === "call-answer") return onAnswer(data);
+    if (data.type === "ice") return onIce(data);
+    if (data.type === "call-end") return onCallEnd(data);
+    if (data.type === "call-reject") return onCallReject(data);
+    if (data.type === "call-error") return alert(data.message || "Ошибка звонка");
   };
 }
 
-/* ================= CHATS & MESSAGES ================= */
+function shouldRender(msg) {
+  if (msg.chatType === "global") return currentChat === "global";
 
-async function loadChatList() {
-  const res = await fetch("/api/chats", { headers: headers() });
-  const chats = await res.json();
-
-  const block = document.getElementById("privateChatsBlock");
-  block.innerHTML = "";
-
-  chats.forEach(c => {
-    const u = c.chatWith;
-    if (!u) return;
-
-    const item = document.createElement("div");
-    item.className = "chat-item";
-    item.dataset.chat = u;
-    item.onclick = () => switchChat(u);
-
-    item.innerHTML = `
-      <div class="avatar">${escapeHtml((u[0] || "?").toUpperCase())}</div>
-      <div class="meta">
-        <div class="name">@${escapeHtml(u)}</div>
-        <div class="preview">Открыть чат</div>
-      </div>
-    `;
-
-    block.appendChild(item);
-  });
-
-  document.querySelectorAll(".chat-item").forEach(el => {
-    el.classList.toggle("active", el.dataset.chat === currentChat);
-  });
+  const other = msg.sender === me.username ? msg.receiver : msg.sender;
+  return currentChat === other;
 }
 
-function switchChat(chat) {
+// ---------------- CHAT ----------------
+async function openChat(chat, load = true) {
   currentChat = chat;
+  document.getElementById("chatTitle").textContent = chat === "global" ? "Общий чат" : "@" + chat;
+  document.getElementById("chatSub").textContent = chat === "global" ? "общение со всеми" : "личный чат";
 
-  document.getElementById("chatTitle").textContent =
-    chat === "global" ? "Общий чат" : "@" + chat;
+  // call button
+  document.getElementById("callBtn").style.display = chat === "global" ? "none" : "inline-flex";
 
-  document.getElementById("chatStatus").textContent =
-    chat === "global" ? "общение со всеми" : "личная переписка";
+  // set active
+  document.querySelectorAll(".chatitem").forEach(b => b.classList.remove("active"));
+  const btn = document.querySelector(`.chatitem[data-chat="${chat}"]`);
+  if (btn) btn.classList.add("active");
 
-  document.querySelectorAll(".chat-item").forEach(el => {
-    el.classList.toggle("active", el.dataset.chat === currentChat);
-  });
+  // mobile close sidebar
+  if (window.innerWidth <= 900) document.getElementById("sidebar").classList.add("mobile-hidden");
 
-  loadMessages(chat);
-
-  if (window.innerWidth <= 768) {
-    document.getElementById("sidebar")?.classList.remove("active-mobile");
-  }
+  if (load) await loadMessages();
 }
 
-async function loadMessages(chatName) {
-  const container = document.getElementById("messagesContainer");
-  container.innerHTML = "";
+async function loadMessages() {
+  const box = document.getElementById("messages");
+  box.innerHTML = "";
 
-  const res = await fetch(`/api/messages?chat=${encodeURIComponent(chatName)}`, { headers: headers() });
-  const messages = await res.json();
-  messages.forEach(renderMessage);
-  scrollBottom();
-}
+  const r = await fetch(`/api/messages?chat=${encodeURIComponent(currentChat)}`, { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return;
 
-function renderMessage(msg) {
-  const container = document.getElementById("messagesContainer");
-  const mine = msg.sender === currentUser;
-
-  let content = "";
-  if (msg.mediaType === "image") {
-    content = `<img class="msg-image" src="${msg.mediaUrl}" />`;
-  } else if (msg.mediaType === "video") {
-    content = `<video controls playsinline src="${msg.mediaUrl}"></video>`;
-  } else if (msg.mediaType === "audio") {
-    content = `<audio controls src="${msg.mediaUrl}"></audio>`;
-  } else {
-    content = `<div class="msg-text">${escapeHtml(msg.text)}</div>`;
-  }
-
-  const row = document.createElement("div");
-  row.className = `row-msg ${mine ? "mine" : ""}`;
-  row.dataset.messageId = msg.id;
-
-  row.innerHTML = `
-    <div class="bubble">
-      <div class="bubble-top">
-        <div class="sender">${mine ? "Вы" : "@" + escapeHtml(msg.sender)}</div>
-        ${mine ? `<button class="del" onclick="deleteMessage(${msg.id})" title="Удалить">🗑</button>` : ""}
-      </div>
-      ${content}
-    </div>
-  `;
-
-  container.appendChild(row);
+  d.messages.forEach(renderMessage);
   scrollBottom();
 }
 
 function scrollBottom() {
-  const c = document.getElementById("messagesContainer");
-  c.scrollTop = c.scrollHeight;
+  const box = document.getElementById("messages");
+  box.scrollTop = box.scrollHeight;
+}
+
+function renderMessage(m) {
+  const box = document.getElementById("messages");
+  const mine = m.sender === me.username;
+
+  let body = "";
+  if (m.mediaType === "image") {
+    body = `<img class="mimg" src="${m.mediaUrl}" alt="">`;
+  } else if (m.mediaType === "video") {
+    body = `<video class="mvid" controls playsinline src="${m.mediaUrl}"></video>`;
+  } else if (m.mediaType === "audio") {
+    body = `<audio class="maud" controls src="${m.mediaUrl}"></audio>`;
+  } else {
+    body = `<div class="mtext">${esc(m.text || "")}</div>`;
+  }
+
+  const del = mine ? `<button class="trash" onclick="deleteMsg(${m.id})" title="Удалить"><i class="fa-solid fa-trash"></i></button>` : "";
+
+  const row = document.createElement("div");
+  row.className = "mrow " + (mine ? "mine" : "other");
+  row.dataset.mid = String(m.id);
+
+  row.innerHTML = `
+    <div class="bubble">
+      <div class="btop">
+        <div class="who">${esc(m.sender)}</div>
+        ${del}
+      </div>
+      ${body}
+    </div>
+  `;
+
+  box.appendChild(row);
+  scrollBottom();
+}
+
+async function deleteMsg(id) {
+  if (!confirm("Удалить сообщение?")) return;
+  const r = await fetch(`/api/messages/${id}`, { method: "DELETE", headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) alert(d.error || "Ошибка удаления");
+}
+
+function onEnter(e) {
+  if (e.key === "Enter") sendText();
 }
 
 function sendText() {
-  const input = document.getElementById("messageInput");
+  const input = document.getElementById("textInput");
   const text = input.value.trim();
   if (!text) return;
 
-  socket.send(JSON.stringify({
-    type: "text",
-    text,
-    sender: currentUser,
-    receiver: currentChat
+  ws.send(JSON.stringify({
+    type: "text-message",
+    receiver: currentChat,
+    text
   }));
 
   input.value = "";
 }
 
-async function deleteMessage(id) {
-  await fetch(`/api/messages/${id}`, { method: "DELETE", headers: headers() });
-}
-
-/* ================= SEARCH ================= */
-
-async function searchUsers(q) {
-  const out = document.getElementById("searchResults");
-  const query = String(q || "").trim();
-
-  if (!query) {
-    out.innerHTML = "";
-    return;
-  }
-
-  const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { headers: headers() });
-  const rows = await res.json();
-
-  out.innerHTML = "";
-  rows.forEach(r => {
-    const u = r.username;
-    if (!u || u === currentUser) return;
-
-    const item = document.createElement("div");
-    item.className = "chat-item";
-    item.onclick = () => switchChat(u);
-
-    item.innerHTML = `
-      <div class="avatar">${escapeHtml((u[0] || "?").toUpperCase())}</div>
-      <div class="meta">
-        <div class="name">@${escapeHtml(u)} ${r.phone ? " · " + escapeHtml(r.phone) : ""}</div>
-        <div class="preview">${escapeHtml(r.displayName || "")}</div>
-      </div>
-    `;
-
-    out.appendChild(item);
-  });
-}
-
-/* ================= MEDIA UPLOAD ================= */
-
-async function uploadMedia(input) {
-  const file = input.files?.[0];
+async function sendMedia(input) {
+  const file = input.files[0];
   if (!file) return;
 
   const fd = new FormData();
   fd.append("file", file);
   fd.append("receiver", currentChat);
+  fd.append("text", "");
 
-  await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
+  const r = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: fd });
+  const d = await r.json();
+  if (!d.ok) alert(d.error || "Ошибка медиа");
 
   input.value = "";
 }
 
-/* ================= VOICE ================= */
+async function refreshChats() {
+  const r = await fetch("/api/chats", { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return;
 
-async function toggleAudioRec() {
-  if (isRecording) {
-    mediaRecorder.stop();
-    isRecording = false;
+  const wrap = document.getElementById("privateChats");
+  wrap.innerHTML = "";
+
+  d.chats.forEach(c => {
+    const btn = document.createElement("button");
+    btn.className = "chatitem";
+    btn.dataset.chat = c.username;
+    btn.onclick = () => openChat(c.username);
+    btn.innerHTML = `
+      <div class="avatar">${c.avatarUrl ? `<img src="${c.avatarUrl}" alt="">` : `<span>${esc((c.displayName||c.username)[0].toUpperCase())}</span>`}</div>
+      <div class="meta">
+        <div class="name">${esc(c.displayName || c.username)}</div>
+        <div class="preview">${esc(c.preview || "")}</div>
+      </div>
+    `;
+    wrap.appendChild(btn);
+  });
+}
+
+// ---------------- SEARCH ----------------
+async function searchUsers(val) {
+  const qraw = String(val || "").trim();
+  const results = document.getElementById("searchResults");
+
+  if (!qraw.startsWith("@") || qraw.length < 2) {
+    results.innerHTML = "";
     return;
   }
 
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  audioChunks = [];
-  mediaRecorder = new MediaRecorder(stream);
+  const q = qraw.replace(/^@+/, "");
+  const r = await fetch(`/api/users/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return;
 
-  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+  results.innerHTML = "";
+  d.users.forEach(u => {
+    const btn = document.createElement("button");
+    btn.className = "chatitem";
+    btn.onclick = () => openChat(u.username);
+    btn.innerHTML = `
+      <div class="avatar">${u.avatarUrl ? `<img src="${u.avatarUrl}" alt="">` : `<span>${esc((u.displayName||u.username)[0].toUpperCase())}</span>`}</div>
+      <div class="meta">
+        <div class="name">${esc(u.displayName || u.username)}</div>
+        <div class="preview">@${esc(u.username)}</div>
+      </div>
+    `;
+    results.appendChild(btn);
+  });
+}
 
-  mediaRecorder.onstop = async () => {
-    const blob = new Blob(audioChunks, { type: "audio/webm" });
-    const file = new File([blob], "voice.webm", { type: "audio/webm" });
+// ---------------- PROFILE VIEW ----------------
+async function openCurrentProfile() {
+  if (currentChat === "global") {
+    await openProfile(me.username, true);
+  } else {
+    await openProfile(currentChat, false);
+  }
+}
 
+async function openProfile(username, isMe) {
+  const modal = document.getElementById("profileModal");
+  modal.classList.remove("hidden");
+
+  const title = document.getElementById("profileTitle");
+  const avatar = document.getElementById("profileAvatar");
+  const name = document.getElementById("profileName");
+  const user = document.getElementById("profileUser");
+  const bio = document.getElementById("profileBio");
+  const birth = document.getElementById("profileBirth");
+  const actions = document.getElementById("profileActions");
+
+  title.textContent = isMe ? "Мой профиль" : "Профиль";
+  actions.innerHTML = "";
+
+  let p = null;
+  if (isMe) {
+    p = me;
+  } else {
+    const r = await fetch(`/api/users/${encodeURIComponent(username)}`, { headers: authHeaders() });
+    const d = await r.json();
+    if (!d.ok) { alert("Не найден"); return closeProfile(); }
+    p = d.user;
+  }
+
+  avatar.innerHTML = p.avatarUrl ? `<img src="${p.avatarUrl}" alt="">` : `<span>${esc((p.displayName||p.username)[0].toUpperCase())}</span>`;
+  name.textContent = p.displayName || p.username;
+  user.textContent = "@" + p.username;
+  bio.textContent = p.bio ? p.bio : "";
+  birth.textContent = p.birthDate ? ("🎂 " + p.birthDate) : "";
+
+  if (!isMe) {
+    const b = document.createElement("button");
+    b.className = "btn primary full";
+    b.textContent = "Открыть чат";
+    b.onclick = () => { closeProfile(); openChat(p.username); };
+    actions.appendChild(b);
+  } else {
+    const b = document.createElement("button");
+    b.className = "btn ghost full";
+    b.textContent = "Настройки профиля";
+    b.onclick = () => { closeProfile(); openSettings(); };
+    actions.appendChild(b);
+  }
+}
+
+function closeProfile() {
+  document.getElementById("profileModal").classList.add("hidden");
+}
+
+// ---------------- SETTINGS ----------------
+function openSettings() {
+  document.getElementById("settingsModal").classList.remove("hidden");
+  document.getElementById("setDisplayName").value = me.displayName || "";
+  document.getElementById("setBio").value = me.bio || "";
+  document.getElementById("setBirthDate").value = me.birthDate || "";
+  document.getElementById("setAvatarUrl").value = me.avatarUrl || "";
+}
+
+function closeSettings() {
+  document.getElementById("settingsModal").classList.add("hidden");
+}
+
+async function saveProfile() {
+  const displayName = document.getElementById("setDisplayName").value.trim();
+  const bio = document.getElementById("setBio").value.trim();
+  const birthDate = document.getElementById("setBirthDate").value.trim();
+  let avatarUrl = document.getElementById("setAvatarUrl").value.trim();
+
+  // optional avatar upload -> we keep URL method simple:
+  const file = document.getElementById("avatarFile").files[0];
+  if (file) {
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("receiver", currentChat);
+    fd.append("receiver", "global");
+    fd.append("text", "");
+    // загружаем как обычное медиа, а url берем из ответа
+    const r = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: fd });
+    const d = await r.json();
+    if (d.ok && d.message && d.message.mediaUrl) {
+      avatarUrl = d.message.mediaUrl;
+    }
+  }
 
-    await fetch("/api/upload", { method: "POST", headers: headers(), body: fd });
-    stream.getTracks().forEach(t => t.stop());
-  };
-
-  mediaRecorder.start();
-  isRecording = true;
-}
-
-/* ================= PROFILE ================= */
-
-async function openSettings() {
-  const me = await fetch("/api/me", { headers: headers() }).then(r => r.json());
-  const p = me.profile || {};
-
-  const displayName = prompt("Имя (display name):", p.displayName || currentUser);
-  if (displayName === null) return;
-
-  const bio = prompt("Bio (о себе):", p.bio || "");
-  if (bio === null) return;
-
-  const phone = prompt("Телефон (для поиска, не обязательно):", p.phone || "");
-  if (phone === null) return;
-
-  await fetch("/api/me", {
-    method: "POST",
-    headers: { ...headers(), "Content-Type": "application/json" },
-    body: JSON.stringify({ displayName, bio, phone })
+  const r2 = await fetch("/api/me", {
+    method: "PUT",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ displayName, bio, birthDate, avatarUrl })
   });
+  const d2 = await r2.json();
+  if (!d2.ok) return alert(d2.error || "Ошибка сохранения");
 
+  me = d2.profile;
+  closeSettings();
   alert("Профиль обновлён ✅");
-  loadChatList();
 }
 
-async function openCurrentProfile() {
-  const me = await fetch("/api/me", { headers: headers() }).then(r => r.json());
-  const p = me.profile || {};
-  alert(`@${p.username}\nИмя: ${p.displayName || ""}\nBio: ${p.bio || ""}\nТел: ${p.phone || ""}`);
+// ---------------- VOICE MESSAGE ----------------
+async function toggleVoice() {
+  const btn = document.getElementById("voiceBtn");
+
+  if (recording && mediaRecorder) {
+    mediaRecorder.stop();
+    recording = false;
+    btn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("receiver", currentChat);
+      fd.append("text", "");
+
+      const r = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: fd });
+      const d = await r.json();
+      if (!d.ok) alert(d.error || "Ошибка голосового");
+
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    mediaRecorder.start();
+    recording = true;
+    btn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
+  } catch {
+    alert("Не удалось включить микрофон");
+  }
 }
 
-function logout() {
-  localStorage.removeItem("user");
-  location.href = "index.html";
-}
-
-/* ================= STORIES ================= */
-
+// ---------------- STORIES ----------------
 async function loadStories() {
+  const r = await fetch("/api/stories", { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return;
+
+  // покажем 1 “последнюю” сторис на каждого владельца
+  const map = new Map();
+  d.stories.forEach(s => { if (!map.has(s.owner)) map.set(s.owner, s); });
+
   const list = document.getElementById("storiesList");
-  if (!list) return;
-
-  const res = await fetch("/api/stories", { headers: headers() });
-  const stories = await res.json();
-
   list.innerHTML = "";
-  stories.slice(0, 20).forEach(s => {
-    const chip = document.createElement("button");
-    chip.className = "story-chip";
-    chip.onclick = () => openStoryView(s);
 
-    chip.innerHTML = `
-      <div class="story-avatar">
-        ${s.mediaUrl ? `<img src="${s.mediaUrl}">` : escapeHtml((s.owner || "?")[0])}
-      </div>
-      <div class="story-name">@${escapeHtml(s.owner || "")}</div>
+  [...map.values()].slice(0, 20).forEach(s => {
+    const b = document.createElement("button");
+    b.className = "storychip";
+    b.onclick = () => viewStory(s);
+    b.innerHTML = `
+      <div class="storyava">${s.avatarUrl ? `<img src="${s.avatarUrl}" alt="">` : `<span>${esc((s.displayName||s.owner)[0].toUpperCase())}</span>`}</div>
+      <div class="storyname">${esc((s.displayName || s.owner).split(" ")[0])}</div>
     `;
-
-    list.appendChild(chip);
+    list.appendChild(b);
   });
 }
 
 function openStoryComposer() {
-  document.getElementById("storyComposerModal").style.display = "flex";
+  document.getElementById("storyModal").classList.remove("hidden");
+  document.getElementById("storyFile").value = "";
+  document.getElementById("storyText").value = "";
 }
 function closeStoryComposer() {
-  document.getElementById("storyComposerModal").style.display = "none";
+  document.getElementById("storyModal").classList.add("hidden");
 }
 
 async function publishStory() {
-  const file = document.getElementById("storyFile").files?.[0] || null;
-  const text = document.getElementById("storyText").value || "";
+  const file = document.getElementById("storyFile").files[0] || null;
+  const text = document.getElementById("storyText").value.trim();
+
+  if (!file && !text) return alert("Добавь файл или текст");
 
   const fd = new FormData();
   if (file) fd.append("story", file);
   fd.append("text", text);
 
-  await fetch("/api/stories", { method: "POST", headers: headers(), body: fd });
+  const r = await fetch("/api/stories", { method: "POST", headers: authHeaders(), body: fd });
+  const d = await r.json();
+  if (!d.ok) return alert(d.error || "Ошибка сторис");
 
-  document.getElementById("storyText").value = "";
-  document.getElementById("storyFile").value = "";
   closeStoryComposer();
-  loadStories();
+  await loadStories();
+  alert("Сторис опубликована ✅");
 }
 
-function openStoryView(s) {
-  document.getElementById("storyViewModal").style.display = "flex";
-  document.getElementById("storyViewTitle").textContent = "@" + (s.owner || "");
-  document.getElementById("storyViewText").textContent = s.text || "";
+function viewStory(s) {
+  // простая “просмотрка” через alert (быстро, чтобы не ломать UI)
+  if (s.mediaUrl) {
+    window.open(s.mediaUrl, "_blank");
+  }
+  if (s.text) alert(`Сторис @${s.owner}:\n\n${s.text}`);
+}
 
-  const c = document.getElementById("storyViewContent");
-  if (s.mediaType === "video") {
-    c.innerHTML = `<video controls playsinline src="${s.mediaUrl}" style="width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.08);"></video>`;
-  } else if (s.mediaUrl) {
-    c.innerHTML = `<img src="${s.mediaUrl}" style="width:100%;border-radius:14px;border:1px solid rgba(255,255,255,.08);" />`;
-  } else {
-    c.innerHTML = `<div class="msg-text">Без медиа</div>`;
+// ---------------- BIRTHDAYS ----------------
+async function showBirthdays() {
+  const banner = document.getElementById("birthdayBanner");
+  const r = await fetch("/api/birthdays/today", { headers: authHeaders() });
+  const d = await r.json();
+  if (!d.ok) return;
+
+  const list = d.list || [];
+  const today = new Date();
+  const mm = String(today.getMonth()+1).padStart(2,"0");
+  const dd = String(today.getDate()).padStart(2,"0");
+  const mine = (me.birthDate || "").slice(5,10) === `${mm}-${dd}`;
+
+  if (!mine && list.length === 0) {
+    banner.classList.add("hidden");
+    banner.textContent = "";
+    return;
+  }
+
+  banner.classList.remove("hidden");
+  const names = list.map(x => x.displayName || x.username).join(", ");
+  banner.innerHTML = `
+    ${mine ? `🎉 С днём рождения, ${esc(me.displayName || me.username)}!<br>` : ""}
+    ${list.length ? `🎂 Сегодня день рождения у: ${esc(names)}` : ""}
+  `;
+}
+
+// ---------------- AUDIO CALL (WebRTC) ----------------
+function openCallModal(title, status) {
+  document.getElementById("callModal").classList.remove("hidden");
+  document.getElementById("callTitle").textContent = title;
+  document.getElementById("callStatus").textContent = status || "Соединение...";
+}
+
+function closeCallModal() {
+  document.getElementById("callModal").classList.add("hidden");
+}
+
+async function startAudioCall() {
+  if (currentChat === "global") return alert("Звонок только в личном чате");
+  if (callPeer) return alert("Звонок уже идет");
+
+  callPeer = currentChat;
+  openCallModal(`Аудиозвонок с @${callPeer}`, "Звоним...");
+
+  try {
+    await createPeer(callPeer);
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    ws.send(JSON.stringify({ type: "call-offer", to: callPeer, offer }));
+  } catch (e) {
+    alert("Не удалось начать звонок");
+    cleanupCall();
   }
 }
 
-function closeStoryView() {
-  document.getElementById("storyViewModal").style.display = "none";
+async function onIncomingOffer(data) {
+  if (callPeer) {
+    ws.send(JSON.stringify({ type: "call-reject", to: data.from }));
+    return;
+  }
+
+  const ok = confirm(`Входящий аудиозвонок от @${data.from}. Принять?`);
+  if (!ok) {
+    ws.send(JSON.stringify({ type: "call-reject", to: data.from }));
+    return;
+  }
+
+  callPeer = data.from;
+  openCallModal(`Аудиозвонок с @${callPeer}`, "Подключение...");
+
+  await createPeer(callPeer);
+  await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+
+  ws.send(JSON.stringify({ type: "call-answer", to: callPeer, answer }));
 }
 
-/* ================= SIDEBAR MOBILE ================= */
-
-function toggleSidebarMobile() {
-  document.getElementById("sidebar")?.classList.toggle("active-mobile");
+async function onAnswer(data) {
+  if (!pc) return;
+  await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+  document.getElementById("callStatus").textContent = "Разговор начался ✅";
 }
 
-/* ================= CALLS (WebRTC) ================= */
+async function onIce(data) {
+  if (!pc || !data.candidate) return;
+  try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch {}
+}
 
-async function ensureLocalStream() {
-  if (localStream) return localStream;
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+function onCallEnd(data) {
+  alert(`Звонок завершён`);
+  cleanupCall();
+}
 
-  const localVideo = document.getElementById("localVideo");
-  localVideo.muted = true;
-  localVideo.playsInline = true;
-  localVideo.autoplay = true;
-  localVideo.srcObject = localStream;
-
-  return localStream;
+function onCallReject(data) {
+  alert(`@${data.from} отклонил звонок`);
+  cleanupCall();
 }
 
 async function createPeer(peer) {
-  currentCallPeer = peer;
-  peerConnection = new RTCPeerConnection(rtcConfig);
+  pc = new RTCPeerConnection(rtcCfg);
+  remoteStream = new MediaStream();
+  document.getElementById("remoteAudio").srcObject = remoteStream;
 
-  await ensureLocalStream();
-  localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
 
-  peerConnection.onicecandidate = (e) => {
-    if (!e.candidate) return;
-    socket.send(JSON.stringify({ type: "ice-candidate", to: peer, from: currentUser, candidate: e.candidate }));
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate) ws.send(JSON.stringify({ type: "ice", to: peer, candidate: ev.candidate }));
   };
 
-  peerConnection.ontrack = async (e) => {
-    if (e.track.kind === "audio") {
-      const remoteAudio = document.getElementById("remoteAudio");
-      remoteAudio.srcObject = e.streams[0];
-      try { await remoteAudio.play(); } catch {}
-      return;
-    }
-    const remoteVideo = document.getElementById("remoteVideo");
-    remoteVideo.srcObject = e.streams[0];
-    try { await remoteVideo.play(); } catch {}
+  pc.ontrack = (ev) => {
+    ev.streams[0].getTracks().forEach(t => {
+      if (!remoteStream.getTracks().some(x => x.id === t.id)) remoteStream.addTrack(t);
+    });
+    document.getElementById("callStatus").textContent = "Разговор начался ✅";
+  };
+
+  pc.onconnectionstatechange = () => {
+    const st = pc.connectionState;
+    if (st === "connected") document.getElementById("callStatus").textContent = "Разговор начался ✅";
+    if (st === "failed" || st === "disconnected" || st === "closed") cleanupCall();
   };
 }
 
-async function startCall() {
-  if (currentChat === "global") {
-    alert("Звонок доступен только в личном чате.");
-    return;
-  }
-
-  await createPeer(currentChat);
-
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-
-  socket.send(JSON.stringify({ type: "call-offer", to: currentChat, from: currentUser, offer }));
-  document.getElementById("activeCallModal").style.display = "flex";
-  document.getElementById("activeCallTitle").textContent = "Звонок с @" + currentChat;
-}
-
-function onIncomingOffer(msg) {
-  pendingIncomingFrom = msg.from;
-  pendingIncomingOffer = msg.offer;
-  document.getElementById("incomingCallText").textContent = "@" + pendingIncomingFrom + " звонит тебе";
-  document.getElementById("incomingCallModal").style.display = "flex";
-}
-
-async function acceptIncomingCall() {
-  document.getElementById("incomingCallModal").style.display = "none";
-
-  await createPeer(pendingIncomingFrom);
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingIncomingOffer));
-
-  const answer = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(answer);
-
-  socket.send(JSON.stringify({ type: "call-answer", to: pendingIncomingFrom, from: currentUser, answer }));
-  document.getElementById("activeCallModal").style.display = "flex";
-  document.getElementById("activeCallTitle").textContent = "Звонок с @" + pendingIncomingFrom;
-}
-
-function rejectIncomingCall() {
-  document.getElementById("incomingCallModal").style.display = "none";
-  if (pendingIncomingFrom) {
-    socket.send(JSON.stringify({ type: "call-decline", to: pendingIncomingFrom, from: currentUser }));
-  }
-  pendingIncomingFrom = null;
-  pendingIncomingOffer = null;
-}
-
-function onCallAnswer(msg) {
-  peerConnection?.setRemoteDescription(new RTCSessionDescription(msg.answer));
-  document.getElementById("activeCallStatus").textContent = "Соединено ✅";
-}
-
-function onIce(msg) {
-  try { peerConnection?.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch {}
-}
-
-async function toggleCamera() {
-  if (!peerConnection) return;
-
-  if (!cameraOn) {
-    const vStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    const videoTrack = vStream.getVideoTracks()[0];
-
-    const sender = peerConnection.getSenders().find(s => s.track?.kind === "video");
-    if (sender) await sender.replaceTrack(videoTrack);
-    else peerConnection.addTrack(videoTrack, localStream);
-
-    localStream.addTrack(videoTrack);
-
-    const localVideo = document.getElementById("localVideo");
-    localVideo.srcObject = localStream;
-    try { await localVideo.play(); } catch {}
-    cameraOn = true;
-    return;
-  }
-
-  const sender = peerConnection.getSenders().find(s => s.track?.kind === "video");
-  if (sender) await sender.replaceTrack(null);
-
-  localStream.getVideoTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
-  cameraOn = false;
-}
-
-function toggleMuteCall() {
+function toggleMute() {
   if (!localStream) return;
   isMuted = !isMuted;
-  localStream.getAudioTracks().forEach(t => (t.enabled = !isMuted));
+  localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+  document.getElementById("muteBtn").textContent = isMuted ? "Включить микрофон" : "Выключить микрофон";
 }
 
-function endCurrentCall() {
-  if (currentCallPeer) {
-    socket.send(JSON.stringify({ type: "call-end", to: currentCallPeer, from: currentUser }));
-  }
+function endCall() {
+  if (callPeer) ws.send(JSON.stringify({ type: "call-end", to: callPeer }));
   cleanupCall();
 }
 
 function cleanupCall() {
-  peerConnection?.close();
-  peerConnection = null;
+  closeCallModal();
 
-  localStream?.getTracks().forEach(t => t.stop());
+  try { pc && pc.close(); } catch {}
+  pc = null;
+
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
   localStream = null;
 
-  document.getElementById("activeCallModal").style.display = "none";
-  document.getElementById("activeCallStatus").textContent = "Соединение…";
+  if (remoteStream) remoteStream.getTracks().forEach(t => t.stop());
+  remoteStream = null;
 
-  cameraOn = false;
+  callPeer = null;
   isMuted = false;
-  currentCallPeer = null;
 
-  pendingIncomingFrom = null;
-  pendingIncomingOffer = null;
-}
-
-async function searchUsers(value) {
-  const container = document.getElementById("searchResults");
-  const query = String(value || "").trim();
-
-  if (!query) {
-    container.innerHTML = "";
-    return;
-  }
-
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
-      headers: headers()
-    });
-
-    const users = await res.json();
-
-    container.innerHTML = "";
-
-    if (!users.length) {
-      container.innerHTML = `
-        <div class="chat-item">Никого не найдено</div>
-      `;
-      return;
-    }
-
-    users.forEach(user => {
-      const div = document.createElement("div");
-      div.className = "chat-item";
-      div.innerHTML = `
-        <div class="avatar-circle">
-          ${user.username[0].toUpperCase()}
-        </div>
-        <div class="chat-meta">
-          <span class="name">@${user.username}</span>
-          <span class="preview">${user.displayName || ""}</span>
-        </div>
-      `;
-
-      div.onclick = () => {
-        switchChat(user.username);
-        container.innerHTML = "";
-        document.getElementById("userSearch").value = "";
-      };
-
-      container.appendChild(div);
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
+  document.getElementById("muteBtn").textContent = "Выключить микрофон";
+  document.getElementById("remoteAudio").srcObject = null;
 }
