@@ -39,6 +39,8 @@ body {
   justify-content: center;
   padding: 16px;
   background: var(--bg-color);
+  min-height: 100vh;
+  overflow-y: auto;
 }
 
 .auth-container {
@@ -158,6 +160,16 @@ body {
   background: var(--accent-dark);
 }
 
+.auth-button.ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.auth-button.ghost:hover {
+  background: var(--secondary-bg);
+}
+
 .auth-error {
   color: var(--danger);
   font-size: 14px;
@@ -180,8 +192,8 @@ body {
 .admin-body {
   background: var(--bg-color);
   padding: 20px;
-  height: 100vh;
-  overflow: auto;
+  min-height: 100vh;
+  overflow-y: auto;
 }
 
 .admin-login {
@@ -223,7 +235,7 @@ body {
   background: var(--panel-bg);
   border-radius: 20px;
   padding: 20px;
-  height: 100%;
+  min-height: 100%;
   overflow-y: auto;
 }
 
@@ -234,6 +246,8 @@ body {
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .admin-header-bar h2 i {
@@ -279,6 +293,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .admin-user-name i {
@@ -308,7 +323,7 @@ body {
 }
 
 .control-group {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 200px;
 }
 
@@ -364,6 +379,7 @@ body {
   cursor: pointer;
   transition: background 0.2s;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .admin-btn.ghost {
@@ -385,30 +401,18 @@ body {
   display: flex;
   height: 100vh;
   background: var(--bg-color);
+  overflow: hidden;
 }
 
+/* Sidebar — десктопная версия */
 .sidebar {
   width: 360px;
   background: var(--panel-bg);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    position: absolute;
-    z-index: 100;
-    height: 100%;
-    transform: translateX(-100%);
-  }
-  .sidebar.mobile-hidden {
-    transform: translateX(0);
-  }
-  .iconbtn.mobile {
-    display: flex !important;
-  }
+  transition: transform 0.3s ease;
+  z-index: 100;
 }
 
 .side-top {
@@ -445,6 +449,7 @@ body {
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 4px;
+  scrollbar-width: thin;
 }
 
 .story-add {
@@ -460,6 +465,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: 0.2s;
+  flex-shrink: 0;
 }
 
 .story-add:hover {
@@ -553,12 +559,19 @@ body {
   justify-content: center;
   overflow: hidden;
   border: 2px solid transparent;
+  flex-shrink: 0;
 }
 
 .avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.avatar.big {
+  width: 80px;
+  height: 80px;
+  font-size: 40px;
 }
 
 .meta {
@@ -571,6 +584,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .status-dot {
@@ -578,6 +592,7 @@ body {
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .status-dot.online {
@@ -607,6 +622,7 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg-color);
+  min-width: 0; /* для корректного сжатия */
 }
 
 .topbar {
@@ -631,6 +647,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: 0.2s;
+  flex-shrink: 0;
 }
 
 .iconbtn:hover {
@@ -643,23 +660,31 @@ body {
 
 .title {
   flex: 1;
-  margin-left: 12px;
+  margin: 0 12px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .title .h {
   font-weight: 600;
   font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .title .s {
   font-size: 13px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .banner {
@@ -668,6 +693,9 @@ body {
   color: var(--accent);
   font-size: 14px;
   border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .messages {
@@ -713,6 +741,7 @@ body {
   margin-bottom: 4px;
   font-size: 12px;
   color: var(--text-secondary);
+  gap: 10px;
 }
 
 .mrow.mine .btop {
@@ -726,6 +755,7 @@ body {
   cursor: pointer;
   opacity: 0.7;
   padding: 2px;
+  font-size: 14px;
 }
 
 .trash:hover {
@@ -735,6 +765,8 @@ body {
 .mtext {
   font-size: 15px;
   line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .mimg {
@@ -742,11 +774,14 @@ body {
   border-radius: 12px;
   margin-top: 4px;
   cursor: pointer;
+  max-height: 300px;
+  object-fit: contain;
 }
 
 .mvid {
   max-width: 100%;
   border-radius: 12px;
+  max-height: 300px;
 }
 
 .maud {
@@ -759,6 +794,7 @@ body {
   color: var(--text-secondary);
   text-align: right;
   margin-top: 4px;
+  white-space: nowrap;
 }
 
 .mrow.mine .btime {
@@ -783,6 +819,7 @@ body {
   color: #fff;
   font-size: 15px;
   outline: none;
+  min-width: 0;
 }
 
 .text::placeholder {
@@ -838,29 +875,32 @@ body {
   display: flex;
   gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.avatar.big {
-  width: 80px;
-  height: 80px;
-  font-size: 40px;
+.profiletext {
+  flex: 1;
+  min-width: 200px;
 }
 
 .profiletext .pname {
   font-size: 20px;
   font-weight: 600;
   margin-bottom: 4px;
+  word-break: break-word;
 }
 
 .profiletext .puser {
   color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 8px;
+  word-break: break-word;
 }
 
 .profiletext .pbio {
   font-size: 15px;
   margin-bottom: 4px;
+  word-break: break-word;
 }
 
 .profiletext .pbirth {
@@ -887,6 +927,7 @@ body {
   align-items: center;
   gap: 8px;
   transition: 0.2s;
+  white-space: nowrap;
 }
 
 .btn.primary {
@@ -905,6 +946,11 @@ body {
 
 .btn.ghost {
   background: transparent;
+}
+
+.btn.full {
+  width: 100%;
+  justify-content: center;
 }
 
 .formgrid {
@@ -979,6 +1025,7 @@ body {
   padding: 12px;
   border-radius: 20px;
   text-align: center;
+  word-break: break-word;
 }
 
 .story-prev, .story-next, .story-close {
@@ -1003,13 +1050,165 @@ body {
 .story-next { right: 10px; }
 .story-close { top: 10px; right: 10px; transform: none; }
 
-/* Добавить в конец файла */
-.auth-button.ghost {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
+/* ===== Mobile first — адаптация ===== */
+
+/* Маленькие телефоны (до 480px) */
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 20px 16px;
+  }
+  .auth-logo {
+    font-size: 40px;
+  }
+  .auth-header h1 {
+    font-size: 20px;
+  }
+  .auth-tab {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+  .input-group input {
+    padding: 12px 16px 12px 44px;
+    font-size: 15px;
+  }
+  .auth-button {
+    padding: 12px;
+    font-size: 15px;
+  }
+  .admin-card {
+    padding: 24px 16px;
+  }
+  .admin-user-row {
+    padding: 16px;
+  }
+  .admin-user-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .control-group {
+    min-width: auto;
+  }
+  .control-group.permissions {
+    justify-content: flex-start;
+  }
 }
 
-.auth-button.ghost:hover {
-  background: var(--secondary-bg);
+/* Телефоны и небольшие планшеты (до 600px) */
+@media (max-width: 600px) {
+  .sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 320px;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+  }
+  .sidebar.mobile-hidden {
+    transform: translateX(0);
+  }
+  .iconbtn.mobile {
+    display: flex !important;
+  }
+  .topbar {
+    padding: 10px 12px;
+  }
+  .title .h {
+    font-size: 15px;
+  }
+  .title .s {
+    font-size: 12px;
+  }
+  .actions .iconbtn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+  .composer {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .text {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+  .iconbtn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+  .bubble {
+    max-width: 85%;
+    font-size: 14px;
+  }
+  .mtext {
+    font-size: 14px;
+  }
+  .btop {
+    font-size: 11px;
+  }
+  .modal .card {
+    max-width: 95%;
+    padding: 18px;
+  }
+  .profile {
+    flex-direction: column;
+    text-align: center;
+  }
+  .avatar.big {
+    width: 70px;
+    height: 70px;
+  }
+  .row {
+    justify-content: center;
+  }
+  .story-viewer-card {
+    height: 70vh;
+    border-radius: 16px;
+  }
+  .story-prev, .story-next {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+}
+
+/* Планшеты (600px - 1024px) */
+@media (min-width: 601px) and (max-width: 1024px) {
+  .sidebar {
+    width: 300px;
+  }
+  .topbar {
+    padding: 10px 16px;
+  }
+  .bubble {
+    max-width: 75%;
+  }
+  .modal .card {
+    max-width: 70%;
+  }
+  .story-viewer-card {
+    max-width: 80%;
+  }
+}
+
+/* Десктопы (>=1025px) */
+@media (min-width: 1025px) {
+  .sidebar {
+    width: 360px;
+  }
+  .iconbtn.mobile {
+    display: none !important;
+  }
+}
+
+/* Для очень больших экранов */
+@media (min-width: 1600px) {
+  .sidebar {
+    width: 400px;
+  }
+  .bubble {
+    max-width: 60%;
+  }
 }
