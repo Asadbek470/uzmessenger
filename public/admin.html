@@ -1,35 +1,48 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — One Messenger</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 </head>
-<body class="auth-body">
-  <div class="auth-card">
-    <h1>Admin Panel</h1>
-    <p>Только блокировки и ограничения</p>
+<body class="admin-body">
+  <div id="loginPanel" class="admin-login">
+    <div class="admin-card">
+      <div class="admin-header">
+        <i class="fa-regular fa-shield-halved"></i>
+        <h2>Admin Panel</h2>
+        <p>Управление пользователями</p>
+      </div>
 
-    <div class="form">
-      <label>Логин</label>
-      <input id="adminUser" placeholder="admin" />
+      <div class="input-group">
+        <i class="fa-regular fa-user input-icon"></i>
+        <input type="text" id="adminUser" placeholder="Логин" value="admin">
+      </div>
+      <div class="input-group">
+        <i class="fa-regular fa-lock input-icon"></i>
+        <input type="password" id="adminPass" placeholder="Пароль" value="090909">
+      </div>
 
-      <label>Пароль</label>
-      <input id="adminPass" type="password" placeholder="090909" />
-
-      <button class="btn primary" onclick="adminLogin()">Войти</button>
-      <div id="aerr" class="error"></div>
+      <button class="auth-button" onclick="adminLogin()">
+        <span>Войти</span>
+        <i class="fa-regular fa-arrow-right"></i>
+      </button>
+      <div id="aerr" class="auth-error"></div>
     </div>
   </div>
 
-  <div class="admin-wrap hidden" id="adminWrap">
-    <div class="admin-top">
-      <h2>Пользователи</h2>
-      <button class="btn ghost" onclick="adminLogout()">Выйти</button>
+  <div id="adminPanel" class="admin-panel hidden">
+    <div class="admin-header-bar">
+      <h2><i class="fa-regular fa-users"></i> Пользователи</h2>
+      <button class="admin-logout" onclick="adminLogout()">
+        <i class="fa-regular fa-arrow-right-from-bracket"></i>
+        Выйти
+      </button>
     </div>
 
-    <div id="usersTable" class="admin-table"></div>
+    <div id="usersTable" class="admin-users"></div>
   </div>
 
   <script src="admin.js"></script>
