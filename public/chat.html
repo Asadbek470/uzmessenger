@@ -8,6 +8,9 @@
 </head>
 <body>
   <div class="app">
+    <!-- Затемнение фона для мобильной версии -->
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- Sidebar -->
     <aside id="sidebar" class="sidebar mobile-hidden">
       <div class="side-top">
@@ -91,7 +94,7 @@
     </main>
   </div>
 
-  <!-- Modals -->
+  <!-- Modals (без изменений) -->
   <div id="profileModal" class="modal hidden">
     <div class="card">
       <div class="cardtop">
