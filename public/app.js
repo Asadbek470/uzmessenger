@@ -6,7 +6,7 @@ let ws = null;
 let pc = null;
 let localStream = null;
 let currentCallUser = null;
-let recorder = null;
+let mediaRecorder = null;
 let audioChunks = [];
 let typingTimer = null;
 let recording = false;
@@ -50,16 +50,10 @@ function updateHeader() {
 function connectWS() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
-  ws.onopen = () => {
-    console.log("WebSocket соединение открыто");
-  };
-  ws.onerror = (err) => {
-    console.error("WebSocket ошибка:", err);
-    alert("Ошибка соединения с сервером. Попробуйте перезагрузить страницу.");
-  };
+  ws.onopen = () => console.log("WebSocket открыт");
+  ws.onerror = (err) => console.error("WebSocket ошибка", err);
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log("WebSocket сообщение:", data.type);
     switch (data.type) {
       case "message":
         appendMessage(data.message);
@@ -86,7 +80,7 @@ function connectWS() {
         showTypingIndicator(data.from);
         break;
       case "ws-ready":
-        console.log("WebSocket ready", data.username);
+        console.log("WebSocket готов", data.username);
         break;
       case "moderation":
         alert(data.message);
@@ -97,7 +91,7 @@ function connectWS() {
     }
   };
   ws.onclose = () => {
-    console.log("WebSocket закрыт, пытаемся переподключиться через 3 секунды");
+    console.log("WebSocket закрыт, переподключение через 3 сек");
     setTimeout(connectWS, 3000);
   };
 }
@@ -228,7 +222,7 @@ function sendText() {
     }));
     input.value = "";
   } else {
-    alert("Нет соединения с сервером. Попробуйте позже.");
+    alert("Нет соединения с сервером");
   }
 }
 
@@ -259,10 +253,13 @@ function sendMedia(input) {
   }
 }
 
-// Голосовые сообщения (удержание кнопки)
-let mediaRecorder;
-let audioChunks = [];
-let recording = false;
+// Голосовые сообщения (удержание)
+document.getElementById("voiceBtn").addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  startRecording();
+});
+document.getElementById("voiceBtn").addEventListener("mouseup", stopRecording);
+document.getElementById("voiceBtn").addEventListener("mouseleave", stopRecording);
 
 function startRecording() {
   if (recording) return;
@@ -283,7 +280,7 @@ function startRecording() {
       };
       mediaRecorder.start();
     })
-    .catch(err => {
+    .catch(() => {
       alert("Нет доступа к микрофону");
       recording = false;
       document.getElementById("voiceBtn").classList.remove("recording");
@@ -296,13 +293,6 @@ function stopRecording() {
     mediaRecorder.stop();
   }
 }
-
-document.getElementById("voiceBtn").addEventListener("mousedown", (e) => {
-  e.preventDefault();
-  startRecording();
-});
-document.getElementById("voiceBtn").addEventListener("mouseup", stopRecording);
-document.getElementById("voiceBtn").addEventListener("mouseleave", stopRecording);
 
 async function openChat(chat) {
   currentChat = chat;
@@ -331,7 +321,6 @@ async function openChat(chat) {
   }
 }
 
-// Поиск пользователей
 let searchTimeout;
 function searchUsers(query) {
   clearTimeout(searchTimeout);
@@ -362,7 +351,6 @@ function searchUsers(query) {
   }, 300);
 }
 
-// Stories
 async function loadStories() {
   const res = await fetch(API + "/stories", {
     headers: { Authorization: "Bearer " + token }
@@ -468,7 +456,6 @@ function openStoryViewer(owner) {
   };
 }
 
-// Аудиозвонки (WebRTC)
 async function startCall() {
   if (currentChat === "global") {
     alert("Нельзя позвонить в общий чат");
@@ -588,7 +575,6 @@ function toggleMute() {
   }
 }
 
-// Профиль и настройки
 async function openCurrentProfile() {
   if (currentChat === "global") return;
   const res = await fetch(API + "/users/" + currentChat, {
