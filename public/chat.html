@@ -11,14 +11,16 @@
     <!-- Затемнение фона для мобильной версии -->
     <div id="sidebarOverlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-    <!-- Sidebar -->
+    <!-- Сайдбар (левый) -->
     <aside id="sidebar" class="sidebar mobile-hidden">
       <div class="side-top">
+        <!-- Компактный поиск -->
         <div class="search">
           <span>🔍</span>
           <input id="searchInput" placeholder="Поиск @username..." oninput="searchUsers(this.value)">
         </div>
 
+        <!-- Истории -->
         <div class="stories">
           <button class="story-add" onclick="openStoryComposer()" title="Добавить сторис">
             <span>➕</span>
@@ -27,6 +29,7 @@
         </div>
       </div>
 
+      <!-- Список чатов (занимает максимум места) -->
       <div class="chatlist">
         <button class="chatitem active" data-chat="global" onclick="openChat('global')">
           <div class="avatar">
@@ -42,6 +45,7 @@
         <div id="searchResults"></div>
       </div>
 
+      <!-- Кнопка настроек внизу -->
       <div class="side-bottom">
         <button class="btn ghost full" onclick="openSettings()">
           <span>👤</span> Настройки профиля
@@ -49,7 +53,7 @@
       </div>
     </aside>
 
-    <!-- Main chat area -->
+    <!-- Основная область чата (правая) -->
     <main class="main">
       <header class="topbar">
         <button class="iconbtn mobile" onclick="toggleSidebar()">
@@ -74,7 +78,7 @@
 
       <section id="messages" class="messages"></section>
 
-      <!-- Composer -->
+      <!-- Панель ввода сообщения -->
       <footer class="composer">
         <button class="iconbtn" onclick="document.getElementById('fileInput').click()" title="Фото/Видео">
           <span>📎</span>
@@ -94,7 +98,7 @@
     </main>
   </div>
 
-  <!-- Modals (без изменений) -->
+  <!-- Модальные окна (без изменений) -->
   <div id="profileModal" class="modal hidden">
     <div class="card">
       <div class="cardtop">
