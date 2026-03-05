@@ -1,33 +1,17 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin</title>
-  <link rel="stylesheet" href="style.css"/>
+<meta charset="UTF-8">
+<title>Admin</title>
+<link rel="stylesheet" href="style.css">
 </head>
-<body class="admin-body">
-  <div class="admin-card">
-    <div class="auth-title">🛡️ Admin Panel</div>
+<body>
 
-    <div id="adminLogin">
-      <label>👤 Admin user</label>
-      <input id="aUser" placeholder="admin"/>
-      <label>🔒 Admin pass</label>
-      <input id="aPass" type="password" placeholder="******"/>
-      <button id="aLoginBtn" class="primary">➡️ Войти</button>
-      <div id="aMsg" class="msg"></div>
-    </div>
+<h1>⚙ Admin</h1>
 
-    <div id="adminApp" class="hidden">
-      <div class="row space">
-        <div class="muted">Пользователи</div>
-        <button id="aRefresh" class="pill">🔄 Обновить</button>
-      </div>
-      <div id="usersTable" class="table"></div>
-    </div>
-  </div>
+<div id="users"></div>
 
 <script src="admin.js"></script>
+
 </body>
 </html>
