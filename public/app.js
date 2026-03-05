@@ -294,6 +294,8 @@ function stopRecording() {
   }
 }
 
+// ==================== УЛУЧШЕННАЯ МОБИЛЬНАЯ ВЕРСИЯ ====================
+
 async function openChat(chat) {
   currentChat = chat;
   loadMessages(chat);
@@ -313,13 +315,40 @@ async function openChat(chat) {
       document.getElementById("callBtn").disabled = false;
     }
   }
+
+  // Обновляем активный класс
   document.querySelectorAll(".chatitem").forEach(el => el.classList.remove("active"));
   const active = document.querySelector(`.chatitem[data-username="${chat}"]`);
   if (active) active.classList.add("active");
   else if (chat === "global") {
     document.querySelector('.chatitem[data-chat="global"]').classList.add("active");
   }
+
+  // На мобильных устройствах закрываем сайдбар после выбора чата
+  if (window.innerWidth <= 768) {
+    closeSidebar();
+  }
 }
+
+function toggleSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+  if (sidebar && overlay) {
+    sidebar.classList.toggle("mobile-hidden");
+    overlay.classList.toggle("active");
+  }
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebarOverlay");
+  if (sidebar && overlay) {
+    sidebar.classList.add("mobile-hidden");
+    overlay.classList.remove("active");
+  }
+}
+
+// ====================================================================
 
 let searchTimeout;
 function searchUsers(query) {
@@ -719,8 +748,4 @@ function onEnter(e) {
       sendTyping();
     }, 500);
   }
-}
-
-function toggleSidebar() {
-  document.getElementById("sidebar").classList.toggle("mobile-hidden");
 }
