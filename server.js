@@ -1,1277 +1,1158 @@
+// server.js
 const express = require("express");
-const http = require("http");
-const WebSocket = require("ws");
-const sqlite3 = require("sqlite3").verbose();
+const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
-const multer = require("multer");
-const bcrypt = require("bcryptjs");
+const http = require("http");
 const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
+const bcrypt = require("bcryptjs");
+const multer = require("multer");
+const sqlite3 = require("sqlite3").verbose();
+const { WebSocketServer } = require("ws");
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 3000;
-const HOST = '0.0.0.0'; // обязательно для Render
-const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME_SECRET";
+const HOST = "0.0.0.0";
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
-const ADMIN_PASS = process.env.ADMIN_PASS || "090909";
-const SYSTEM_USERNAME = "telegram";
+const ADMIN_PASS = process.env.ADMIN_PASS || "admin";
 
-app.use(express.json({ limit: "50mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+const DB_FILE = path.join(__dirname, "database.db");
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use("/uploads", express.static(UPLOADS_DIR));
+app.use("/", express.static(path.join(__dirname, "public")));
 
-app.use("/uploads", express.static(uploadsDir));
+const db = new sqlite3.Database(DB_FILE);
 
-const upload = multer({ dest: uploadsDir });
-const db = new sqlite3.Database("database.db");
-
-// ==================== ИНИЦИАЛИЗАЦИЯ БД ====================
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE,
-      passwordHash TEXT,
-      displayName TEXT DEFAULT '',
-      bio TEXT DEFAULT '',
-      avatarUrl TEXT DEFAULT '',
-      birthDate TEXT DEFAULT '',
-      createdAt INTEGER NOT NULL DEFAULT 0,
-      lastSeen INTEGER DEFAULT 0,
-      blockedUntil INTEGER DEFAULT 0,
-      canSendText INTEGER DEFAULT 1,
-      canSendMedia INTEGER DEFAULT 1,
-      canCall INTEGER DEFAULT 1
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chatType TEXT NOT NULL,
-      groupId INTEGER,
-      user1 TEXT,
-      user2 TEXT,
-      sender TEXT NOT NULL,
-      receiver TEXT NOT NULL,
-      text TEXT DEFAULT '',
-      mediaType TEXT DEFAULT 'text',
-      mediaUrl TEXT DEFAULT '',
-      createdAt INTEGER NOT NULL
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS stories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner TEXT NOT NULL,
-      text TEXT DEFAULT '',
-      mediaType TEXT DEFAULT 'text',
-      mediaUrl TEXT DEFAULT '',
-      createdAt INTEGER NOT NULL,
-      expiresAt INTEGER NOT NULL
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL,
-      deviceId TEXT NOT NULL,
-      deviceName TEXT,
-      lastUsed INTEGER NOT NULL,
-      firstSeen INTEGER NOT NULL,
-      trusted INTEGER DEFAULT 1,
-      UNIQUE(username, deviceId)
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS auth_codes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT NOT NULL,
-      deviceId TEXT NOT NULL,
-      code TEXT NOT NULL,
-      expiresAt INTEGER NOT NULL,
-      attempts INTEGER DEFAULT 0
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS groups (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      avatarUrl TEXT DEFAULT '',
-      description TEXT DEFAULT '',
-      owner TEXT NOT NULL,
-      createdAt INTEGER NOT NULL,
-      updatedAt INTEGER NOT NULL
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS group_members (
-      groupId INTEGER,
-      username TEXT NOT NULL,
-      role TEXT DEFAULT 'member',
-      joinedAt INTEGER NOT NULL,
-      PRIMARY KEY (groupId, username),
-      FOREIGN KEY (groupId) REFERENCES groups(id) ON DELETE CASCADE
-    )
-  `);
-
-  db.run(`CREATE INDEX IF NOT EXISTS idx_messages_private ON messages(chatType, user1, user2, createdAt)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(chatType, groupId, createdAt)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_group_members ON group_members(groupId)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_stories_exp ON stories(expiresAt)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_auth_codes ON auth_codes(username, deviceId)`);
-});
-
-// ==================== СИСТЕМНЫЙ ПОЛЬЗОВАТЕЛЬ ====================
-function ensureSystemUser() {
-  const now = Date.now();
-  db.get(`SELECT * FROM users WHERE username = ?`, [SYSTEM_USERNAME], (err, user) => {
-    if (!user) {
-      const hash = bcrypt.hashSync("system", 10);
-      db.run(
-        `INSERT INTO users (username, passwordHash, displayName, createdAt, lastSeen)
-         VALUES (?, ?, ?, ?, ?)`,
-        [SYSTEM_USERNAME, hash, "Telegram", now, now]
-      );
-    }
+// ---------- Helpers ----------
+function nowISO() {
+  return new Date().toISOString();
+}
+function rand6() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+function safeUsername(u) {
+  return typeof u === "string" && /^[a-z0-9_]{4,20}$/.test(u);
+}
+function chatKeyToParts(chat) {
+  // chat can be: "global", "@username", "group:123"
+  if (chat === "global") return { type: "global" };
+  if (chat.startsWith("@")) return { type: "dm", peer: chat.slice(1) };
+  if (chat.startsWith("group:")) return { type: "group", groupId: Number(chat.split(":")[1]) };
+  return null;
+}
+function ok(res, payload = {}) {
+  res.json({ ok: true, ...payload });
+}
+function bad(res, error = "Unknown error", code = 400) {
+  res.status(code).json({ ok: false, error });
+}
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve(this);
+    });
   });
 }
-ensureSystemUser();
-
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
-function now() { return Date.now(); }
-
-function signToken(user, deviceId) {
-  return jwt.sign(
-    { username: user.username, deviceId },
-    JWT_SECRET,
-    { expiresIn: "30d" }
-  );
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
 }
 
-function verifyAuth(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
-  if (!token) return res.status(401).json({ ok: false, error: "Нет токена" });
+async function initDb() {
+  await dbRun(`PRAGMA journal_mode=WAL;`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    passwordHash TEXT NOT NULL,
+    displayName TEXT DEFAULT '',
+    bio TEXT DEFAULT '',
+    avatarUrl TEXT DEFAULT '',
+    birthDate TEXT DEFAULT '',
+    createdAt TEXT NOT NULL,
+    lastSeen TEXT DEFAULT '',
+    blockedUntil TEXT DEFAULT '',
+    canSendText INTEGER DEFAULT 1,
+    canSendMedia INTEGER DEFAULT 1,
+    canCall INTEGER DEFAULT 1
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chatType TEXT NOT NULL,
+    groupId INTEGER DEFAULT NULL,
+    user1 TEXT DEFAULT NULL,
+    user2 TEXT DEFAULT NULL,
+    sender TEXT NOT NULL,
+    receiver TEXT DEFAULT NULL,
+    text TEXT DEFAULT '',
+    mediaType TEXT DEFAULT '',
+    mediaUrl TEXT DEFAULT '',
+    createdAt TEXT NOT NULL
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner TEXT NOT NULL,
+    text TEXT DEFAULT '',
+    mediaType TEXT DEFAULT '',
+    mediaUrl TEXT DEFAULT '',
+    createdAt TEXT NOT NULL,
+    expiresAt TEXT NOT NULL
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    deviceId TEXT NOT NULL,
+    deviceName TEXT DEFAULT '',
+    lastUsed TEXT NOT NULL,
+    firstSeen TEXT NOT NULL,
+    trusted INTEGER DEFAULT 0,
+    UNIQUE(username, deviceId)
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS auth_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    deviceId TEXT NOT NULL,
+    code TEXT NOT NULL,
+    expiresAt TEXT NOT NULL,
+    attempts INTEGER DEFAULT 0
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    avatarUrl TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    owner TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  )`);
+
+  await dbRun(`
+  CREATE TABLE IF NOT EXISTS group_members (
+    groupId INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    role TEXT NOT NULL, -- owner/admin/member
+    joinedAt TEXT NOT NULL,
+    UNIQUE(groupId, username)
+  )`);
+
+  // Ensure system bot exists (username: telegram)
+  const sys = await dbGet(`SELECT * FROM users WHERE username=?`, ["telegram"]);
+  if (!sys) {
+    const hash = await bcrypt.hash("system_bot_password", 10);
+    await dbRun(
+      `INSERT INTO users (username, passwordHash, displayName, bio, createdAt) VALUES (?,?,?,?,?)`,
+      ["telegram", hash, "@telegram", "System bot", nowISO()]
+    );
+  }
+}
+initDb().catch(console.error);
+
+// ---------- Auth middleware ----------
+async function verifyAuth(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return bad(res, "No token", 401);
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    db.get(`SELECT * FROM users WHERE username = ?`, [decoded.username], (err, user) => {
-      if (!user) return res.status(401).json({ ok: false, error: "Пользователь не найден" });
+    const payload = jwt.verify(token, JWT_SECRET);
+    const user = await dbGet(`SELECT * FROM users WHERE username=?`, [payload.username]);
+    if (!user) return bad(res, "User not found", 401);
 
-      if (Number(user.blockedUntil || 0) > now()) {
-        return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
-      }
+    // blocked?
+    if (user.blockedUntil) {
+      const bu = new Date(user.blockedUntil).getTime();
+      if (!isNaN(bu) && bu > Date.now()) return bad(res, "User is blocked", 403);
+    }
 
-      db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), user.username]);
-      if (decoded.deviceId) {
-        db.run(
-          `UPDATE sessions SET lastUsed=? WHERE username=? AND deviceId=?`,
-          [now(), user.username, decoded.deviceId]
-        );
-      }
-
-      req.user = user;
-      req.deviceId = decoded.deviceId;
-      next();
-    });
-  } catch {
-    return res.status(401).json({ ok: false, error: "Неверный токен" });
+    req.user = user;
+    next();
+  } catch (e) {
+    return bad(res, "Invalid token", 401);
   }
 }
 
-function canUser(user, rule) {
-  if (Number(user.blockedUntil || 0) > now()) return false;
-  if (rule === "text") return Number(user.canSendText) === 1;
-  if (rule === "media") return Number(user.canSendMedia) === 1;
-  if (rule === "call") return Number(user.canCall) === 1;
-  return true;
-}
+// ---------- Multer upload ----------
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const base = Date.now() + "_" + Math.random().toString(16).slice(2);
+    cb(null, base + ext);
+  }
+});
+const upload = multer({ storage });
 
-function guessMediaType(mime) {
-  const m = String(mime || "").toLowerCase();
-  if (m.startsWith("image/")) return "image";
-  if (m.startsWith("video/")) return "video";
-  if (m.includes("audio")) return "audio";
-  return "file";
-}
-
-function safePublicUser(u) {
-  return {
-    username: u.username,
-    displayName: u.displayName || u.username,
-    bio: u.bio || "",
-    avatarUrl: u.avatarUrl || "",
-    birthDate: u.birthDate || "",
-    lastSeen: u.lastSeen || 0
-  };
-}
-
-function cleanupExpiredStories() {
-  db.run(`DELETE FROM stories WHERE expiresAt <= ?`, [now()]);
-}
-setInterval(cleanupExpiredStories, 60 * 1000);
-
-function sendSystemMessage(toUsername, text) {
-  const createdAt = now();
-  db.run(
-    `INSERT INTO messages (chatType, user1, user2, sender, receiver, text, mediaType, mediaUrl, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ["private", SYSTEM_USERNAME, toUsername, SYSTEM_USERNAME, toUsername, text, "text", "", createdAt],
-    function (err) {
-      if (err) console.error("Ошибка отправки системного сообщения:", err);
-      else {
-        const msg = {
-          id: this.lastID,
-          chatType: "private",
-          sender: SYSTEM_USERNAME,
-          receiver: toUsername,
-          text,
-          mediaType: "text",
-          mediaUrl: "",
-          createdAt
-        };
-        broadcastToChat(msg, { type: "message", message: msg });
-      }
-    }
-  );
-}
-
-function getDeviceId(req) {
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const ua = req.headers['user-agent'] || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
-
-function getDeviceName(req) {
-  const ua = req.headers['user-agent'] || 'Unknown';
-  return ua.substring(0, 50);
-}
-
-// ==================== АУТЕНТИФИКАЦИЯ ====================
+// ---------- Auth routes ----------
 app.post("/api/auth/register", async (req, res) => {
-  const usernameRaw = String(req.body.username || "").trim();
-  const password = String(req.body.password || "").trim();
-  const username = usernameRaw.replace(/^@+/, "").toLowerCase();
+  try {
+    const { username, password } = req.body || {};
+    if (!safeUsername(username)) return bad(res, "Bad username format");
+    if (typeof password !== "string" || password.length < 6) return bad(res, "Password must be 6+ chars");
 
-  if (!/^[a-z0-9_]{4,20}$/.test(username)) {
-    return res.status(400).json({ ok: false, error: "Юзернейм 4-20: a-z,0-9,_" });
+    const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [username]);
+    if (exists) return bad(res, "Username already taken");
+
+    const hash = await bcrypt.hash(password, 10);
+    await dbRun(
+      `INSERT INTO users (username, passwordHash, createdAt, lastSeen) VALUES (?,?,?,?)`,
+      [username, hash, nowISO(), nowISO()]
+    );
+    ok(res, { message: "Registered" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Register failed");
   }
-  if (password.length < 4) {
-    return res.status(400).json({ ok: false, error: "Пароль слишком короткий" });
-  }
-
-  const hash = await bcrypt.hash(password, 10);
-  const createdAt = now();
-
-  db.run(
-    `INSERT INTO users (username, passwordHash, displayName, createdAt, lastSeen) VALUES (?,?,?,?,?)`,
-    [username, hash, username, createdAt, createdAt],
-    function (err) {
-      if (err) return res.status(400).json({ ok: false, error: "Юзернейм занят" });
-
-      const deviceId = getDeviceId(req);
-      const deviceName = getDeviceName(req);
-      db.run(
-        `INSERT OR IGNORE INTO sessions (username, deviceId, deviceName, lastUsed, firstSeen, trusted) VALUES (?,?,?,?,?,1)`,
-        [username, deviceId, deviceName, createdAt, createdAt]
-      );
-
-      db.get(`SELECT * FROM users WHERE username = ?`, [username], (e2, user) => {
-        const token = signToken(user, deviceId);
-        res.json({ ok: true, token, user: safePublicUser(user) });
-      });
-    }
-  );
 });
 
-app.post("/api/auth/login", (req, res) => {
-  const identifierRaw = String(req.body.identifier || req.body.username || "").trim();
-  const password = String(req.body.password || "").trim();
-  const username = identifierRaw.replace(/^@+/, "").toLowerCase();
-  const deviceId = getDeviceId(req);
-  const deviceName = getDeviceName(req);
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { identifier, password, deviceId, deviceName } = req.body || {};
+    const username = (identifier || "").replace(/^@/, "");
+    if (!safeUsername(username)) return bad(res, "Bad username");
+    const user = await dbGet(`SELECT * FROM users WHERE username=?`, [username]);
+    if (!user) return bad(res, "Invalid credentials", 401);
 
-  db.get(`SELECT * FROM users WHERE username = ?`, [username], async (err, user) => {
-    if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
+    const okPass = await bcrypt.compare(password || "", user.passwordHash);
+    if (!okPass) return bad(res, "Invalid credentials", 401);
 
-    if (Number(user.blockedUntil || 0) > now()) {
-      return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+    const dId = typeof deviceId === "string" && deviceId.length ? deviceId : "unknown-device";
+    const session = await dbGet(`SELECT * FROM sessions WHERE username=? AND deviceId=?`, [username, dId]);
+
+    if (!session || session.trusted !== 1) {
+      // generate 2FA
+      const code = rand6();
+      const expires = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min
+
+      await dbRun(`INSERT INTO auth_codes (username, deviceId, code, expiresAt, attempts) VALUES (?,?,?,?,0)`, [
+        username,
+        dId,
+        code,
+        expires
+      ]);
+
+      // send message from @telegram to user (DM)
+      await dbRun(
+        `INSERT INTO messages (chatType, user1, user2, sender, receiver, text, createdAt) VALUES (?,?,?,?,?,?,?)`,
+        ["dm", "telegram", username, "telegram", username, `🔐 Код входа: ${code} (действует 5 минут)`, nowISO()]
+      );
+
+      // upsert session (untrusted)
+      const now = nowISO();
+      await dbRun(
+        `INSERT INTO sessions (username, deviceId, deviceName, lastUsed, firstSeen, trusted)
+         VALUES (?,?,?,?,?,0)
+         ON CONFLICT(username, deviceId) DO UPDATE SET deviceName=excluded.deviceName, lastUsed=excluded.lastUsed, trusted=0`,
+        [username, dId, deviceName || "", now, now]
+      );
+
+      return ok(res, { requireConfirm: true, username });
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+    // trusted => token
+    await dbRun(`UPDATE sessions SET lastUsed=? WHERE username=? AND deviceId=?`, [nowISO(), username, dId]);
 
-    db.get(
-      `SELECT * FROM sessions WHERE username = ? AND deviceId = ?`,
-      [username, deviceId],
-      (err, session) => {
-        const nowTime = now();
+    const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: "7d" });
+    ok(res, { token, username });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Login failed");
+  }
+});
 
-        if (session && session.trusted === 1) {
-          db.run(`UPDATE sessions SET lastUsed=? WHERE id=?`, [nowTime, session.id]);
-          db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [nowTime, username]);
+app.post("/api/auth/confirm", async (req, res) => {
+  try {
+    const { username, code, deviceId } = req.body || {};
+    const u = (username || "").replace(/^@/, "");
+    if (!safeUsername(u)) return bad(res, "Bad username");
+    if (typeof code !== "string" || code.length !== 6) return bad(res, "Bad code");
+    const dId = typeof deviceId === "string" && deviceId.length ? deviceId : "unknown-device";
 
-          const token = signToken(user, deviceId);
-          return res.json({ ok: true, token, user: safePublicUser(user) });
-        }
-
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = nowTime + 5 * 60 * 1000;
-
-        db.run(
-          `INSERT INTO auth_codes (username, deviceId, code, expiresAt, attempts)
-           VALUES (?, ?, ?, ?, 0)
-           ON CONFLICT(username, deviceId) DO UPDATE SET code=excluded.code, expiresAt=excluded.expiresAt, attempts=0`,
-          [username, deviceId, code, expiresAt]
-        );
-
-        db.run(
-          `INSERT OR IGNORE INTO sessions (username, deviceId, deviceName, lastUsed, firstSeen, trusted)
-           VALUES (?, ?, ?, ?, ?, 0)`,
-          [username, deviceId, deviceName, nowTime, nowTime]
-        );
-
-        sendSystemMessage(username, `🔐 Код подтверждения: ${code}\nЕсли это не вы, проигнорируйте сообщение.`);
-
-        res.json({
-          ok: false,
-          requireConfirm: true,
-          message: "На ваш аккаунт отправлен код подтверждения. Введите его для завершения входа."
-        });
-      }
+    const row = await dbGet(
+      `SELECT * FROM auth_codes WHERE username=? AND deviceId=? ORDER BY id DESC LIMIT 1`,
+      [u, dId]
     );
+    if (!row) return bad(res, "Code not found", 401);
+
+    if (new Date(row.expiresAt).getTime() < Date.now()) return bad(res, "Code expired", 401);
+    if (row.attempts >= 5) return bad(res, "Too many attempts", 429);
+    if (row.code !== code) {
+      await dbRun(`UPDATE auth_codes SET attempts=attempts+1 WHERE id=?`, [row.id]);
+      return bad(res, "Wrong code", 401);
+    }
+
+    await dbRun(`DELETE FROM auth_codes WHERE username=? AND deviceId=?`, [u, dId]);
+    await dbRun(`UPDATE sessions SET trusted=1, lastUsed=? WHERE username=? AND deviceId=?`, [nowISO(), u, dId]);
+
+    const token = jwt.sign({ username: u }, JWT_SECRET, { expiresIn: "7d" });
+    ok(res, { token, username: u });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Confirm failed");
+  }
+});
+
+// ---------- Profile ----------
+app.get("/api/me", verifyAuth, async (req, res) => {
+  const u = req.user;
+  ok(res, {
+    me: {
+      username: u.username,
+      displayName: u.displayName,
+      bio: u.bio,
+      avatarUrl: u.avatarUrl,
+      birthDate: u.birthDate,
+      createdAt: u.createdAt,
+      lastSeen: u.lastSeen,
+      canSendText: !!u.canSendText,
+      canSendMedia: !!u.canSendMedia,
+      canCall: !!u.canCall
+    }
   });
 });
 
-app.post("/api/auth/confirm", (req, res) => {
-  const { username, code } = req.body;
-  const deviceId = getDeviceId(req);
-
-  if (!username || !code) {
-    return res.status(400).json({ ok: false, error: "Не указаны имя пользователя или код" });
-  }
-
-  db.get(
-    `SELECT * FROM auth_codes WHERE username = ? AND deviceId = ?`,
-    [username, deviceId],
-    (err, authRow) => {
-      if (!authRow) {
-        return res.status(400).json({ ok: false, error: "Код не найден или истёк" });
-      }
-
-      if (authRow.expiresAt < now()) {
-        return res.status(400).json({ ok: false, error: "Код истёк. Запросите новый." });
-      }
-
-      if (authRow.attempts >= 5) {
-        return res.status(400).json({ ok: false, error: "Слишком много попыток. Запросите новый код." });
-      }
-
-      if (authRow.code !== code) {
-        db.run(`UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?`, [authRow.id]);
-        return res.status(400).json({ ok: false, error: "Неверный код" });
-      }
-
-      db.run(
-        `UPDATE sessions SET trusted = 1, lastUsed = ? WHERE username = ? AND deviceId = ?`,
-        [now(), username, deviceId]
-      );
-
-      db.run(`DELETE FROM auth_codes WHERE id = ?`, [authRow.id]);
-
-      db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
-        if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
-        const token = signToken(user, deviceId);
-        res.json({ ok: true, token, user: safePublicUser(user) });
-      });
-    }
-  );
-});
-
-// ==================== ПРОФИЛЬ ====================
-app.get("/api/me", verifyAuth, (req, res) => {
-  res.json({ ok: true, profile: safePublicUser(req.user) });
-});
-
-app.put("/api/me", verifyAuth, (req, res) => {
-  const displayName = String(req.body.displayName || "").trim().slice(0, 40);
-  const bio = String(req.body.bio || "").trim().slice(0, 200);
-  const birthDate = String(req.body.birthDate || "").trim().slice(0, 20);
-  const avatarUrl = String(req.body.avatarUrl || "").trim().slice(0, 300);
-
-  db.run(
-    `UPDATE users SET displayName=?, bio=?, birthDate=?, avatarUrl=? WHERE username=?`,
-    [displayName, bio, birthDate, avatarUrl, req.user.username],
-    (err) => {
-      if (err) return res.status(500).json({ ok: false, error: "Ошибка обновления" });
-      db.get(`SELECT * FROM users WHERE username=?`, [req.user.username], (e2, user) => {
-        res.json({ ok: true, profile: safePublicUser(user) });
-      });
-    }
-  );
-});
-
-// Удаление аккаунта
-app.delete("/api/me", verifyAuth, (req, res) => {
-  const username = req.user.username;
-
-  db.serialize(() => {
-    db.run("BEGIN TRANSACTION");
-
-    db.run(`DELETE FROM messages WHERE sender = ? OR receiver = ?`, [username, username]);
-    db.run(`DELETE FROM stories WHERE owner = ?`, [username]);
-    db.run(`DELETE FROM sessions WHERE username = ?`, [username]);
-    db.run(`DELETE FROM auth_codes WHERE username = ?`, [username]);
-
-    db.run(`DELETE FROM users WHERE username = ?`, [username], function(err) {
-      if (err) {
-        db.run("ROLLBACK");
-        return res.status(500).json({ ok: false, error: "Ошибка при удалении аккаунта" });
-      }
-
-      db.run("COMMIT", (commitErr) => {
-        if (commitErr) {
-          return res.status(500).json({ ok: false, error: "Ошибка при завершении удаления" });
-        }
-        res.json({ ok: true, message: "Аккаунт успешно удалён" });
-      });
-    });
-  });
-});
-
-// ==================== ПОИСК ПОЛЬЗОВАТЕЛЕЙ ====================
-app.get("/api/users/search", verifyAuth, (req, res) => {
-  const q = String(req.query.q || "").trim().replace(/^@+/, "").toLowerCase();
-  if (!q) return res.json({ ok: true, users: [] });
-
-  db.all(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, lastSeen
-     FROM users
-     WHERE username LIKE ?
-       AND username != ?
-     ORDER BY username ASC
-     LIMIT 20`,
-    [`%${q}%`, req.user.username],
-    (err, rows) => res.json({ ok: true, users: rows || [] })
-  );
-});
-
-app.get("/api/users/:username", verifyAuth, (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
-  db.get(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, lastSeen FROM users WHERE username=?`,
-    [u],
-    (err, row) => {
-      if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
-      res.json({ ok: true, user: row });
-    }
-  );
-});
-
-// ==================== СПИСОК ЧАТОВ (личные + группы) ====================
-app.get("/api/chats", verifyAuth, (req, res) => {
-  const me = req.user.username;
-
-  // Личные чаты
-  db.all(
-    `
-    SELECT other, MAX(createdAt) AS lastAt
-    FROM (
-      SELECT CASE WHEN sender=? THEN receiver ELSE sender END AS other, createdAt
-      FROM messages
-      WHERE chatType='private' AND (sender=? OR receiver=?)
-    )
-    GROUP BY other
-    ORDER BY lastAt DESC
-    LIMIT 50
-    `,
-    [me, me, me],
-    (err, privateRows) => {
-      // Группы пользователя
-      db.all(
-        `SELECT g.*, gm.role FROM groups g
-         JOIN group_members gm ON g.id = gm.groupId
-         WHERE gm.username = ?
-         ORDER BY g.updatedAt DESC`,
-        [me],
-        (err2, groups) => {
-          const result = [];
-
-          // Обработка личных чатов
-          const others = (privateRows || []).map(r => r.other).filter(Boolean);
-          if (others.length > 0) {
-            const placeholders = others.map(() => "?").join(",");
-            db.all(
-              `SELECT username, displayName, avatarUrl, bio, birthDate, lastSeen FROM users WHERE username IN (${placeholders})`,
-              others,
-              (e3, users) => {
-                const userMap = new Map((users || []).map(u => [u.username, u]));
-
-                db.all(
-                  `SELECT id, sender, receiver, text, mediaType, createdAt FROM messages
-                   WHERE chatType='private' AND (sender=? OR receiver=?)
-                   ORDER BY createdAt DESC LIMIT 200`,
-                  [me, me],
-                  (e4, msgs) => {
-                    const previewMap = new Map();
-                    (msgs || []).forEach(m => {
-                      const other = m.sender === me ? m.receiver : m.sender;
-                      if (!previewMap.has(other)) {
-                        previewMap.set(other, {
-                          text: m.mediaType !== "text" ? `[${m.mediaType}]` : (m.text || ""),
-                          at: m.createdAt
-                        });
-                      }
-                    });
-
-                    others.forEach(o => {
-                      const u = userMap.get(o) || { username: o, displayName: o, avatarUrl: "", bio: "", birthDate: "", lastSeen: 0 };
-                      const p = previewMap.get(o) || { text: "", at: 0 };
-                      result.push({
-                        type: 'private',
-                        username: u.username,
-                        displayName: u.displayName || u.username,
-                        avatarUrl: u.avatarUrl || '',
-                        bio: u.bio || '',
-                        birthDate: u.birthDate || '',
-                        lastSeen: u.lastSeen,
-                        preview: p.text,
-                        lastAt: p.at
-                      });
-                    });
-
-                    // Добавляем группы
-                    groups.forEach(g => {
-                      result.push({
-                        type: 'group',
-                        id: g.id,
-                        name: g.name,
-                        avatarUrl: g.avatarUrl || '',
-                        description: g.description || '',
-                        role: g.role,
-                        preview: '',
-                        lastAt: g.updatedAt
-                      });
-                    });
-
-                    result.sort((a, b) => b.lastAt - a.lastAt);
-                    res.json({ ok: true, chats: result });
-                  }
-                );
-              }
-            );
-          } else {
-            // Только группы
-            groups.forEach(g => {
-              result.push({
-                type: 'group',
-                id: g.id,
-                name: g.name,
-                avatarUrl: g.avatarUrl || '',
-                description: g.description || '',
-                role: g.role,
-                preview: '',
-                lastAt: g.updatedAt
-              });
-            });
-            res.json({ ok: true, chats: result });
-          }
-        }
-      );
-    }
-  );
-});
-
-// ==================== СООБЩЕНИЯ ====================
-app.get("/api/messages", verifyAuth, (req, res) => {
-  const chat = String(req.query.chat || "global");
-  const me = req.user.username;
-
-  if (chat === "global") {
-    db.all(
-      `SELECT * FROM messages WHERE chatType='global' ORDER BY createdAt ASC LIMIT 500`,
-      (err, rows) => res.json({ ok: true, messages: rows || [] })
+app.put("/api/me", verifyAuth, async (req, res) => {
+  try {
+    const { displayName, bio, birthDate, avatarUrl } = req.body || {};
+    await dbRun(
+      `UPDATE users SET displayName=?, bio=?, birthDate=?, avatarUrl=? WHERE username=?`,
+      [
+        String(displayName || "").slice(0, 40),
+        String(bio || "").slice(0, 140),
+        String(birthDate || "").slice(0, 20),
+        String(avatarUrl || "").slice(0, 200),
+        req.user.username
+      ]
     );
-    return;
+    ok(res, { message: "Updated" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Update failed");
   }
-
-  if (chat.startsWith("group:")) {
-    const groupId = chat.split(":")[1];
-    db.get(
-      `SELECT * FROM group_members WHERE groupId = ? AND username = ?`,
-      [groupId, me],
-      (err, member) => {
-        if (!member) return res.status(403).json({ ok: false, error: "Вы не участник этой группы" });
-        db.all(
-          `SELECT * FROM messages WHERE chatType='group' AND groupId = ? ORDER BY createdAt ASC LIMIT 800`,
-          [groupId],
-          (err2, rows) => res.json({ ok: true, messages: rows || [] })
-        );
-      }
-    );
-    return;
-  }
-
-  // Личный чат
-  const other = chat.replace(/^@+/, "").toLowerCase();
-  db.all(
-    `
-    SELECT * FROM messages
-    WHERE chatType='private'
-      AND (
-        (sender=? AND receiver=?)
-        OR
-        (sender=? AND receiver=?)
-      )
-    ORDER BY createdAt ASC
-    LIMIT 800
-    `,
-    [me, other, other, me],
-    (err, rows) => res.json({ ok: true, messages: rows || [] })
-  );
 });
 
-app.delete("/api/messages/:id", verifyAuth, (req, res) => {
-  const id = Number(req.params.id);
-  const me = req.user.username;
-
-  db.get(`SELECT * FROM messages WHERE id=?`, [id], (err, row) => {
-    if (!row) return res.status(404).json({ ok: false, error: "Не найдено" });
-    if (row.sender !== me) return res.status(403).json({ ok: false, error: "Можно удалить только своё" });
-
-    db.run(`DELETE FROM messages WHERE id=?`, [id], (e2) => {
-      if (e2) return res.status(500).json({ ok: false, error: "Ошибка удаления" });
-
-      broadcastToChat(row, { type: "messageDeleted", id });
-      res.json({ ok: true });
-    });
-  });
-});
-
-// ==================== ЗАГРУЗКА ФАЙЛОВ ====================
-app.post("/api/upload", verifyAuth, upload.single("file"), (req, res) => {
-  const me = req.user.username;
-  if (!canUser(req.user, "media")) return res.status(403).json({ ok: false, error: "Тебе запрещены медиа" });
-
-  const receiver = String(req.body.receiver || "global").replace(/^@+/, "").toLowerCase();
-  let chatType, groupId = null;
-  if (receiver === "global") {
-    chatType = "global";
-  } else if (receiver.startsWith("group:")) {
-    chatType = "group";
-    groupId = receiver.split(":")[1];
-    // Проверка членства
-    db.get(`SELECT * FROM group_members WHERE groupId = ? AND username = ?`, [groupId, me], (err, member) => {
-      if (!member) return res.status(403).json({ ok: false, error: "Вы не участник этой группы" });
-      proceed();
-    });
-    return;
-  } else {
-    chatType = "private";
-  }
-
-  function proceed() {
-    const text = String(req.body.text || "").trim().slice(0, 2000);
-    if (!req.file) return res.status(400).json({ ok: false, error: "Нет файла" });
-
-    const mediaType = guessMediaType(req.file.mimetype);
-    const ext = path.extname(req.file.originalname) || "";
-    const newName = `${req.file.filename}${ext}`;
-    const newPath = path.join(uploadsDir, newName);
-
-    fs.renameSync(req.file.path, newPath);
-
-    const mediaUrl = `/uploads/${newName}`;
-    const createdAt = now();
-
-    const insertParams = [
-      chatType,
-      groupId,
-      chatType === "private" ? me : null,
-      chatType === "private" ? receiver : null,
-      me,
-      receiver === "" ? "global" : receiver,
-      text,
-      mediaType === "file" ? "text" : mediaType,
-      mediaUrl,
-      createdAt
-    ];
-
-    db.run(
-      `INSERT INTO messages (chatType, groupId, user1, user2, sender, receiver, text, mediaType, mediaUrl, createdAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      insertParams,
-      function (err) {
-        if (err) return res.status(500).json({ ok: false, error: "Ошибка сохранения" });
-
-        const msg = {
-          id: this.lastID,
-          chatType,
-          groupId,
-          sender: me,
-          receiver: receiver === "" ? "global" : receiver,
-          text,
-          mediaType: mediaType === "file" ? "text" : mediaType,
-          mediaUrl,
-          createdAt
-        };
-
-        broadcastToChat(msg, { type: "message", message: msg });
-        res.json({ ok: true, message: msg });
-      }
-    );
-  }
-
-  proceed();
-});
-
-// ==================== СТОРИС ====================
-app.get("/api/stories", verifyAuth, (req, res) => {
-  cleanupExpiredStories();
-  db.all(
-    `
-    SELECT s.*, u.displayName, u.avatarUrl
-    FROM stories s
-    LEFT JOIN users u ON u.username = s.owner
-    WHERE s.expiresAt > ?
-    ORDER BY s.createdAt DESC
-    LIMIT 200
-    `,
-    [now()],
-    (err, rows) => res.json({ ok: true, stories: rows || [] })
-  );
-});
-
-app.post("/api/stories", verifyAuth, upload.single("story"), (req, res) => {
-  const me = req.user.username;
-  const text = String(req.body.text || "").trim().slice(0, 120);
-  const createdAt = now();
-  const expiresAt = createdAt + 24 * 60 * 60 * 1000;
-
-  let mediaType = "text";
-  let mediaUrl = "";
-
-  if (req.file) {
-    mediaType = guessMediaType(req.file.mimetype);
-    const ext = path.extname(req.file.originalname) || "";
-    const newName = `story-${req.file.filename}${ext}`;
-    const newPath = path.join(uploadsDir, newName);
-    fs.renameSync(req.file.path, newPath);
-    mediaUrl = `/uploads/${newName}`;
-    if (mediaType === "file") mediaType = "text";
-  }
-
-  if (!text && !mediaUrl) {
-    return res.status(400).json({ ok: false, error: "Сторис пустая" });
-  }
-
-  db.run(
-    `INSERT INTO stories (owner,text,mediaType,mediaUrl,createdAt,expiresAt) VALUES (?,?,?,?,?,?)`,
-    [me, text, mediaType, mediaUrl, createdAt, expiresAt],
-    function (err) {
-      if (err) return res.status(500).json({ ok: false, error: "Ошибка сторис" });
-      res.json({ ok: true, id: this.lastID });
-    }
-  );
-});
-
-// ==================== ДНИ РОЖДЕНИЯ ====================
-app.get("/api/birthdays/today", verifyAuth, (req, res) => {
-  const d = new Date();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  db.all(
-    `SELECT username, displayName, avatarUrl, birthDate
-     FROM users
-     WHERE substr(birthDate, 6, 2) = ? AND substr(birthDate, 9, 2) = ?`,
-    [mm, dd],
-    (err, rows) => res.json({ ok: true, list: rows || [] })
-  );
-});
-
-// ==================== ГРУППЫ ====================
-app.post("/api/groups", verifyAuth, (req, res) => {
-  const { name, description, members } = req.body;
-  const owner = req.user.username;
-  const nowTime = now();
-
-  if (!name || name.trim().length === 0) {
-    return res.status(400).json({ ok: false, error: "Название группы обязательно" });
-  }
-
-  db.run(
-    `INSERT INTO groups (name, description, owner, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)`,
-    [name.trim(), description || '', owner, nowTime, nowTime],
-    function(err) {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ ok: false, error: "Ошибка создания группы" });
-      }
-      const groupId = this.lastID;
-
-      db.run(
-        `INSERT INTO group_members (groupId, username, role, joinedAt) VALUES (?, ?, ?, ?)`,
-        [groupId, owner, 'owner', nowTime],
-        (err2) => {
-          if (err2) {
-            console.error(err2);
-            return res.status(500).json({ ok: false, error: "Ошибка добавления владельца" });
-          }
-
-          if (!members || members.length === 0) {
-            return res.json({ ok: true, groupId });
-          }
-
-          let inserted = 0;
-          members.forEach(username => {
-            if (username === owner) return;
-            db.run(
-              `INSERT OR IGNORE INTO group_members (groupId, username, role, joinedAt) VALUES (?, ?, ?, ?)`,
-              [groupId, username, 'member', nowTime],
-              (err3) => {
-                inserted++;
-                if (err3) console.error(err3);
-                if (inserted === members.length) {
-                  res.json({ ok: true, groupId });
-                }
-              }
-            );
-          });
-        }
-      );
-    }
-  );
-});
-
-app.get("/api/groups/:groupId", verifyAuth, (req, res) => {
-  const groupId = req.params.groupId;
+app.delete("/api/me", verifyAuth, async (req, res) => {
   const username = req.user.username;
-
-  db.get(
-    `SELECT * FROM group_members WHERE groupId = ? AND username = ?`,
-    [groupId, username],
-    (err, member) => {
-      if (!member) return res.status(403).json({ ok: false, error: "Вы не участник этой группы" });
-
-      db.get(`SELECT * FROM groups WHERE id = ?`, [groupId], (err2, group) => {
-        if (!group) return res.status(404).json({ ok: false, error: "Группа не найдена" });
-
-        db.all(
-          `SELECT gm.*, u.avatarUrl, u.displayName FROM group_members gm LEFT JOIN users u ON gm.username = u.username WHERE gm.groupId = ?`,
-          [groupId],
-          (err3, members) => {
-            if (err3) return res.status(500).json({ ok: false, error: "Ошибка получения участников" });
-            res.json({
-              ok: true,
-              group: {
-                ...group,
-                members: members.map(m => ({
-                  username: m.username,
-                  role: m.role,
-                  avatarUrl: m.avatarUrl,
-                  displayName: m.displayName || m.username,
-                  joinedAt: m.joinedAt
-                }))
-              }
-            });
-          }
-        );
-      });
-    }
-  );
-});
-
-app.put("/api/groups/:groupId", verifyAuth, upload.single("avatar"), (req, res) => {
-  const groupId = req.params.groupId;
-  const username = req.user.username;
-  const { name, description } = req.body;
-
-  db.get(
-    `SELECT role FROM group_members WHERE groupId = ? AND username = ?`,
-    [groupId, username],
-    (err, member) => {
-      if (!member || (member.role !== 'admin' && member.role !== 'owner')) {
-        return res.status(403).json({ ok: false, error: "Недостаточно прав" });
-      }
-
-      let avatarUrl = null;
-      if (req.file) {
-        const mediaType = guessMediaType(req.file.mimetype);
-        if (!mediaType.startsWith('image')) {
-          return res.status(400).json({ ok: false, error: "Файл должен быть изображением" });
-        }
-        const ext = path.extname(req.file.originalname) || "";
-        const newName = `group_${groupId}_${req.file.filename}${ext}`;
-        const newPath = path.join(uploadsDir, newName);
-        fs.renameSync(req.file.path, newPath);
-        avatarUrl = `/uploads/${newName}`;
-      }
-
-      let query = "UPDATE groups SET updatedAt = ?";
-      const params = [now()];
-      if (name) {
-        query += ", name = ?";
-        params.push(name.trim());
-      }
-      if (description !== undefined) {
-        query += ", description = ?";
-        params.push(description);
-      }
-      if (avatarUrl) {
-        query += ", avatarUrl = ?";
-        params.push(avatarUrl);
-      }
-      query += " WHERE id = ?";
-      params.push(groupId);
-
-      db.run(query, params, function(err2) {
-        if (err2) {
-          console.error(err2);
-          return res.status(500).json({ ok: false, error: "Ошибка обновления" });
-        }
-        res.json({ ok: true });
-      });
-    }
-  );
-});
-
-app.post("/api/groups/:groupId/members", verifyAuth, (req, res) => {
-  const groupId = req.params.groupId;
-  const username = req.user.username;
-  const { members } = req.body;
-
-  if (!members || !Array.isArray(members) || members.length === 0) {
-    return res.status(400).json({ ok: false, error: "Нет участников для добавления" });
-  }
-
-  db.get(
-    `SELECT role FROM group_members WHERE groupId = ? AND username = ?`,
-    [groupId, username],
-    (err, member) => {
-      if (!member || (member.role !== 'admin' && member.role !== 'owner')) {
-        return res.status(403).json({ ok: false, error: "Недостаточно прав" });
-      }
-
-      const nowTime = now();
-      let added = 0;
-      members.forEach(m => {
-        db.run(
-          `INSERT OR IGNORE INTO group_members (groupId, username, role, joinedAt) VALUES (?, ?, ?, ?)`,
-          [groupId, m, 'member', nowTime],
-          (err2) => {
-            added++;
-            if (err2) console.error(err2);
-            if (added === members.length) {
-              res.json({ ok: true });
-            }
-          }
-        );
-      });
-    }
-  );
-});
-
-app.delete("/api/groups/:groupId/members/:username", verifyAuth, (req, res) => {
-  const groupId = req.params.groupId;
-  const targetUsername = req.params.username;
-  const currentUsername = req.user.username;
-
-  db.get(
-    `SELECT role FROM group_members WHERE groupId = ? AND username = ?`,
-    [groupId, currentUsername],
-    (err, member) => {
-      if (!member || (member.role !== 'admin' && member.role !== 'owner')) {
-        return res.status(403).json({ ok: false, error: "Недостаточно прав" });
-      }
-
-      db.get(
-        `SELECT role FROM group_members WHERE groupId = ? AND username = ?`,
-        [groupId, targetUsername],
-        (err2, target) => {
-          if (!target) return res.status(404).json({ ok: false, error: "Участник не найден" });
-          if (target.role === 'owner') {
-            return res.status(403).json({ ok: false, error: "Нельзя удалить владельца группы" });
-          }
-
-          db.run(
-            `DELETE FROM group_members WHERE groupId = ? AND username = ?`,
-            [groupId, targetUsername],
-            function(err3) {
-              if (err3) return res.status(500).json({ ok: false, error: "Ошибка удаления" });
-              res.json({ ok: true });
-            }
-          );
-        }
-      );
-    }
-  );
-});
-
-app.put("/api/groups/:groupId/members/:username/role", verifyAuth, (req, res) => {
-  const groupId = req.params.groupId;
-  const targetUsername = req.params.username;
-  const currentUsername = req.user.username;
-  const { role } = req.body;
-
-  if (role !== 'admin' && role !== 'member') {
-    return res.status(400).json({ ok: false, error: "Некорректная роль" });
-  }
-
-  db.get(
-    `SELECT role FROM group_members WHERE groupId = ? AND username = ?`,
-    [groupId, currentUsername],
-    (err, member) => {
-      if (!member || member.role !== 'owner') {
-        return res.status(403).json({ ok: false, error: "Только владелец может назначать администраторов" });
-      }
-
-      db.run(
-        `UPDATE group_members SET role = ? WHERE groupId = ? AND username = ?`,
-        [role, groupId, targetUsername],
-        function(err2) {
-          if (err2) return res.status(500).json({ ok: false, error: "Ошибка обновления" });
-          res.json({ ok: true });
-        }
-      );
-    }
-  );
-});
-
-// ==================== АДМИН-ПАНЕЛЬ ====================
-app.post("/api/admin/login", (req, res) => {
-  const user = String(req.body.user || "");
-  const pass = String(req.body.pass || "");
-  if (user !== ADMIN_USER || pass !== ADMIN_PASS) return res.status(403).json({ ok: false });
-
-  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: "2h" });
-  res.json({ ok: true, token });
-});
-
-function verifyAdmin(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : "";
-  if (!token) return res.status(401).json({ ok: false });
+  if (username === "telegram") return bad(res, "Cannot delete system bot", 403);
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.admin) return res.status(403).json({ ok: false });
+    await dbRun("BEGIN TRANSACTION");
+    await dbRun(`DELETE FROM messages WHERE sender=? OR receiver=? OR user1=? OR user2=?`, [
+      username,
+      username,
+      username,
+      username
+    ]);
+    await dbRun(`DELETE FROM stories WHERE owner=?`, [username]);
+    await dbRun(`DELETE FROM sessions WHERE username=?`, [username]);
+    await dbRun(`DELETE FROM auth_codes WHERE username=?`, [username]);
+    await dbRun(`DELETE FROM group_members WHERE username=?`, [username]);
+
+    // if user owns groups, keep group but transfer? simplest: delete groups owned by user + their messages
+    const owned = await dbAll(`SELECT id FROM groups WHERE owner=?`, [username]);
+    for (const g of owned) {
+      await dbRun(`DELETE FROM messages WHERE chatType='group' AND groupId=?`, [g.id]);
+      await dbRun(`DELETE FROM group_members WHERE groupId=?`, [g.id]);
+      await dbRun(`DELETE FROM groups WHERE id=?`, [g.id]);
+    }
+
+    await dbRun(`DELETE FROM users WHERE username=?`, [username]);
+    await dbRun("COMMIT");
+    ok(res, { message: "Account deleted" });
+  } catch (e) {
+    console.error(e);
+    await dbRun("ROLLBACK").catch(() => {});
+    bad(res, "Delete failed");
+  }
+});
+
+// ---------- Users ----------
+app.get("/api/users/search", verifyAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").replace(/^@/, "").toLowerCase();
+    if (!q) return ok(res, { users: [] });
+    const users = await dbAll(
+      `SELECT username, displayName, bio, avatarUrl, lastSeen FROM users
+       WHERE username LIKE ? AND username != 'telegram' LIMIT 20`,
+      [`%${q}%`]
+    );
+    ok(res, { users });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Search failed");
+  }
+});
+
+app.get("/api/users/:username", verifyAuth, async (req, res) => {
+  try {
+    const u = String(req.params.username || "").replace(/^@/, "");
+    const user = await dbGet(
+      `SELECT username, displayName, bio, avatarUrl, birthDate, lastSeen FROM users WHERE username=?`,
+      [u]
+    );
+    if (!user) return bad(res, "Not found", 404);
+    ok(res, { user });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Birthdays ----------
+app.get("/api/birthdays/today", verifyAuth, async (req, res) => {
+  try {
+    const today = new Date();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+
+    // birthDate expected YYYY-MM-DD
+    const users = await dbAll(
+      `SELECT username, displayName, avatarUrl, birthDate FROM users
+       WHERE substr(birthDate,6,2)=? AND substr(birthDate,9,2)=? AND birthDate != ''`,
+      [mm, dd]
+    );
+    ok(res, { users });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Chats list ----------
+app.get("/api/chats", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+
+    // DMs where me involved (user1/user2 derived in messages)
+    const dms = await dbAll(
+      `
+      SELECT
+        CASE
+          WHEN user1=? THEN user2
+          WHEN user2=? THEN user1
+          WHEN sender=? AND receiver IS NOT NULL THEN receiver
+          WHEN receiver=? AND sender IS NOT NULL THEN sender
+          ELSE NULL
+        END as peer,
+        MAX(createdAt) as lastTime
+      FROM messages
+      WHERE chatType='dm' AND (
+        user1=? OR user2=? OR sender=? OR receiver=?
+      )
+      GROUP BY peer
+      HAVING peer IS NOT NULL
+      ORDER BY lastTime DESC
+      LIMIT 50
+      `,
+      [me, me, me, me, me, me, me, me]
+    );
+
+    const dmWithLast = [];
+    for (const row of dms) {
+      const peer = row.peer;
+      const last = await dbGet(
+        `SELECT * FROM messages
+         WHERE chatType='dm' AND (
+           (user1=? AND user2=?) OR (user1=? AND user2=?)
+           OR (sender=? AND receiver=?) OR (sender=? AND receiver=?)
+         )
+         ORDER BY id DESC LIMIT 1`,
+        [me, peer, peer, me, me, peer, peer, me]
+      );
+      const peerInfo = await dbGet(`SELECT username, displayName, avatarUrl, lastSeen FROM users WHERE username=?`, [
+        peer
+      ]);
+      if (peerInfo) dmWithLast.push({ peer: peerInfo, last });
+    }
+
+    // Groups where member
+    const groups = await dbAll(
+      `SELECT g.*, gm.role FROM groups g
+       JOIN group_members gm ON gm.groupId=g.id
+       WHERE gm.username=?
+       ORDER BY g.updatedAt DESC`,
+      [me]
+    );
+
+    // Global last message
+    const globalLast = await dbGet(`SELECT * FROM messages WHERE chatType='global' ORDER BY id DESC LIMIT 1`, []);
+
+    ok(res, { global: { last: globalLast }, dms: dmWithLast, groups });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Messages ----------
+app.get("/api/messages", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const chat = String(req.query.chat || "");
+    const parts = chatKeyToParts(chat);
+    if (!parts) return bad(res, "Bad chat");
+
+    let rows = [];
+    if (parts.type === "global") {
+      rows = await dbAll(`SELECT * FROM messages WHERE chatType='global' ORDER BY id DESC LIMIT 100`);
+    } else if (parts.type === "dm") {
+      const peer = parts.peer;
+      rows = await dbAll(
+        `SELECT * FROM messages WHERE chatType='dm' AND (
+          (user1=? AND user2=?) OR (user1=? AND user2=?)
+          OR (sender=? AND receiver=?) OR (sender=? AND receiver=?)
+        ) ORDER BY id DESC LIMIT 100`,
+        [me, peer, peer, me, me, peer, peer, me]
+      );
+    } else if (parts.type === "group") {
+      const gid = parts.groupId;
+      // check membership
+      const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+      if (!mem) return bad(res, "Not a member", 403);
+      rows = await dbAll(`SELECT * FROM messages WHERE chatType='group' AND groupId=? ORDER BY id DESC LIMIT 150`, [
+        gid
+      ]);
+    }
+
+    ok(res, { messages: rows.reverse() });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.delete("/api/messages/:id", verifyAuth, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const msg = await dbGet(`SELECT * FROM messages WHERE id=?`, [id]);
+    if (!msg) return bad(res, "Not found", 404);
+    if (msg.sender !== req.user.username) return bad(res, "Not yours", 403);
+
+    await dbRun(`DELETE FROM messages WHERE id=?`, [id]);
+    ok(res, { id });
+    // WS broadcast deletion handled client-side by receiving ws event (optional)
+    broadcastToChat(msg, { type: "message-deleted", id });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Upload ----------
+app.post("/api/upload", verifyAuth, upload.single("file"), async (req, res) => {
+  try {
+    const me = req.user.username;
+    if (!req.user.canSendMedia) return bad(res, "Media disabled", 403);
+
+    const chat = String(req.body.chat || "");
+    const text = String(req.body.text || "");
+    const parts = chatKeyToParts(chat);
+    if (!parts) return bad(res, "Bad chat");
+
+    const file = req.file;
+    if (!file) return bad(res, "No file");
+    const mime = (file.mimetype || "").toLowerCase();
+
+    let mediaType = "";
+    if (mime.startsWith("image/")) mediaType = "image";
+    else if (mime.startsWith("video/")) mediaType = "video";
+    else if (mime.startsWith("audio/")) mediaType = "audio";
+    else mediaType = "file";
+
+    const mediaUrl = `/uploads/${file.filename}`;
+    const createdAt = nowISO();
+
+    let msgRow = null;
+
+    if (parts.type === "global") {
+      if (!req.user.canSendText && !text) return bad(res, "Text disabled", 403);
+      const r = await dbRun(
+        `INSERT INTO messages (chatType, sender, text, mediaType, mediaUrl, createdAt) VALUES (?,?,?,?,?,?)`,
+        ["global", me, text, mediaType, mediaUrl, createdAt]
+      );
+      msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+    }
+
+    if (parts.type === "dm") {
+      const peer = parts.peer;
+      const peerExists = await dbGet(`SELECT username FROM users WHERE username=?`, [peer]);
+      if (!peerExists) return bad(res, "Peer not found", 404);
+
+      const user1 = me < peer ? me : peer;
+      const user2 = me < peer ? peer : me;
+
+      const r = await dbRun(
+        `INSERT INTO messages (chatType, user1, user2, sender, receiver, text, mediaType, mediaUrl, createdAt)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        ["dm", user1, user2, me, peer, text, mediaType, mediaUrl, createdAt]
+      );
+      msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+    }
+
+    if (parts.type === "group") {
+      const gid = parts.groupId;
+      const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+      if (!mem) return bad(res, "Not a member", 403);
+
+      const r = await dbRun(
+        `INSERT INTO messages (chatType, groupId, sender, text, mediaType, mediaUrl, createdAt)
+         VALUES (?,?,?,?,?,?,?)`,
+        ["group", gid, me, text, mediaType, mediaUrl, createdAt]
+      );
+      msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+
+      await dbRun(`UPDATE groups SET updatedAt=? WHERE id=?`, [createdAt, gid]);
+    }
+
+    ok(res, { message: msgRow });
+    if (msgRow) broadcastToChat(msgRow, { type: "message", message: msgRow });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Upload failed");
+  }
+});
+
+// ---------- Stories ----------
+app.get("/api/stories", verifyAuth, async (req, res) => {
+  try {
+    const rows = await dbAll(
+      `SELECT s.*, u.displayName, u.avatarUrl
+       FROM stories s JOIN users u ON u.username=s.owner
+       WHERE datetime(s.expiresAt) > datetime(?)
+       ORDER BY s.createdAt DESC LIMIT 50`,
+      [nowISO()]
+    );
+    ok(res, { stories: rows });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.post("/api/stories", verifyAuth, upload.single("file"), async (req, res) => {
+  try {
+    const owner = req.user.username;
+    const text = String(req.body.text || "").slice(0, 300);
+    let mediaType = "";
+    let mediaUrl = "";
+    if (req.file) {
+      const mime = (req.file.mimetype || "").toLowerCase();
+      if (mime.startsWith("image/")) mediaType = "image";
+      else if (mime.startsWith("video/")) mediaType = "video";
+      else if (mime.startsWith("audio/")) mediaType = "audio";
+      else mediaType = "file";
+      mediaUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (!text && !mediaUrl) return bad(res, "Empty story");
+    const createdAt = nowISO();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const r = await dbRun(
+      `INSERT INTO stories (owner, text, mediaType, mediaUrl, createdAt, expiresAt) VALUES (?,?,?,?,?,?)`,
+      [owner, text, mediaType, mediaUrl, createdAt, expiresAt]
+    );
+    const story = await dbGet(`SELECT * FROM stories WHERE id=?`, [r.lastID]);
+    ok(res, { story });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Groups ----------
+app.post("/api/groups", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const { name, description, avatarUrl, members } = req.body || {};
+    const gName = String(name || "").trim().slice(0, 40);
+    if (!gName) return bad(res, "Name required");
+
+    const createdAt = nowISO();
+    const r = await dbRun(
+      `INSERT INTO groups (name, avatarUrl, description, owner, createdAt, updatedAt)
+       VALUES (?,?,?,?,?,?)`,
+      [gName, String(avatarUrl || "").slice(0, 200), String(description || "").slice(0, 200), me, createdAt, createdAt]
+    );
+    const gid = r.lastID;
+
+    await dbRun(
+      `INSERT INTO group_members (groupId, username, role, joinedAt) VALUES (?,?,?,?)`,
+      [gid, me, "owner", createdAt]
+    );
+
+    const list = Array.isArray(members) ? members : [];
+    for (const raw of list) {
+      const u = String(raw || "").replace(/^@/, "");
+      if (!safeUsername(u) || u === me) continue;
+      const ex = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
+      if (!ex) continue;
+      await dbRun(
+        `INSERT OR IGNORE INTO group_members (groupId, username, role, joinedAt) VALUES (?,?,?,?)`,
+        [gid, u, "member", createdAt]
+      );
+    }
+
+    const group = await dbGet(`SELECT * FROM groups WHERE id=?`, [gid]);
+    ok(res, { groupId: gid, group });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Create group failed");
+  }
+});
+
+app.get("/api/groups/:groupId", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const gid = Number(req.params.groupId);
+    const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    if (!mem) return bad(res, "Not a member", 403);
+
+    const group = await dbGet(`SELECT * FROM groups WHERE id=?`, [gid]);
+    if (!group) return bad(res, "Not found", 404);
+
+    const members = await dbAll(
+      `SELECT gm.username, gm.role, gm.joinedAt, u.displayName, u.avatarUrl
+       FROM group_members gm JOIN users u ON u.username=gm.username
+       WHERE gm.groupId=? ORDER BY
+         CASE gm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+         gm.joinedAt ASC`,
+      [gid]
+    );
+    ok(res, { group, members });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.put("/api/groups/:groupId", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const gid = Number(req.params.groupId);
+    const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    if (!mem) return bad(res, "Not a member", 403);
+    if (!(mem.role === "owner" || mem.role === "admin")) return bad(res, "No rights", 403);
+
+    const { name, description, avatarUrl } = req.body || {};
+    await dbRun(
+      `UPDATE groups SET name=?, description=?, avatarUrl=?, updatedAt=? WHERE id=?`,
+      [
+        String(name || "").slice(0, 40),
+        String(description || "").slice(0, 200),
+        String(avatarUrl || "").slice(0, 200),
+        nowISO(),
+        gid
+      ]
+    );
+    const group = await dbGet(`SELECT * FROM groups WHERE id=?`, [gid]);
+    ok(res, { group });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Update failed");
+  }
+});
+
+app.post("/api/groups/:groupId/members", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const gid = Number(req.params.groupId);
+    const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    if (!mem) return bad(res, "Not a member", 403);
+    if (!(mem.role === "owner" || mem.role === "admin")) return bad(res, "No rights", 403);
+
+    const { members } = req.body || {};
+    const list = Array.isArray(members) ? members : [];
+    const createdAt = nowISO();
+
+    for (const raw of list) {
+      const u = String(raw || "").replace(/^@/, "");
+      if (!safeUsername(u) || u === me) continue;
+      const ex = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
+      if (!ex) continue;
+      await dbRun(
+        `INSERT OR IGNORE INTO group_members (groupId, username, role, joinedAt) VALUES (?,?,?,?)`,
+        [gid, u, "member", createdAt]
+      );
+    }
+
+    await dbRun(`UPDATE groups SET updatedAt=? WHERE id=?`, [createdAt, gid]);
+    ok(res, { message: "Members added" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.delete("/api/groups/:groupId/members/:username", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const gid = Number(req.params.groupId);
+    const target = String(req.params.username || "").replace(/^@/, "");
+
+    const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    if (!mem) return bad(res, "Not a member", 403);
+
+    const targetMem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, target]);
+    if (!targetMem) return bad(res, "Target not in group", 404);
+
+    if (mem.role === "owner") {
+      if (target === "owner") return bad(res, "Cannot remove owner", 403);
+      await dbRun(`DELETE FROM group_members WHERE groupId=? AND username=?`, [gid, target]);
+    } else if (mem.role === "admin") {
+      // admin can remove only members (not owner/admin)
+      if (targetMem.role !== "member") return bad(res, "Admins cannot remove owner/admin", 403);
+      await dbRun(`DELETE FROM group_members WHERE groupId=? AND username=?`, [gid, target]);
+    } else {
+      // member can leave self
+      if (target !== me) return bad(res, "No rights", 403);
+      await dbRun(`DELETE FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    }
+
+    await dbRun(`UPDATE groups SET updatedAt=? WHERE id=?`, [nowISO(), gid]);
+    ok(res, { message: "Removed" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.put("/api/groups/:groupId/members/:username/role", verifyAuth, async (req, res) => {
+  try {
+    const me = req.user.username;
+    const gid = Number(req.params.groupId);
+    const target = String(req.params.username || "").replace(/^@/, "");
+    const { role } = req.body || {};
+
+    const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+    if (!mem) return bad(res, "Not a member", 403);
+    if (mem.role !== "owner") return bad(res, "Only owner can change roles", 403);
+
+    if (!["admin", "member"].includes(String(role))) return bad(res, "Bad role");
+    if (target === me) return bad(res, "Owner role is fixed");
+
+    await dbRun(`UPDATE group_members SET role=? WHERE groupId=? AND username=?`, [role, gid, target]);
+    await dbRun(`UPDATE groups SET updatedAt=? WHERE id=?`, [nowISO(), gid]);
+    ok(res, { message: "Role updated" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- Admin ----------
+function verifyAdminToken(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return bad(res, "No token", 401);
+  try {
+    const p = jwt.verify(token, JWT_SECRET);
+    if (!p || p.admin !== true) return bad(res, "Not admin", 403);
+    req.admin = true;
     next();
   } catch {
-    return res.status(401).json({ ok: false });
+    return bad(res, "Bad token", 401);
   }
 }
 
-app.get("/api/admin/users", verifyAdmin, (req, res) => {
-  db.all(
-    `SELECT username, displayName, blockedUntil, canSendText, canSendMedia, canCall FROM users ORDER BY createdAt DESC LIMIT 500`,
-    (err, rows) => res.json({ ok: true, users: rows || [] })
-  );
+app.post("/api/admin/login", async (req, res) => {
+  const { username, password } = req.body || {};
+  if (username !== ADMIN_USER || password !== ADMIN_PASS) return bad(res, "Invalid admin credentials", 401);
+  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: "1d" });
+  ok(res, { token });
 });
 
-app.post("/api/admin/user/update", verifyAdmin, (req, res) => {
-  const username = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
-  const blockedUntil = Number(req.body.blockedUntil || 0);
-  const canSendText = req.body.canSendText ? 1 : 0;
-  const canSendMedia = req.body.canSendMedia ? 1 : 0;
-  const canCall = req.body.canCall ? 1 : 0;
-
-  db.run(
-    `UPDATE users SET blockedUntil=?, canSendText=?, canSendMedia=?, canCall=? WHERE username=?`,
-    [blockedUntil, canSendText, canSendMedia, canCall, username],
-    (err) => {
-      if (err) return res.status(500).json({ ok: false });
-      res.json({ ok: true });
-    }
-  );
-});
-
-// ==================== WEBSOCKET ====================
-const online = new Map();
-
-function wsSend(ws, payload) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(payload));
-  }
-}
-
-function broadcastToChat(messageRow, payload) {
-  if (messageRow.chatType === "global") {
-    for (const ws of online.values()) wsSend(ws, payload);
-    return;
-  }
-  if (messageRow.chatType === "group") {
-    db.all(`SELECT username FROM group_members WHERE groupId = ?`, [messageRow.groupId], (err, members) => {
-      if (err) return;
-      members.forEach(m => wsSend(online.get(m.username), payload));
-    });
-    return;
-  }
-  // Личный чат
-  const a = messageRow.sender;
-  const b = messageRow.receiver;
-  wsSend(online.get(a), payload);
-  wsSend(online.get(b), payload);
-}
-
-function broadcastStatus(username, status) {
-  const payload = { type: "status", username, status };
-  for (const ws of online.values()) wsSend(ws, payload);
-}
-
-wss.on("connection", (ws, req) => {
+app.get("/api/admin/users", verifyAdminToken, async (req, res) => {
   try {
+    const users = await dbAll(
+      `SELECT username, displayName, bio, avatarUrl, birthDate, createdAt, lastSeen, blockedUntil,
+              canSendText, canSendMedia, canCall
+       FROM users WHERE username != 'telegram'
+       ORDER BY createdAt DESC LIMIT 500`
+    );
+    ok(res, { users });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+app.post("/api/admin/user/update", verifyAdminToken, async (req, res) => {
+  try {
+    const { username, blockedUntil, canSendText, canSendMedia, canCall } = req.body || {};
+    const u = String(username || "").replace(/^@/, "");
+    const ex = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
+    if (!ex) return bad(res, "User not found", 404);
+
+    await dbRun(
+      `UPDATE users SET blockedUntil=?, canSendText=?, canSendMedia=?, canCall=? WHERE username=?`,
+      [
+        String(blockedUntil || "").slice(0, 40),
+        canSendText ? 1 : 0,
+        canSendMedia ? 1 : 0,
+        canCall ? 1 : 0,
+        u
+      ]
+    );
+    ok(res, { message: "Updated" });
+  } catch (e) {
+    console.error(e);
+    bad(res, "Failed");
+  }
+});
+
+// ---------- WebSocket realtime ----------
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const online = new Map(); // username -> Set(ws)
+const wsUser = new Map(); // ws -> username
+
+function addOnline(username, ws) {
+  if (!online.has(username)) online.set(username, new Set());
+  online.get(username).add(ws);
+  wsUser.set(ws, username);
+}
+function removeOnline(ws) {
+  const u = wsUser.get(ws);
+  if (!u) return;
+  wsUser.delete(ws);
+  const set = online.get(u);
+  if (set) {
+    set.delete(ws);
+    if (set.size === 0) online.delete(u);
+  }
+}
+function sendWs(ws, obj) {
+  if (ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+function sendToUser(username, obj) {
+  const set = online.get(username);
+  if (!set) return;
+  for (const ws of set) sendWs(ws, obj);
+}
+function broadcastStatus(username, status) {
+  // To everyone online (simple)
+  for (const [u, set] of online.entries()) {
+    for (const ws of set) sendWs(ws, { type: "status", username, status, at: nowISO() });
+  }
+}
+async function broadcastToChat(msgRow, payload) {
+  try {
+    if (msgRow.chatType === "global") {
+      // all online
+      for (const set of online.values()) for (const ws of set) sendWs(ws, payload);
+      return;
+    }
+    if (msgRow.chatType === "dm") {
+      const u1 = msgRow.user1;
+      const u2 = msgRow.user2;
+      sendToUser(u1, payload);
+      sendToUser(u2, payload);
+      return;
+    }
+    if (msgRow.chatType === "group") {
+      const members = await dbAll(`SELECT username FROM group_members WHERE groupId=?`, [msgRow.groupId]);
+      for (const m of members) sendToUser(m.username, payload);
+    }
+  } catch (e) {
+    console.error("broadcastToChat", e);
+  }
+}
+
+wss.on("connection", async (ws, req) => {
+  try {
+    // token in query ?token=
     const url = new URL(req.url, `http://${req.headers.host}`);
     const token = url.searchParams.get("token") || "";
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const username = String(decoded.username || "");
+    if (!token) {
+      ws.close();
+      return;
+    }
 
-    db.get(`SELECT * FROM users WHERE username=?`, [username], (err, user) => {
-      if (!user) return ws.close();
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch {
+      ws.close();
+      return;
+    }
+    const username = payload.username;
+    const user = await dbGet(`SELECT * FROM users WHERE username=?`, [username]);
+    if (!user) {
+      ws.close();
+      return;
+    }
+    if (user.blockedUntil) {
+      const bu = new Date(user.blockedUntil).getTime();
+      if (!isNaN(bu) && bu > Date.now()) {
+        ws.close();
+        return;
+      }
+    }
 
-      if (Number(user.blockedUntil || 0) > now()) {
-        wsSend(ws, { type: "blocked", until: user.blockedUntil });
-        return ws.close();
+    addOnline(username, ws);
+    await dbRun(`UPDATE users SET lastSeen=? WHERE username=?`, [nowISO(), username]);
+    broadcastStatus(username, "online");
+
+    ws.on("message", async (raw) => {
+      let data;
+      try {
+        data = JSON.parse(raw.toString());
+      } catch {
+        return;
       }
 
-      db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), username]);
-      ws.username = username;
-      online.set(username, ws);
-      broadcastStatus(username, "online");
+      const me = wsUser.get(ws);
+      if (!me) return;
 
-      wsSend(ws, { type: "ws-ready", username });
+      // refresh lastSeen
+      await dbRun(`UPDATE users SET lastSeen=? WHERE username=?`, [nowISO(), me]).catch(() => {});
 
-      ws.on("message", (raw) => {
-        let data;
-        try { data = JSON.parse(raw.toString()); } catch { return; }
-        if (!data || !data.type) return;
+      if (data.type === "typing") {
+        // {type:"typing", to:"@user" or "group:123" or "global", isTyping:true}
+        const to = String(data.to || "");
+        const parts = chatKeyToParts(to);
+        if (!parts) return;
+        if (parts.type === "dm") {
+          sendToUser(parts.peer, { type: "typing", from: me, to, isTyping: !!data.isTyping });
+        } else if (parts.type === "group") {
+          const gid = parts.groupId;
+          const members = await dbAll(`SELECT username FROM group_members WHERE groupId=?`, [gid]);
+          for (const m of members) if (m.username !== me) sendToUser(m.username, { type: "typing", from: me, to, isTyping: !!data.isTyping });
+        } else if (parts.type === "global") {
+          for (const [u] of online.entries()) if (u !== me) sendToUser(u, { type: "typing", from: me, to, isTyping: !!data.isTyping });
+        }
+        return;
+      }
 
-        const from = ws.username;
+      if (data.type === "text-message") {
+        // {type, chat:"global|@u|group:1", text:"..."}
+        const text = String(data.text || "").slice(0, 4000);
+        if (!text.trim()) return;
 
-        // Сигнализация звонков (WebRTC)
-        if (data.type === "call-offer" || data.type === "call-answer" || data.type === "ice" || data.type === "call-end") {
-          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
-            if (!fresh || !canUser(fresh, "call")) {
-              return wsSend(ws, { type: "call-error", message: "Тебе запрещены звонки" });
-            }
-            const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
-            const target = online.get(to);
-            if (!target) {
-              return wsSend(ws, { type: "call-error", message: "Пользователь не онлайн" });
-            }
-            wsSend(target, { ...data, from });
-          });
+        const userRow = await dbGet(`SELECT * FROM users WHERE username=?`, [me]);
+        if (!userRow) return;
+        if (!userRow.canSendText) {
+          sendWs(ws, { type: "error", error: "Text disabled" });
           return;
         }
 
-        // Текстовое сообщение
-        if (data.type === "text-message") {
-          db.get(`SELECT * FROM users WHERE username=?`, [from], (e2, fresh) => {
-            if (!fresh || !canUser(fresh, "text")) {
-              return wsSend(ws, { type: "moderation", message: "Тебе запрещены сообщения" });
-            }
+        const chat = String(data.chat || "");
+        const parts = chatKeyToParts(chat);
+        if (!parts) return;
 
-            const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
-            let chatType, groupId = null;
-            if (receiver === "global") {
-              chatType = "global";
-            } else if (receiver.startsWith("group:")) {
-              chatType = "group";
-              groupId = receiver.split(":")[1];
-              // Проверка членства
-              db.get(`SELECT * FROM group_members WHERE groupId = ? AND username = ?`, [groupId, from], (err3, member) => {
-                if (!member) {
-                  return wsSend(ws, { type: "moderation", message: "Вы не участник этой группы" });
-                }
-                proceed();
-              });
-              return;
-            } else {
-              chatType = "private";
-            }
+        let msgRow;
 
-            function proceed() {
-              const text = String(data.text || "").trim().slice(0, 2000);
-              if (!text) return;
+        if (parts.type === "global") {
+          const r = await dbRun(
+            `INSERT INTO messages (chatType, sender, text, createdAt) VALUES (?,?,?,?)`,
+            ["global", me, text, nowISO()]
+          );
+          msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+        } else if (parts.type === "dm") {
+          const peer = parts.peer;
+          const peerExists = await dbGet(`SELECT username FROM users WHERE username=?`, [peer]);
+          if (!peerExists) return;
 
-              const createdAt = now();
+          const user1 = me < peer ? me : peer;
+          const user2 = me < peer ? peer : me;
 
-              db.run(
-                `INSERT INTO messages (chatType, groupId, user1, user2, sender, receiver, text, mediaType, mediaUrl, createdAt)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                  chatType,
-                  groupId,
-                  chatType === "private" ? from : null,
-                  chatType === "private" ? receiver : null,
-                  from,
-                  receiver === "" ? "global" : receiver,
-                  text,
-                  "text",
-                  "",
-                  createdAt
-                ],
-                function (err) {
-                  if (err) return wsSend(ws, { type: "moderation", message: "Ошибка сохранения" });
+          const r = await dbRun(
+            `INSERT INTO messages (chatType, user1, user2, sender, receiver, text, createdAt)
+             VALUES (?,?,?,?,?,?,?)`,
+            ["dm", user1, user2, me, peer, text, nowISO()]
+          );
+          msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+        } else if (parts.type === "group") {
+          const gid = parts.groupId;
+          const mem = await dbGet(`SELECT * FROM group_members WHERE groupId=? AND username=?`, [gid, me]);
+          if (!mem) return;
 
-                  const msg = {
-                    id: this.lastID,
-                    chatType,
-                    groupId,
-                    sender: from,
-                    receiver: receiver === "" ? "global" : receiver,
-                    text,
-                    mediaType: "text",
-                    mediaUrl: "",
-                    createdAt
-                  };
+          const r = await dbRun(
+            `INSERT INTO messages (chatType, groupId, sender, text, createdAt) VALUES (?,?,?,?,?)`,
+            ["group", gid, me, text, nowISO()]
+          );
+          msgRow = await dbGet(`SELECT * FROM messages WHERE id=?`, [r.lastID]);
+          await dbRun(`UPDATE groups SET updatedAt=? WHERE id=?`, [nowISO(), gid]);
+        }
 
-                  broadcastToChat(msg, { type: "message", message: msg });
-                }
-              );
-            }
+        if (msgRow) broadcastToChat(msgRow, { type: "message", message: msgRow });
+        return;
+      }
 
-            proceed();
-          });
+      // --- WebRTC signaling (audio calls) ---
+      // {type:"call-offer", to:"username", sdp, fromChat:"@username"}
+      // {type:"call-answer", to:"username", sdp}
+      // {type:"ice", to:"username", candidate}
+      // {type:"call-end", to:"username"}
+      if (["call-offer", "call-answer", "ice", "call-end"].includes(data.type)) {
+        const userRow = await dbGet(`SELECT * FROM users WHERE username=?`, [me]);
+        if (!userRow || !userRow.canCall) {
+          sendWs(ws, { type: "error", error: "Calls disabled" });
           return;
         }
 
-        // Индикатор печатания
-        if (data.type === "typing") {
-          const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
-          const target = online.get(to);
-          if (target) {
-            wsSend(target, { type: "typing", from });
-          }
+        const to = String(data.to || "").replace(/^@/, "");
+        if (!safeUsername(to)) return;
+        // DMs only
+        const fromChat = String(data.fromChat || "");
+        if (!fromChat.startsWith("@")) {
+          sendWs(ws, { type: "error", error: "Calls only in private chats" });
+          return;
         }
-      });
 
-      ws.on("close", () => {
-        if (ws.username) {
-          online.delete(ws.username);
-          db.run(`UPDATE users SET lastSeen=? WHERE username=?`, [now(), ws.username]);
-          broadcastStatus(ws.username, "offline");
-        }
-      });
+        sendToUser(to, { ...data, from: me });
+        return;
+      }
     });
-  } catch {
-    ws.close();
+
+    ws.on("close", async () => {
+      const u = wsUser.get(ws);
+      removeOnline(ws);
+
+      if (u && !online.has(u)) {
+        // last connection closed
+        await dbRun(`UPDATE users SET lastSeen=? WHERE username=?`, [nowISO(), u]).catch(() => {});
+        broadcastStatus(u, "offline");
+      }
+    });
+  } catch (e) {
+    console.error("ws connection error", e);
+    try { ws.close(); } catch {}
   }
 });
 
-// ==================== ЗАПУСК СЕРВЕРА ====================
 server.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`);
 });
