@@ -1,6 +1,3 @@
-// ===============================
-// CONFIG & GLOBALS
-// ===============================
 const API = "/api";
 let token = localStorage.getItem("token");
 let currentUser = null;
@@ -14,11 +11,7 @@ let audioChunks = [];
 let typingTimer = null;
 let recording = false;
 let stories = [];
-let currentStoryIndex = 0;
 
-// ===============================
-// INIT
-// ===============================
 async function init() {
   if (!token) {
     location.href = "/index.html";
@@ -33,9 +26,6 @@ async function init() {
 }
 window.addEventListener("load", init);
 
-// ===============================
-// PROFILE
-// ===============================
 async function loadProfile() {
   const res = await fetch(API + "/me", {
     headers: { Authorization: "Bearer " + token }
@@ -54,16 +44,11 @@ function updateHeader() {
   if (currentChat === "global") {
     document.getElementById("chatTitle").innerText = "Общий чат";
     document.getElementById("chatSub").innerText = "общение со всеми";
-  } else {
-    // будет обновлено при openChat
   }
 }
 
-// ===============================
-// WEBSOCKET
-// ===============================
 function connectWS() {
-  ws = new WebSocket(`wss://${location.host}?token=${token}`);
+  ws = new WebSocket(`ws://${location.host}?token=${token}`);
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     switch (data.type) {
@@ -104,9 +89,6 @@ function connectWS() {
   };
 }
 
-// ===============================
-// STATUS & TYPING
-// ===============================
 function updateUserStatus(username, status) {
   const chatItem = document.querySelector(`.chatitem[data-username="${username}"]`);
   if (chatItem) {
@@ -132,9 +114,6 @@ function sendTyping() {
   ws.send(JSON.stringify({ type: "typing", to: currentChat }));
 }
 
-// ===============================
-// CHATS
-// ===============================
 async function loadChats() {
   const res = await fetch(API + "/chats", {
     headers: { Authorization: "Bearer " + token }
@@ -147,8 +126,8 @@ async function loadChats() {
     div.className = "chatitem";
     div.setAttribute("data-username", chat.username);
     div.onclick = () => openChat(chat.username);
-    const avatarHtml = chat.avatarUrl ? `<img src="${chat.avatarUrl}">` : '<i class="fa-solid fa-user"></i>';
-    const statusClass = (chat.lastSeen > Date.now() - 60000) ? "online" : "offline"; // приблизительно
+    const avatarHtml = chat.avatarUrl ? `<img src="${chat.avatarUrl}">` : '<i class="fa-regular fa-user"></i>';
+    const statusClass = (chat.lastSeen > Date.now() - 60000) ? "online" : "offline";
     div.innerHTML = `
       <div class="avatar">${avatarHtml}</div>
       <div class="meta">
@@ -160,9 +139,6 @@ async function loadChats() {
   });
 }
 
-// ===============================
-// MESSAGES
-// ===============================
 async function loadMessages(chat) {
   const res = await fetch(API + "/messages?chat=" + chat, {
     headers: { Authorization: "Bearer " + token }
@@ -185,7 +161,7 @@ function appendMessage(m) {
   if (m.mediaType === "text") {
     content = `<div class="mtext">${escapeHtml(m.text)}</div>`;
   } else if (m.mediaType === "image") {
-    content = `<img src="${m.mediaUrl}" class="mimg" onclick="openMedia('${m.mediaUrl}')">`;
+    content = `<img src="${m.mediaUrl}" class="mimg" onclick="window.open('${m.mediaUrl}')">`;
   } else if (m.mediaType === "video") {
     content = `<video src="${m.mediaUrl}" controls class="mvid"></video>`;
   } else if (m.mediaType === "audio") {
@@ -224,9 +200,6 @@ async function deleteMessage(id) {
   if (!data.ok) alert("Ошибка удаления");
 }
 
-// ===============================
-// SEND TEXT
-// ===============================
 function sendText() {
   const input = document.getElementById("textInput");
   const text = input.value.trim();
@@ -240,9 +213,6 @@ function sendText() {
   input.value = "";
 }
 
-// ===============================
-// UPLOAD MEDIA
-// ===============================
 async function uploadFile(file, text = "") {
   const form = new FormData();
   form.append("file", file);
@@ -264,9 +234,6 @@ function sendMedia(input) {
   }
 }
 
-// ===============================
-// AUDIO MESSAGE (удержание кнопки)
-// ===============================
 let recordTimeout;
 function startRecording() {
   if (recording) return;
@@ -297,7 +264,6 @@ function stopRecording() {
   }
 }
 
-// Для мобильных можно использовать touch события, но пока так:
 document.getElementById("voiceBtn").addEventListener("mousedown", (e) => {
   e.preventDefault();
   startRecording();
@@ -305,9 +271,6 @@ document.getElementById("voiceBtn").addEventListener("mousedown", (e) => {
 document.getElementById("voiceBtn").addEventListener("mouseup", stopRecording);
 document.getElementById("voiceBtn").addEventListener("mouseleave", stopRecording);
 
-// ===============================
-// OPEN CHAT
-// ===============================
 async function openChat(chat) {
   currentChat = chat;
   loadMessages(chat);
@@ -317,7 +280,6 @@ async function openChat(chat) {
     document.getElementById("chatSub").innerText = "общение со всеми";
     document.getElementById("callBtn").disabled = true;
   } else {
-    // Загружаем информацию о пользователе
     const res = await fetch(API + "/users/" + chat, {
       headers: { Authorization: "Bearer " + token }
     });
@@ -328,7 +290,6 @@ async function openChat(chat) {
       document.getElementById("callBtn").disabled = false;
     }
   }
-  // обновить активный класс в сайдбаре
   document.querySelectorAll(".chatitem").forEach(el => el.classList.remove("active"));
   const active = document.querySelector(`.chatitem[data-username="${chat}"]`);
   if (active) active.classList.add("active");
@@ -337,9 +298,6 @@ async function openChat(chat) {
   }
 }
 
-// ===============================
-// SEARCH USERS
-// ===============================
 let searchTimeout;
 function searchUsers(query) {
   clearTimeout(searchTimeout);
@@ -359,7 +317,7 @@ function searchUsers(query) {
       btn.className = "chatitem";
       btn.onclick = () => openChat(u.username);
       btn.innerHTML = `
-        <div class="avatar">${u.avatarUrl ? `<img src="${u.avatarUrl}">` : '<i class="fa-solid fa-user"></i>'}</div>
+        <div class="avatar">${u.avatarUrl ? `<img src="${u.avatarUrl}">` : '<i class="fa-regular fa-user"></i>'}</div>
         <div class="meta">
           <div class="name">${u.displayName} <span class="status-dot offline"></span></div>
           <div class="preview">@${u.username}</div>
@@ -370,9 +328,6 @@ function searchUsers(query) {
   }, 300);
 }
 
-// ===============================
-// STORIES
-// ===============================
 async function loadStories() {
   const res = await fetch(API + "/stories", {
     headers: { Authorization: "Bearer " + token }
@@ -385,7 +340,6 @@ async function loadStories() {
 function renderStories() {
   const list = document.getElementById("storiesList");
   list.innerHTML = "";
-  // группируем по пользователям (берём последнюю сторис каждого)
   const grouped = new Map();
   stories.forEach(s => {
     if (!grouped.has(s.owner) || grouped.get(s.owner).createdAt < s.createdAt) {
@@ -397,7 +351,7 @@ function renderStories() {
     btn.className = "storychip";
     btn.onclick = () => openStoryViewer(s.owner);
     btn.innerHTML = `
-      <div class="storyava">${s.avatarUrl ? `<img src="${s.avatarUrl}">` : '<i class="fa-solid fa-circle-user"></i>'}</div>
+      <div class="storyava">${s.avatarUrl ? `<img src="${s.avatarUrl}">` : '<i class="fa-regular fa-circle-user"></i>'}</div>
       <span class="storyname">${s.displayName || s.owner}</span>
     `;
     list.appendChild(btn);
@@ -436,51 +390,49 @@ async function publishStory() {
 function openStoryViewer(owner) {
   const userStories = stories.filter(s => s.owner === owner);
   if (userStories.length === 0) return;
-  currentStoryIndex = 0;
-  showStoryModal(userStories);
-}
-
-function showStoryModal(storiesArray) {
-  // создаём модалку просмотра сторис (упрощённо)
-  let html = `<div class="story-viewer">`;
-  storiesArray.forEach((s, i) => {
-    html += `<div class="story-page ${i === 0 ? 'active' : ''}" data-index="${i}">`;
-    if (s.mediaType === "image") {
-      html += `<img src="${s.mediaUrl}" class="story-media">`;
-    } else if (s.mediaType === "video") {
-      html += `<video src="${s.mediaUrl}" class="story-media" controls autoplay></video>`;
-    }
-    if (s.text) html += `<div class="story-text">${escapeHtml(s.text)}</div>`;
-    html += `</div>`;
-  });
-  html += `
-    <button class="story-prev" onclick="prevStory()">‹</button>
-    <button class="story-next" onclick="nextStory()">›</button>
-    <button class="story-close" onclick="closeStoryViewer()">✕</button>
-  `;
+  let currentIndex = 0;
   const modal = document.createElement("div");
   modal.id = "storyViewerModal";
   modal.className = "modal";
-  modal.innerHTML = `<div class="story-viewer-card">${html}</div>`;
+  modal.innerHTML = `
+    <div class="story-viewer-card">
+      ${userStories.map((s, i) => `
+        <div class="story-page ${i === 0 ? 'active' : ''}" data-index="${i}">
+          ${s.mediaType === "image" ? `<img src="${s.mediaUrl}" class="story-media">` : ''}
+          ${s.mediaType === "video" ? `<video src="${s.mediaUrl}" class="story-media" controls autoplay></video>` : ''}
+          ${s.text ? `<div class="story-text">${escapeHtml(s.text)}</div>` : ''}
+        </div>
+      `).join('')}
+      <button class="story-prev" onclick="window.prevStory()">‹</button>
+      <button class="story-next" onclick="window.nextStory()">›</button>
+      <button class="story-close" onclick="window.closeStoryViewer()">✕</button>
+    </div>
+  `;
   document.body.appendChild(modal);
+  window.prevStory = () => {
+    if (currentIndex > 0) {
+      document.querySelector(`.story-page[data-index="${currentIndex}"]`).classList.remove("active");
+      currentIndex--;
+      document.querySelector(`.story-page[data-index="${currentIndex}"]`).classList.add("active");
+    }
+  };
+  window.nextStory = () => {
+    if (currentIndex < userStories.length - 1) {
+      document.querySelector(`.story-page[data-index="${currentIndex}"]`).classList.remove("active");
+      currentIndex++;
+      document.querySelector(`.story-page[data-index="${currentIndex}"]`).classList.add("active");
+    } else {
+      closeStoryViewer();
+    }
+  };
+  window.closeStoryViewer = () => {
+    document.getElementById("storyViewerModal").remove();
+    delete window.prevStory;
+    delete window.nextStory;
+    delete window.closeStoryViewer;
+  };
 }
 
-function closeStoryViewer() {
-  const modal = document.getElementById("storyViewerModal");
-  if (modal) modal.remove();
-}
-
-function nextStory() {
-  // логика переключения
-}
-
-function prevStory() {
-  // логика переключения
-}
-
-// ===============================
-// CALLS (только аудио)
-// ===============================
 async function startCall() {
   if (currentChat === "global") {
     alert("Нельзя позвонить в общий чат");
@@ -495,7 +447,6 @@ async function startCall() {
   localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
   pc.ontrack = (event) => {
-    // аудио автоматически воспроизводится через <audio> элемент
     document.getElementById("remoteAudio").srcObject = event.streams[0];
   };
 
@@ -593,9 +544,6 @@ function toggleMute() {
   }
 }
 
-// ===============================
-// PROFILE MODAL
-// ===============================
 async function openCurrentProfile() {
   if (currentChat === "global") return;
   const res = await fetch(API + "/users/" + currentChat, {
@@ -612,7 +560,7 @@ function showProfileModal(user) {
   document.getElementById("profileBio").innerText = user.bio || "";
   document.getElementById("profileBirth").innerText = user.birthDate ? `ДР: ${user.birthDate}` : "";
   const avatar = document.getElementById("profileAvatar");
-  avatar.innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : '<i class="fa-solid fa-user"></i>';
+  avatar.innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : '<i class="fa-regular fa-circle-user"></i>';
   document.getElementById("profileActions").innerHTML = `
     <button class="btn primary" onclick="openChat('${user.username}')">Написать</button>
     <button class="btn ghost" onclick="startCallWith('${user.username}')">Позвонить</button>
@@ -630,9 +578,6 @@ function closeProfile() {
   document.getElementById("profileModal").classList.add("hidden");
 }
 
-// ===============================
-// SETTINGS MODAL
-// ===============================
 function openSettings() {
   document.getElementById("setDisplayName").value = currentUser.displayName || "";
   document.getElementById("setBio").value = currentUser.bio || "";
@@ -653,10 +598,9 @@ async function saveProfile() {
   const avatarFile = document.getElementById("avatarFile").files[0];
 
   if (avatarFile) {
-    // загружаем аватар как файл
     const form = new FormData();
     form.append("file", avatarFile);
-    form.append("receiver", "global"); // заглушка
+    form.append("receiver", "global");
     const uploadRes = await fetch(API + "/upload", {
       method: "POST",
       headers: { Authorization: "Bearer " + token },
@@ -680,15 +624,37 @@ async function saveProfile() {
   if (data.ok) {
     currentUser = data.profile;
     closeSettings();
-    loadChats(); // обновить имена в списке
+    loadChats();
   } else {
     alert("Ошибка сохранения");
   }
 }
 
-// ===============================
-// BIRTHDAYS
-// ===============================
+function confirmDeleteAccount() {
+  if (confirm("Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо, все ваши данные будут потеряны.")) {
+    deleteAccount();
+  }
+}
+
+async function deleteAccount() {
+  try {
+    const res = await fetch(API + "/me", {
+      method: "DELETE",
+      headers: { Authorization: "Bearer " + token }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert("Аккаунт удалён. Вы будете перенаправлены на страницу входа.");
+      localStorage.removeItem("token");
+      location.href = "/index.html";
+    } else {
+      alert("Ошибка при удалении: " + (data.error || "неизвестная ошибка"));
+    }
+  } catch (e) {
+    alert("Ошибка сети");
+  }
+}
+
 async function checkBirthdays() {
   const res = await fetch(API + "/birthdays/today", {
     headers: { Authorization: "Bearer " + token }
@@ -701,17 +667,11 @@ async function checkBirthdays() {
   }
 }
 
-// ===============================
-// LOGOUT
-// ===============================
 function logout() {
   localStorage.removeItem("token");
   location.href = "/index.html";
 }
 
-// ===============================
-// UTILS
-// ===============================
 function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
@@ -721,9 +681,8 @@ function escapeHtml(text) {
 function onEnter(e) {
   if (e.key === "Enter") {
     sendText();
-    sendTyping(); // можно и так
+    sendTyping();
   } else {
-    // отправляем typing при вводе
     clearTimeout(typingTimer);
     typingTimer = setTimeout(() => {
       sendTyping();
