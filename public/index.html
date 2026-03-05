@@ -9,12 +9,42 @@
 </head>
 <body class="auth-body">
   <div class="auth-container">
-    <!-- Основная карточка входа -->
     <div id="loginCard" class="auth-card">
-      <!-- ... (та же шапка, табы, форма) ... -->
+      <div class="auth-header">
+        <i class="fa-brands fa-telegram auth-logo"></i>
+        <h1>One Messenger</h1>
+        <p class="auth-subtitle">Вход без номера телефона</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="tabLogin" class="auth-tab active" onclick="setTab('login')">Вход</button>
+        <button id="tabReg" class="auth-tab" onclick="setTab('reg')">Регистрация</button>
+      </div>
+
+      <div class="auth-form">
+        <div class="input-group">
+          <i class="fa-regular fa-user input-icon"></i>
+          <input type="text" id="identifier" placeholder="Username" autocomplete="username">
+        </div>
+        <div class="input-group">
+          <i class="fa-regular fa-lock input-icon"></i>
+          <input type="password" id="password" placeholder="Пароль" autocomplete="current-password">
+        </div>
+
+        <button class="auth-button" onclick="submitAuth()">
+          <span>Продолжить</span>
+          <i class="fa-regular fa-arrow-right"></i>
+        </button>
+
+        <div id="authError" class="auth-error"></div>
+      </div>
+
+      <div class="auth-hint">
+        <i class="fa-regular fa-circle-info"></i>
+        <span>4–20 символов: a-z, 0-9, _</span>
+      </div>
     </div>
 
-    <!-- Карточка подтверждения кода (изначально скрыта) -->
     <div id="confirmCard" class="auth-card hidden">
       <div class="auth-header">
         <i class="fa-regular fa-shield-halved auth-logo"></i>
@@ -40,7 +70,7 @@
 
   <script>
     let mode = "login";
-    let pendingUsername = ""; // для хранения имени при подтверждении
+    let pendingUsername = "";
 
     function setTab(m) {
       mode = m;
@@ -75,7 +105,6 @@
         const data = await res.json();
         if (!data.ok) {
           if (data.requireConfirm) {
-            // Показываем окно ввода кода
             pendingUsername = identifier.replace(/^@+/, "").toLowerCase();
             document.getElementById("loginCard").classList.add("hidden");
             document.getElementById("confirmCard").classList.remove("hidden");
