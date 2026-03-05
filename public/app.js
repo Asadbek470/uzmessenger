@@ -124,7 +124,7 @@ async function loadChats() {
   const privateContainer = document.getElementById("privateChats");
   privateContainer.innerHTML = "";
   const resultsContainer = document.getElementById("searchResults");
-  resultsContainer.innerHTML = ""; // очищаем поиск
+  resultsContainer.innerHTML = "";
 
   data.chats.forEach(chat => {
     if (chat.type === 'private') {
@@ -265,7 +265,6 @@ function sendMedia(input) {
   }
 }
 
-// Голосовые сообщения (удержание)
 document.getElementById("voiceBtn").addEventListener("mousedown", (e) => {
   e.preventDefault();
   startRecording();
@@ -311,8 +310,13 @@ function stopRecording() {
 function forceCloseSidebar() {
   const sidebar = document.getElementById("sidebar");
   const overlay = document.getElementById("sidebarOverlay");
-  if (sidebar) sidebar.classList.add("mobile-hidden");
-  if (overlay) overlay.classList.remove("active");
+  if (sidebar) {
+    sidebar.classList.add("mobile-hidden");
+    sidebar.style.transform = "translateX(-100%)";
+  }
+  if (overlay) {
+    overlay.classList.remove("active");
+  }
 }
 
 function toggleSidebar() {
@@ -375,17 +379,15 @@ function toggleTopPanel() {
   }
 }
 
-// ==================== ОСНОВНАЯ ФУНКЦИЯ ОТКРЫТИЯ ЛИЧНОГО ЧАТА ====================
+// ==================== ОТКРЫТИЕ ЛИЧНОГО ЧАТА ====================
 
 async function openChat(username) {
-  // Сворачиваем поиск
   closeSearch();
-
   currentChat = username;
   currentGroup = null;
-  loadMessages(username);
 
-  // Загружаем информацию о пользователе для шапки
+  await loadMessages(username);
+
   try {
     const res = await fetch(API + "/users/" + username, {
       headers: { Authorization: "Bearer " + token }
@@ -400,25 +402,21 @@ async function openChat(username) {
     console.error(e);
   }
 
-  // Обновляем активный класс
   document.querySelectorAll(".chatitem").forEach(el => el.classList.remove("active"));
   const active = document.querySelector(`.chatitem[data-username="${username}"]`);
   if (active) active.classList.add("active");
 
-  // Закрываем сайдбар на мобильных
-  if (window.innerWidth <= 768) {
-    forceCloseSidebar();
-  }
+  forceCloseSidebar();
 }
 
-// ==================== ФУНКЦИИ ДЛЯ ГРУПП ====================
+// ==================== ОТКРЫТИЕ ГРУППЫ ====================
 
 async function openGroup(groupId) {
   closeSearch();
-
   currentChat = `group:${groupId}`;
   currentGroup = groupId;
-  loadMessages(currentChat);
+
+  await loadMessages(currentChat);
 
   try {
     const res = await fetch(API + "/groups/" + groupId, {
@@ -428,7 +426,7 @@ async function openGroup(groupId) {
     if (data.ok) {
       document.getElementById("chatTitle").innerText = data.group.name;
       document.getElementById("chatSub").innerText = data.group.description || "Группа";
-      document.getElementById("callBtn").disabled = true; // звонки в группах пока не поддерживаем
+      document.getElementById("callBtn").disabled = true;
     }
   } catch (e) {
     console.error(e);
@@ -438,10 +436,10 @@ async function openGroup(groupId) {
   const active = document.querySelector(`.chatitem[data-groupid="${groupId}"]`);
   if (active) active.classList.add("active");
 
-  if (window.innerWidth <= 768) {
-    forceCloseSidebar();
-  }
+  forceCloseSidebar();
 }
+
+// ==================== ФУНКЦИИ ДЛЯ ГРУПП ====================
 
 function openCreateGroupModal() {
   document.getElementById("createGroupModal").classList.remove("hidden");
@@ -553,7 +551,7 @@ async function addMembersToGroup() {
     if (data.ok) {
       alert("Участники добавлены");
       document.getElementById("addMembersInput").value = "";
-      openGroupInfo(); // обновить информацию
+      openGroupInfo();
     } else {
       alert("Ошибка: " + (data.error || "неизвестная"));
     }
