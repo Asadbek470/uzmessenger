@@ -31,7 +31,6 @@ body {
   display: none !important;
 }
 
-/* Затемнение фона при открытом сайдбаре */
 .sidebar-overlay {
   display: none;
   position: fixed;
@@ -50,7 +49,6 @@ body {
   opacity: 1;
 }
 
-/* АВТОРИЗАЦИЯ (без изменений) */
 .auth-body {
   display: flex;
   align-items: center;
@@ -206,7 +204,6 @@ body {
   border-radius: 30px;
 }
 
-/* ОСНОВНОЙ ЛЕЙАУТ */
 .app {
   display: flex;
   height: 100vh;
@@ -215,7 +212,6 @@ body {
   position: relative;
 }
 
-/* САЙДБАР */
 .sidebar {
   width: 360px;
   background: var(--panel-bg);
@@ -233,7 +229,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Кнопка сворачивания всей верхней панели */
 .top-panel-header {
   display: flex;
   justify-content: flex-end;
@@ -264,7 +259,6 @@ body {
   display: none;
 }
 
-/* Сворачиваемый поиск */
 .search-container {
   margin-bottom: 8px;
 }
@@ -327,7 +321,6 @@ body {
   color: #fff;
 }
 
-/* Истории с кнопкой сворачивания */
 .stories-header {
   display: flex;
   align-items: center;
@@ -431,7 +424,6 @@ body {
   white-space: nowrap;
 }
 
-/* СПИСОК ЧАТОВ */
 .chatlist {
   flex: 1;
   overflow-y: auto;
@@ -538,7 +530,6 @@ body {
   flex-shrink: 0;
 }
 
-/* ОСНОВНАЯ ОБЛАСТЬ */
 .main {
   flex: 1;
   display: flex;
@@ -750,7 +741,6 @@ body {
   background: var(--accent);
 }
 
-/* МОДАЛЬНЫЕ ОКНА */
 .modal {
   position: fixed;
   top: 0;
@@ -967,7 +957,6 @@ body {
 .story-next { right: 8px; }
 .story-close { top: 8px; right: 8px; transform: none; }
 
-/* Стили для групп */
 .members-list {
   max-height: 300px;
   overflow-y: auto;
@@ -1033,7 +1022,6 @@ body {
   color: var(--text-secondary);
 }
 
-/* Мобильная адаптация */
 @media (max-width: 768px) {
   .sidebar {
     position: absolute;
