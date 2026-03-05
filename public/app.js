@@ -749,3 +749,35 @@ function onEnter(e) {
     }, 500);
   }
 }
+
+// Сворачивание поиска
+function toggleSearch() {
+  const toggle = document.querySelector('.search-toggle');
+  const expanded = document.getElementById('searchExpanded');
+  toggle.classList.add('hidden');
+  expanded.classList.remove('hidden');
+  document.getElementById('searchInput').focus();
+}
+
+function closeSearch() {
+  const toggle = document.querySelector('.search-toggle');
+  const expanded = document.getElementById('searchExpanded');
+  toggle.classList.remove('hidden');
+  expanded.classList.add('hidden');
+  document.getElementById('searchResults').innerHTML = ''; // очищаем результаты
+}
+
+// Сворачивание историй
+let storiesCollapsed = false;
+function toggleStories() {
+  const container = document.getElementById('storiesContainer');
+  const toggleBtn = document.querySelector('.toggle-stories');
+  storiesCollapsed = !storiesCollapsed;
+  if (storiesCollapsed) {
+    container.classList.add('collapsed');
+    toggleBtn.textContent = '▶';
+  } else {
+    container.classList.remove('collapsed');
+    toggleBtn.textContent = '▼';
+  }
+}
