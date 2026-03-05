@@ -48,9 +48,18 @@ function updateHeader() {
 }
 
 function connectWS() {
-  ws = new WebSocket(`ws://${location.host}?token=${token}`);
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
+  ws.onopen = () => {
+    console.log("WebSocket соединение открыто");
+  };
+  ws.onerror = (err) => {
+    console.error("WebSocket ошибка:", err);
+    alert("Ошибка соединения с сервером. Попробуйте перезагрузить страницу.");
+  };
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
+    console.log("WebSocket сообщение:", data.type);
     switch (data.type) {
       case "message":
         appendMessage(data.message);
@@ -87,6 +96,10 @@ function connectWS() {
         break;
     }
   };
+  ws.onclose = () => {
+    console.log("WebSocket закрыт, пытаемся переподключиться через 3 секунды");
+    setTimeout(connectWS, 3000);
+  };
 }
 
 function updateUserStatus(username, status) {
@@ -111,7 +124,9 @@ function showTypingIndicator(from) {
 
 function sendTyping() {
   if (!currentChat || currentChat === "global") return;
-  ws.send(JSON.stringify({ type: "typing", to: currentChat }));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "typing", to: currentChat }));
+  }
 }
 
 async function loadChats() {
@@ -126,7 +141,7 @@ async function loadChats() {
     div.className = "chatitem";
     div.setAttribute("data-username", chat.username);
     div.onclick = () => openChat(chat.username);
-    const avatarHtml = chat.avatarUrl ? `<img src="${chat.avatarUrl}">` : '<i class="fa-regular fa-user"></i>';
+    const avatarHtml = chat.avatarUrl ? `<img src="${chat.avatarUrl}">` : '<span>👤</span>';
     const statusClass = (chat.lastSeen > Date.now() - 60000) ? "online" : "offline";
     div.innerHTML = `
       <div class="avatar">${avatarHtml}</div>
@@ -169,7 +184,7 @@ function appendMessage(m) {
   }
 
   const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const deleteBtn = isMine ? `<button class="trash" onclick="deleteMessage(${m.id})"><i class="fa-regular fa-trash-can"></i></button>` : '';
+  const deleteBtn = isMine ? `<button class="trash" onclick="deleteMessage(${m.id})"><span>🗑️</span></button>` : '';
 
   div.innerHTML = `
     <div class="bubble">
@@ -205,12 +220,16 @@ function sendText() {
   const text = input.value.trim();
   if (!text) return;
 
-  ws.send(JSON.stringify({
-    type: "text-message",
-    receiver: currentChat,
-    text
-  }));
-  input.value = "";
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: "text-message",
+      receiver: currentChat,
+      text
+    }));
+    input.value = "";
+  } else {
+    alert("Нет соединения с сервером. Попробуйте позже.");
+  }
 }
 
 async function uploadFile(file, text = "") {
@@ -219,11 +238,17 @@ async function uploadFile(file, text = "") {
   form.append("receiver", currentChat);
   if (text) form.append("text", text);
 
-  await fetch(API + "/upload", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token },
-    body: form
-  });
+  try {
+    const res = await fetch(API + "/upload", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body: form
+    });
+    const data = await res.json();
+    if (!data.ok) alert("Ошибка загрузки файла");
+  } catch (e) {
+    alert("Ошибка сети при загрузке");
+  }
 }
 
 function sendMedia(input) {
@@ -234,7 +259,11 @@ function sendMedia(input) {
   }
 }
 
-let recordTimeout;
+// Голосовые сообщения (удержание кнопки)
+let mediaRecorder;
+let audioChunks = [];
+let recording = false;
+
 function startRecording() {
   if (recording) return;
   recording = true;
@@ -242,25 +271,29 @@ function startRecording() {
 
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(stream => {
-      recorder = new MediaRecorder(stream);
+      mediaRecorder = new MediaRecorder(stream);
       audioChunks = [];
-      recorder.ondataavailable = e => audioChunks.push(e.data);
-      recorder.onstop = () => {
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunks, { type: "audio/webm" });
         uploadFile(blob);
         stream.getTracks().forEach(t => t.stop());
+        recording = false;
+        document.getElementById("voiceBtn").classList.remove("recording");
       };
-      recorder.start();
+      mediaRecorder.start();
     })
-    .catch(err => alert("Нет доступа к микрофону"));
+    .catch(err => {
+      alert("Нет доступа к микрофону");
+      recording = false;
+      document.getElementById("voiceBtn").classList.remove("recording");
+    });
 }
 
 function stopRecording() {
   if (!recording) return;
-  recording = false;
-  document.getElementById("voiceBtn").classList.remove("recording");
-  if (recorder && recorder.state !== "inactive") {
-    recorder.stop();
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
   }
 }
 
@@ -298,6 +331,7 @@ async function openChat(chat) {
   }
 }
 
+// Поиск пользователей
 let searchTimeout;
 function searchUsers(query) {
   clearTimeout(searchTimeout);
@@ -317,7 +351,7 @@ function searchUsers(query) {
       btn.className = "chatitem";
       btn.onclick = () => openChat(u.username);
       btn.innerHTML = `
-        <div class="avatar">${u.avatarUrl ? `<img src="${u.avatarUrl}">` : '<i class="fa-regular fa-user"></i>'}</div>
+        <div class="avatar">${u.avatarUrl ? `<img src="${u.avatarUrl}">` : '<span>👤</span>'}</div>
         <div class="meta">
           <div class="name">${u.displayName} <span class="status-dot offline"></span></div>
           <div class="preview">@${u.username}</div>
@@ -328,6 +362,7 @@ function searchUsers(query) {
   }, 300);
 }
 
+// Stories
 async function loadStories() {
   const res = await fetch(API + "/stories", {
     headers: { Authorization: "Bearer " + token }
@@ -351,7 +386,7 @@ function renderStories() {
     btn.className = "storychip";
     btn.onclick = () => openStoryViewer(s.owner);
     btn.innerHTML = `
-      <div class="storyava">${s.avatarUrl ? `<img src="${s.avatarUrl}">` : '<i class="fa-regular fa-circle-user"></i>'}</div>
+      <div class="storyava">${s.avatarUrl ? `<img src="${s.avatarUrl}">` : '<span>👤</span>'}</div>
       <span class="storyname">${s.displayName || s.owner}</span>
     `;
     list.appendChild(btn);
@@ -433,6 +468,7 @@ function openStoryViewer(owner) {
   };
 }
 
+// Аудиозвонки (WebRTC)
 async function startCall() {
   if (currentChat === "global") {
     alert("Нельзя позвонить в общий чат");
@@ -443,34 +479,38 @@ async function startCall() {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-  pc.ontrack = (event) => {
-    document.getElementById("remoteAudio").srcObject = event.streams[0];
-  };
+    pc.ontrack = (event) => {
+      document.getElementById("remoteAudio").srcObject = event.streams[0];
+    };
 
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      ws.send(JSON.stringify({
-        type: "ice",
-        to: currentCallUser,
-        candidate: event.candidate
-      }));
-    }
-  };
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({
+          type: "ice",
+          to: currentCallUser,
+          candidate: event.candidate
+        }));
+      }
+    };
 
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-  ws.send(JSON.stringify({
-    type: "call-offer",
-    to: currentCallUser,
-    offer
-  }));
+    ws.send(JSON.stringify({
+      type: "call-offer",
+      to: currentCallUser,
+      offer
+    }));
 
-  document.getElementById("callModal").classList.remove("hidden");
-  document.getElementById("callStatus").innerText = "Звонок...";
+    document.getElementById("callModal").classList.remove("hidden");
+    document.getElementById("callStatus").innerText = "Звонок...";
+  } catch (err) {
+    alert("Ошибка доступа к микрофону");
+  }
 }
 
 async function incomingCall(from, offer) {
@@ -479,35 +519,39 @@ async function incomingCall(from, offer) {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
   });
 
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
 
-  pc.ontrack = (event) => {
-    document.getElementById("remoteAudio").srcObject = event.streams[0];
-  };
+    pc.ontrack = (event) => {
+      document.getElementById("remoteAudio").srcObject = event.streams[0];
+    };
 
-  pc.onicecandidate = (event) => {
-    if (event.candidate) {
-      ws.send(JSON.stringify({
-        type: "ice",
-        to: from,
-        candidate: event.candidate
-      }));
-    }
-  };
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({
+          type: "ice",
+          to: from,
+          candidate: event.candidate
+        }));
+      }
+    };
 
-  await pc.setRemoteDescription(offer);
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
+    await pc.setRemoteDescription(offer);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
 
-  ws.send(JSON.stringify({
-    type: "call-answer",
-    to: from,
-    answer
-  }));
+    ws.send(JSON.stringify({
+      type: "call-answer",
+      to: from,
+      answer
+    }));
 
-  document.getElementById("incomingCallModal").classList.remove("hidden");
-  document.getElementById("incomingCallText").innerText = `Входящий звонок от @${from}`;
+    document.getElementById("incomingCallModal").classList.remove("hidden");
+    document.getElementById("incomingCallText").innerText = `Входящий звонок от @${from}`;
+  } catch (err) {
+    alert("Ошибка при ответе на звонок");
+  }
 }
 
 function acceptIncomingCall() {
@@ -540,10 +584,11 @@ function toggleMute() {
   if (localStream) {
     const audioTrack = localStream.getAudioTracks()[0];
     audioTrack.enabled = !audioTrack.enabled;
-    document.getElementById("muteBtn").innerText = audioTrack.enabled ? "Выключить микрофон" : "Включить микрофон";
+    document.getElementById("muteBtn").innerText = audioTrack.enabled ? "🔇 Выключить микрофон" : "🎤 Включить микрофон";
   }
 }
 
+// Профиль и настройки
 async function openCurrentProfile() {
   if (currentChat === "global") return;
   const res = await fetch(API + "/users/" + currentChat, {
@@ -560,7 +605,7 @@ function showProfileModal(user) {
   document.getElementById("profileBio").innerText = user.bio || "";
   document.getElementById("profileBirth").innerText = user.birthDate ? `ДР: ${user.birthDate}` : "";
   const avatar = document.getElementById("profileAvatar");
-  avatar.innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : '<i class="fa-regular fa-circle-user"></i>';
+  avatar.innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : '<span>👤</span>';
   document.getElementById("profileActions").innerHTML = `
     <button class="btn primary" onclick="openChat('${user.username}')">Написать</button>
     <button class="btn ghost" onclick="startCallWith('${user.username}')">Позвонить</button>
