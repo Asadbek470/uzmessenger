@@ -7,19 +7,25 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <div class="auth-tabs">
-      <button id="login-tab" class="active">Login</button>
-      <button id="register-tab">Register</button>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-tabs">
+        <button id="login-tab" class="tab active">Login</button>
+        <button id="register-tab" class="tab">Register</button>
+      </div>
+      <form id="auth-form">
+        <input type="text" id="username" class="input" placeholder="Username" required>
+        <input type="password" id="password" class="input" placeholder="Password" required>
+        <button type="submit" class="btn primary">Submit</button>
+      </form>
     </div>
-    <form id="auth-form">
-      <input type="text" id="username" placeholder="Username" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <button type="submit">Submit</button>
-    </form>
     <div id="confirm-modal" class="modal" style="display: none;">
-      <input type="text" id="code" placeholder="Confirmation Code">
-      <button id="confirm-btn">Confirm</button>
+      <div class="modal-content">
+        <h3>Enter Confirmation Code</h3>
+        <p>The code has been sent to your @telegram chat.</p>
+        <input type="text" id="code" class="input" placeholder="6-digit code">
+        <button id="confirm-btn" class="btn primary">Confirm</button>
+      </div>
     </div>
   </div>
   <script>
@@ -50,17 +56,18 @@
       const username = document.getElementById('username').value;
       const password = document.getElementById('password').value;
       const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+      const body = isLogin ? { identifier: username, password, deviceId, deviceName } : { username, password, deviceId, deviceName };
 
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: username, username, password, deviceId, deviceName })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
 
       if (data.ok) {
         if (data.requireConfirm) {
-          confirmModal.style.display = 'block';
+          confirmModal.style.display = 'flex';
           confirmBtn.onclick = async () => {
             const code = document.getElementById('code').value;
             const confirmRes = await fetch('/api/auth/confirm', {
@@ -79,8 +86,6 @@
         } else if (data.token) {
           localStorage.setItem('token', data.token);
           window.location.href = 'chat.html';
-        } else {
-          window.location.href = 'chat.html';  // After register, go to login? Or auto-login?
         }
       } else {
         alert(data.error);
