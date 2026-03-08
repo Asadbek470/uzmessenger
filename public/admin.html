@@ -7,12 +7,14 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <form id="admin-login">
-      <input type="text" id="admin-username" placeholder="Admin Username">
-      <input type="password" id="admin-password" placeholder="Admin Password">
-      <button type="submit">Login</button>
-    </form>
+  <div class="auth-container">
+    <div class="auth-card">
+      <form id="admin-login">
+        <input type="text" id="admin-username" class="input" placeholder="Admin Username">
+        <input type="password" id="admin-password" class="input" placeholder="Admin Password">
+        <button type="submit" class="btn primary">Login</button>
+      </form>
+    </div>
     <div id="admin-panel" style="display: none;">
       <h2>Users</h2>
       <div id="users-list"></div>
