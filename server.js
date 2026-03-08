@@ -151,20 +151,24 @@ const sendSystemMessage = (receiver, text) => {
 
 // Auth routes
 app.post('/api/auth/register', (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, deviceId, deviceName } = req.body;
   if (!/^[a-z0-9_]{4,20}$/.test(username)) return res.status(400).json({ ok: false, error: 'Invalid username' });
 
   bcrypt.hash(password, 10, (err, hash) => {
     if (err) return res.status(500).json({ ok: false, error: 'Server error' });
     db.run('INSERT INTO users (username, passwordHash) VALUES (?, ?)', [username, hash], (err) => {
       if (err) return res.status(400).json({ ok: false, error: 'Username taken' });
-      res.json({ ok: true });
+
+      // Create trusted session for first device
+      db.run('INSERT INTO sessions (username, deviceId, deviceName, trusted) VALUES (?, ?, ?, 1)', [username, deviceId, deviceName]);
+      const token = jwt.sign({ username }, JWT_SECRET, { expiresIn: '30d' });
+      res.json({ ok: true, token });
     });
   });
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { identifier, password, deviceId, deviceName } = req.body;  // deviceId could be a unique string per device
+  const { identifier, password, deviceId, deviceName } = req.body;
   db.get('SELECT * FROM users WHERE username = ?', [identifier], (err, user) => {
     if (err || !user) return res.status(400).json({ ok: false, error: 'Invalid credentials' });
     bcrypt.compare(password, user.passwordHash, (err, match) => {
@@ -210,6 +214,24 @@ app.post('/api/auth/confirm', (req, res) => {
       const token = jwt.sign({ username: username }, JWT_SECRET, { expiresIn: '30d' });
       res.json({ ok: true, token });
     });
+});
+
+// Sessions routes
+app.get('/api/sessions', verifyAuth, (req, res) => {
+  db.all('SELECT id, deviceId, deviceName, lastUsed, firstSeen, trusted FROM sessions WHERE username = ?', [req.user.username], (err, rows) => {
+    if (err) return res.status(500).json({ ok: false, error: 'Server error' });
+    res.json({ ok: true, sessions: rows });
+  });
+});
+
+app.delete('/api/sessions/:id', verifyAuth, (req, res) => {
+  db.get('SELECT username FROM sessions WHERE id = ?', [req.params.id], (err, row) => {
+    if (err || !row || row.username !== req.user.username) return res.status(403).json({ ok: false, error: 'Not authorized' });
+    db.run('DELETE FROM sessions WHERE id = ?', [req.params.id], (err) => {
+      if (err) return res.status(500).json({ ok: false, error: 'Server error' });
+      res.json({ ok: true });
+    });
+  });
 });
 
 // Profile routes
@@ -572,11 +594,11 @@ wss.on('connection', (ws, req) => {
         switch (data.type) {
           case 'text-message':
             if (!user.canSendText) return;
-            handleTextMessage(data, username);
+            handleMessage(data, username, false);
             break;
           case 'media-message':
             if (!user.canSendMedia) return;
-            // Media uploaded via HTTP, but can broadcast here if needed
+            handleMessage(data, username, true);
             break;
           case 'typing':
             handleTyping(data, username);
@@ -616,21 +638,21 @@ function broadcastStatus(username, status) {
   });
 }
 
-function handleTextMessage(data, sender) {
-  const { chatType, receiver, groupId, text } = data;
+function handleMessage(data, sender, isMedia) {
+  const { chatType, receiver, groupId, text, mediaType, mediaUrl } = data;
 
   let query, params;
   if (chatType === 'global') {
-    query = 'INSERT INTO messages (chatType, sender, text) VALUES (?, ?, ?)';
-    params = ['global', sender, text];
+    query = `INSERT INTO messages (chatType, sender, ${isMedia ? 'mediaType, mediaUrl' : 'text'}) VALUES (?, ?, ${isMedia ? '?, ?' : '?'})`;
+    params = isMedia ? ['global', sender, mediaType, mediaUrl] : ['global', sender, text];
   } else if (chatType === 'group') {
-    query = 'INSERT INTO messages (chatType, groupId, sender, text) VALUES (?, ?, ?, ?)';
-    params = ['group', groupId, sender, text];
+    query = `INSERT INTO messages (chatType, groupId, sender, ${isMedia ? 'mediaType, mediaUrl' : 'text'}) VALUES (?, ?, ?, ${isMedia ? '?, ?' : '?'})`;
+    params = isMedia ? ['group', groupId, sender, mediaType, mediaUrl] : ['group', groupId, sender, text];
   } else if (chatType === 'personal') {
     const user1 = sender < receiver ? sender : receiver;
     const user2 = sender > receiver ? sender : receiver;
-    query = 'INSERT INTO messages (chatType, user1, user2, sender, receiver, text) VALUES (?, ?, ?, ?, ?, ?)';
-    params = ['personal', user1, user2, sender, receiver, text];
+    query = `INSERT INTO messages (chatType, user1, user2, sender, receiver, ${isMedia ? 'mediaType, mediaUrl' : 'text'}) VALUES (?, ?, ?, ?, ?, ${isMedia ? '?, ?' : '?'})`;
+    params = isMedia ? ['personal', user1, user2, sender, receiver, mediaType, mediaUrl] : ['personal', user1, user2, sender, receiver, text];
   }
 
   db.run(query, params, function(err) {
@@ -638,17 +660,26 @@ function handleTextMessage(data, sender) {
     const msgId = this.lastID;
 
     // Broadcast to recipients
-    const broadcastMsg = { type: 'text-message', id: msgId, sender, text, createdAt: new Date().toISOString() };
+    const broadcastMsg = { 
+      type: isMedia ? 'media-message' : 'text-message', 
+      id: msgId, 
+      sender, 
+      text: isMedia ? null : text,
+      mediaType: isMedia ? mediaType : null,
+      mediaUrl: isMedia ? mediaUrl : null,
+      createdAt: new Date().toISOString() 
+    };
+    let recipients = [];
     if (chatType === 'global') {
-      onlineUsers.forEach(ws => ws.send(JSON.stringify(broadcastMsg)));
+      onlineUsers.forEach((ws, u) => ws.send(JSON.stringify(broadcastMsg)));
     } else if (chatType === 'group') {
       db.all('SELECT username FROM group_members WHERE groupId = ?', [groupId], (err, members) => {
-        broadcast(members.map(m => m.username), broadcastMsg);
+        recipients = members.map(m => m.username);
+        broadcast(recipients, broadcastMsg);
       });
     } else {
-      broadcast([receiver], broadcastMsg);
-      // Also send to sender if needed
-      onlineUsers.get(sender)?.send(JSON.stringify(broadcastMsg));
+      recipients = [receiver, sender];
+      broadcast(recipient, broadcastMsg);
     }
   });
 }
