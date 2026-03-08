@@ -1,25 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Panel</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One Messenger Admin</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="auth-container">
-    <div class="auth-card">
-      <form id="admin-login">
-        <input type="text" id="admin-username" class="input" placeholder="Admin Username">
-        <input type="password" id="admin-password" class="input" placeholder="Admin Password">
-        <button type="submit" class="btn primary">Login</button>
-      </form>
+    <div class="admin-container">
+        <h1>One Messenger • Admin Panel</h1>
+        
+        <div class="admin-search">
+            <input id="searchUser" placeholder="Поиск пользователя @username">
+            <button onclick="searchUser()">Найти</button>
+        </div>
+
+        <div id="userCard" class="user-card hidden">
+            <div class="user-info">
+                <img id="userAvatar">
+                <div>
+                    <h2 id="userName"></h2>
+                    <p id="userUsername"></p>
+                    <p id="userBio"></p>
+                </div>
+            </div>
+
+            <div class="admin-actions">
+                <button onclick="banUser()" class="danger">Забанить</button>
+                <button onclick="unbanUser()" class="success">Разбанить</button>
+                <button onclick="muteUser()">Мут</button>
+                <button onclick="unmuteUser()">Размут</button>
+                <button onclick="deleteUser()" class="danger">Удалить аккаунт</button>
+            </div>
+        </div>
     </div>
-    <div id="admin-panel" style="display: none;">
-      <h2>Users</h2>
-      <div id="users-list"></div>
-    </div>
-  </div>
-  <script src="admin.js"></script>
+
+    <script src="admin.js"></script>
 </body>
 </html>
