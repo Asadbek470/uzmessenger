@@ -1,58 +1,69 @@
-const form = document.getElementById('admin-login');
-const panel = document.getElementById('admin-panel');
-const usersList = document.getElementById('users-list');
+const token = localStorage.getItem("token");
+let currentUser = null;
 
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const username = document.getElementById('admin-username').value;
-  const password = document.getElementById('admin-password').value;
-  const res = await fetch('/api/admin/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-  const data = await res.json();
-  if (data.ok) {
-    localStorage.setItem('adminToken', data.token);
-    form.style.display = 'none';
-    panel.style.display = 'block';
-    loadUsers();
-  } else {
-    alert(data.error);
-  }
-});
+async function searchUser() {
+    const username = document.getElementById("searchUser").value.replace("@", "");
+    if (!username) return;
 
-async function loadUsers() {
-  const res = await fetch('/api/admin/users', { headers: { Authorization: `Bearer ${localStorage.getItem('adminToken')}` } });
-  const data = await res.json();
-  if (data.ok) {
-    usersList.innerHTML = '';
-    data.users.forEach(user => {
-      const div = document.createElement('div');
-      div.classList.add('admin-user-item');
-      div.innerHTML = `
-        <strong>${user.username}</strong>
-        <input type="datetime-local" placeholder="Blocked Until" value="${user.blockedUntil || ''}">
-        <label>Text: <input type="checkbox" ${user.canSendText ? 'checked' : ''}></label>
-        <label>Media: <input type="checkbox" ${user.canSendMedia ? 'checked' : ''}></label>
-        <label>Call: <input type="checkbox" ${user.canCall ? 'checked' : ''}></label>
-        <button class="btn primary small">Update</button>
-      `;
-      div.querySelector('button').onclick = async () => {
-        const blockedUntil = div.querySelector('input[type="datetime-local"]').value;
-        const canSendText = div.querySelector('input[type="checkbox"]:nth-of-type(1)').checked;
-        const canSendMedia = div.querySelector('input[type="checkbox"]:nth-of-type(2)').checked;
-        const canCall = div.querySelector('input[type="checkbox"]:nth-of-type(3)').checked;
-        const updateRes = await fetch('/api/admin/user/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('adminToken')}` },
-          body: JSON.stringify({ username: user.username, blockedUntil, canSendText, canSendMedia, canCall })
-        });
-        if ((await updateRes.json()).ok) {
-          alert('Updated');
-        }
-      };
-      usersList.appendChild(div);
+    const res = await fetch(`/api/users/${username}`, {
+        headers: { Authorization: `Bearer ${token}` }
     });
-  }
+
+    const data = await res.json();
+
+    if (!data.ok) {
+        alert("Пользователь не найден");
+        return;
+    }
+
+    const user = data.user;
+    currentUser = user.username;
+
+    document.getElementById("userCard").classList.remove("hidden");
+    document.getElementById("userName").innerText = user.displayName || user.username;
+    document.getElementById("userUsername").innerText = "@" + user.username;
+    document.getElementById("userBio").innerText = user.bio || "";
+    document.getElementById("userAvatar").src = user.avatarUrl || "https://via.placeholder.com/80";
+}
+
+async function banUser() {
+    if (!confirm("Забанить пользователя?")) return;
+    await fetch(`/api/admin/ban/${currentUser}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    alert("Пользователь забанен");
+}
+
+async function unbanUser() {
+    await fetch(`/api/admin/unban/${currentUser}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    alert("Пользователь разбанен");
+}
+
+async function muteUser() {
+    await fetch(`/api/admin/mute/${currentUser}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    alert("Пользователь замучен");
+}
+
+async function unmuteUser() {
+    await fetch(`/api/admin/unmute/${currentUser}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    alert("Пользователь размучен");
+}
+
+async function deleteUser() {
+    if (!confirm("Удалить аккаунт навсегда?")) return;
+    await fetch(`/api/admin/delete/${currentUser}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    alert("Аккаунт удалён");
 }
