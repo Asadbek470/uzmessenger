@@ -217,6 +217,22 @@ function siteOrigin(req) {
   const proto = String(req.headers["x-forwarded-proto"] || req.protocol || "https").split(",")[0];
   return `${proto}://${req.headers.host}`;
 }
+// ---- Android-приложение Zumo (собрано через PWABuilder) ----
+// Этот файл подтверждает, что приложение com.onrender.uzmessenger.twa принадлежит этому сайту.
+// Без него приложение показывает сверху адресную строку браузера. Отпечаток ключа — не секрет.
+// Если приложение пересобрано с другим ключом — отпечаток можно задать в ANDROID_APP_FINGERPRINTS (через запятую).
+const ANDROID_APP_PACKAGE = process.env.ANDROID_APP_PACKAGE || "com.onrender.uzmessenger.twa";
+const ANDROID_APP_FINGERPRINTS = (process.env.ANDROID_APP_FINGERPRINTS ||
+  "EE:C2:72:ED:E8:D3:F2:A1:F7:9B:D4:F5:5E:67:C4:15:D8:2B:D8:94:D7:DF:6D:9D:D3:6F:E5:A4:00:0C:18:72")
+  .split(",").map((x) => x.trim()).filter(Boolean);
+app.get("/.well-known/assetlinks.json", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.json([{
+    relation: ["delegate_permission/common.handle_all_urls"],
+    target: { namespace: "android_app", package_name: ANDROID_APP_PACKAGE, sha256_cert_fingerprints: ANDROID_APP_FINGERPRINTS }
+  }]);
+});
+
 app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send(
     `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin.html\nDisallow: /chat.html\n\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`
