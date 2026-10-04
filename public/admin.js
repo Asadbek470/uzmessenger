@@ -81,6 +81,7 @@ function showDashboard() {
   document.getElementById("adminLoginScreen").classList.add("hidden");
   document.getElementById("adminDashboard").classList.remove("hidden");
   loadVerificationRequests();
+  refreshReportsBadge();
 }
 
 async function checkAdminSession() {
@@ -121,9 +122,11 @@ function adminLogout() {
 function switchAdminTab(tab) {
   document.querySelectorAll(".admintab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   document.getElementById("tabUsers").classList.toggle("hidden", tab !== "users");
+  document.getElementById("tabReports").classList.toggle("hidden", tab !== "reports");
   document.getElementById("tabVerification").classList.toggle("hidden", tab !== "verification");
   document.getElementById("tabSupport").classList.toggle("hidden", tab !== "support");
   document.getElementById("tabSessions").classList.toggle("hidden", tab !== "sessions");
+  if (tab === "reports") loadReports("open");
   if (tab === "verification") loadVerificationRequests();
   if (tab === "support") loadSupportConversations();
   if (tab === "sessions") loadAdminSessions();
@@ -148,7 +151,7 @@ async function searchUser() {
       <div class="avatar">${u.avatarUrl ? `<img src="${esc(u.avatarUrl)}" alt="">` : `<span>${esc((u.displayName || u.username)[0].toUpperCase())}</span>`}</div>
       <div class="meta">
         <div class="name">${esc(u.displayName || u.username)}${u.verified ? ' <i class="fa-solid fa-circle-check verified-badge"></i>' : ""}</div>
-        <div class="preview">@${esc(u.username)} ${u.banned ? "· 🚫 забанен" : ""} ${u.muted ? "· 🔇 мут" : ""}</div>
+        <div class="preview">@${esc(u.username)} ${u.banned ? "· 🚫 бан " + untilLabel(u.bannedUntil) : ""} ${u.muted ? "· 🔇 мут " + untilLabel(u.mutedUntil) : ""}</div>
       </div>
     </button>
   `).join("");
@@ -173,9 +176,24 @@ async function openUser(username) {
   document.getElementById("userName").innerText = user.displayName || user.username;
   document.getElementById("userUsername").innerText = "@" + user.username;
   document.getElementById("userBio").innerText = user.bio || "";
-  document.getElementById("userAvatar").src = user.avatarUrl || "https://via.placeholder.com/80";
+  document.getElementById("userAvatar").src = user.avatarUrl || "/icon-192.png?v=4";
+  const r = user.rating || { up: 0, down: 0 };
   document.getElementById("userFlags").innerText =
-    `${user.banned ? "🚫 забанен" : "✅ активен"} · ${user.muted ? "🔇 в муте" : "🔊 не в муте"} · ${user.verified ? "подтверждён ✅" : "не подтверждён"}`;
+    `${user.verified ? "подтверждён ✅" : "не подтверждён"} · рейтинг: 👍 ${r.up} / 👎 ${r.down}` + (user.openReports ? ` · жалоб: ${user.openReports}` : "");
+  document.getElementById("userSanctions").innerHTML =
+    (user.banned
+      ? `<div class="bad">🚫 Забанен ${untilLabel(user.bannedUntil)}${user.banReason ? " — " + esc(user.banReason) : ""}</div>`
+      : `<div>✅ Не забанен</div>`) +
+    (user.muted
+      ? `<div class="bad">🔇 В муте ${untilLabel(user.mutedUntil)}${user.muteReason ? " — " + esc(user.muteReason) : ""}</div>`
+      : `<div>🔊 Не в муте</div>`);
+}
+
+function fmtDate(ts) {
+  return new Date(ts).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function untilLabel(ts) {
+  return ts ? "до " + fmtDate(ts) : "без срока";
 }
 
 // Кнопка «Переписки / группы / контакты» в карточке — вот тут уже спрашиваем код.
@@ -321,34 +339,125 @@ async function adminDeleteMessage(id, btn) {
 }
 
 // ---------------- MODERATION ACTIONS ----------------
-async function callAdmin(path, method) {
+async function callAdmin(path, method, body) {
   if (!currentUser) return;
   const res = await fetch(`/api/admin/${path}/${encodeURIComponent(currentUser)}`, {
     method,
-    headers: adminHeaders()
+    headers: { ...adminHeaders(), "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined
   });
   const data = await res.json();
   if (!data.ok) alert(data.error || "Ошибка");
   return data;
 }
 
-async function banUser() {
-  if (!confirm("Забанить пользователя?")) return;
-  const d = await callAdmin("ban", "POST");
-  if (d && d.ok) { alert("Пользователь забанен"); openUser(currentUser); }
+function onSanctionTermChange() {
+  const v = document.getElementById("sanctionTerm").value;
+  const inp = document.getElementById("sanctionCustom");
+  inp.classList.toggle("hidden", v !== "hours" && v !== "days");
+  inp.placeholder = v === "days" ? "Дней (1–50)" : "Часов";
+  inp.max = v === "days" ? "50" : "";
+  inp.value = "";
 }
+
+// Срок из формы → часы. 0 — без срока. null — срок введён неправильно.
+function readSanctionHours() {
+  const v = document.getElementById("sanctionTerm").value;
+  if (v !== "hours" && v !== "days") return Number(v);
+  const n = Number(document.getElementById("sanctionCustom").value);
+  if (!Number.isFinite(n) || n <= 0) { alert("Укажи срок числом"); return null; }
+  if (v === "days") {
+    if (n < 1 || n > 50) { alert("Срок в днях — от 1 до 50"); return null; }
+    return n * 24;
+  }
+  return n;
+}
+function termText(hours) {
+  if (!hours) return "без срока (пока сам не снимешь)";
+  return hours % 24 === 0 && hours >= 48 ? `на ${hours / 24} дн.` : `на ${hours} ч.`;
+}
+
+async function applySanction(kind) {
+  const hours = readSanctionHours();
+  if (hours === null) return;
+  const reason = document.getElementById("sanctionReason").value.trim();
+  const word = kind === "ban" ? "Забанить" : "Дать мут";
+  if (!confirm(`${word} @${currentUser} ${termText(hours)}?`)) return;
+  const d = await callAdmin(kind, "POST", { hours, reason });
+  if (d && d.ok) openUser(currentUser);
+}
+async function banUser() { return applySanction("ban"); }
+async function muteUser() { return applySanction("mute"); }
 async function unbanUser() {
   const d = await callAdmin("unban", "POST");
-  if (d && d.ok) { alert("Пользователь разбанен"); openUser(currentUser); }
-}
-async function muteUser() {
-  const d = await callAdmin("mute", "POST");
-  if (d && d.ok) { alert("Пользователь замучен"); openUser(currentUser); }
+  if (d && d.ok) openUser(currentUser);
 }
 async function unmuteUser() {
   const d = await callAdmin("unmute", "POST");
-  if (d && d.ok) { alert("Пользователь размучен"); openUser(currentUser); }
+  if (d && d.ok) openUser(currentUser);
 }
+
+// ---------------- ЖАЛОБЫ ----------------
+const REPORT_TYPE_LABEL = { story: "История", comment: "Комментарий", post: "Пост", user: "Человек" };
+let reportsStatus = "open";
+async function loadReports(status) {
+  reportsStatus = status || reportsStatus;
+  document.getElementById("repOpenBtn").classList.toggle("active", reportsStatus === "open");
+  document.getElementById("repClosedBtn").classList.toggle("active", reportsStatus === "closed");
+  const res = await fetch(`/api/admin/reports?status=${reportsStatus}`, { headers: adminHeaders() });
+  const d = await res.json();
+  if (!d.ok) return;
+  document.getElementById("reportsBadge").textContent = d.openCount ? String(d.openCount) : "";
+  const box = document.getElementById("reportsList");
+  if (!d.reports.length) { box.innerHTML = `<p class="hint">${reportsStatus === "open" ? "Новых жалоб нет" : "Пока пусто"}</p>`; return; }
+  box.innerHTML = d.reports.map(r => {
+    const isVideo = /\.(mp4|webm|mov)$/i.test(r.mediaUrl || "");
+    const media = r.mediaUrl
+      ? `<a href="${esc(r.mediaUrl)}" target="_blank" rel="noopener"><img class="rep-media" src="${esc(r.mediaUrl)}" alt="" onerror="this.outerHTML='Открыть вложение'"></a>`
+      : "";
+    const state = (r.ownerBanned ? " · 🚫 уже в бане" : "") + (r.ownerMuted ? " · 🔇 уже в муте" : "");
+    return `
+      <div class="ver-item">
+        <div class="rep-head">
+          <span class="rep-type">${REPORT_TYPE_LABEL[r.targetType] || esc(r.targetType)}</span>
+          <span>автор: <b>@${esc(r.targetOwner)}</b>${state}</span>
+          <span>· пожаловался @${esc(r.reporter)}</span>
+          <span>· ${fmtDate(r.createdAt)}</span>
+        </div>
+        ${r.snapshot ? `<div class="rep-body">${esc(r.snapshot)}</div>` : ""}
+        ${media}
+        <div class="rep-reason"><b>Причина:</b> ${esc(r.reason || "не указана")}</div>
+        <div class="ver-actions admin-actions">
+          ${reportsStatus === "open" && r.targetType !== "user" ? `<button class="danger" onclick="reportDeleteContent(${r.id})">Удалить это</button>` : ""}
+          <button onclick="reportOpenUser('${esc(r.targetOwner)}')">Мут / бан автора</button>
+          ${reportsStatus === "open" ? `<button class="success" onclick="reportClose(${r.id})">Закрыть жалобу</button>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+}
+async function reportClose(id) {
+  await fetch(`/api/admin/reports/${id}/close`, { method: "POST", headers: adminHeaders() });
+  loadReports();
+}
+async function reportDeleteContent(id) {
+  if (!confirm("Удалить то, на что пожаловались? Вернуть будет нельзя.")) return;
+  const res = await fetch(`/api/admin/reports/${id}/delete-content`, { method: "POST", headers: adminHeaders() });
+  const d = await res.json();
+  if (!d.ok) alert(d.error || "Ошибка");
+  loadReports();
+}
+function reportOpenUser(username) {
+  switchAdminTab("users");
+  openUser(username);
+  document.getElementById("userCard").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+async function refreshReportsBadge() {
+  try {
+    const d = await (await fetch(`/api/admin/reports?status=open`, { headers: adminHeaders() })).json();
+    if (d.ok) document.getElementById("reportsBadge").textContent = d.openCount ? String(d.openCount) : "";
+  } catch (e) {}
+}
+
 // Удаление аккаунта необратимо и затрагивает все данные человека — в отличие
 // от бана/мута, это не «быстрый инструмент», поэтому тоже под пин-кодом.
 async function deleteUser() {
