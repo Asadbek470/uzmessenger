@@ -261,19 +261,37 @@
     return { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
   }
 
+  // Камера и микрофон запрашиваются через общую функцию zumoMedia (app.js): она каждый раз заново
+  // спрашивает браузер, а при отказе показывает понятное окно с кнопкой «Запросить снова».
+  function mediaCancelled() {
+    const e = new Error("Нет доступа к микрофону");
+    e.name = "MediaCancelled";
+    return e;
+  }
+  const askMedia = (constraints, opts) =>
+    window.zumoMedia ? window.zumoMedia(constraints, opts) : navigator.mediaDevices.getUserMedia(constraints);
+
   async function getMedia(video) {
     const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-    if (!video) return navigator.mediaDevices.getUserMedia({ audio, video: false });
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio,
-        video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } }
-      });
-    } catch {
+    const s = await askMedia(
+      video ? { audio, video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } } }
+            : { audio, video: false },
+      { allowAudioOnly: !!video });
+    if (!s) throw mediaCancelled();
+    if (video && !s.getVideoTracks().length) {
       toast("Камера недоступна — продолжаем без видео");
       callVideo = false;
-      return navigator.mediaDevices.getUserMedia({ audio, video: false });
     }
+    return s;
+  }
+
+  // Перед звонком через LiveKit: убеждаемся, что доступ есть. Возвращает true, если камера доступна.
+  async function preflight(video) {
+    const s = await askMedia({ audio: true, video: !!video }, { allowAudioOnly: !!video });
+    if (!s) throw mediaCancelled();
+    const hasVideo = s.getVideoTracks().length > 0;
+    s.getTracks().forEach((t) => t.stop());
+    return hasVideo;
   }
 
   // ---------------- 1:1: интерфейс звонка ----------------
@@ -434,6 +452,11 @@
   }
 
   async function joinLk1(peer) {
+    if (!(await preflight(callVideo)) && callVideo) {
+      callVideo = false;
+      toast("Камера недоступна — продолжаем без видео");
+      setBtn("omCam", true, "fa-video", "fa-video-slash");
+    }
     const r = await fetch("/api/call/lk-token", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -537,9 +560,7 @@
         }
       }, RING_GUARD_MS);
     } catch (e) {
-      alert(e && e.name === "NotAllowedError"
-        ? "Нет доступа к микрофону или камере — разреши его в настройках браузера"
-        : ((lk1Mode && e && e.message) || "Не удалось начать звонок"));
+      if (!e || e.name !== "MediaCancelled") alert((lk1Mode && e && e.message) || "Не удалось начать звонок");
       cleanupCall();
     }
   }
@@ -605,9 +626,7 @@
       incomingOffer = null;
       armConnectGuard();
     } catch (e) {
-      alert(e && e.name === "NotAllowedError"
-        ? "Нет доступа к микрофону или камере — разреши его в настройках браузера"
-        : ((lk1Mode && e && e.message) || "Не удалось принять звонок"));
+      if (!e || e.name !== "MediaCancelled") alert((lk1Mode && e && e.message) || "Не удалось принять звонок");
       if (lk1Mode && ws && ws.readyState === 1) {
         try { ws.send(JSON.stringify({ type: "call-reject", to: from })); } catch {}
       }
@@ -852,6 +871,12 @@
     $("omCam").innerHTML = `<i class="fa-solid ${video ? "fa-video" : "fa-video-slash"}"></i>`;
 
     try {
+      if (video && !(await preflight(true))) {
+        video = false;
+        toast("Камера недоступна — только звук");
+        $("omCam").className = "omb off";
+      } else if (!video) await preflight(false);
+
       const r = await fetch("/api/group-call/join", {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -915,7 +940,7 @@
         }).catch(() => {});
       }, 20000);
     } catch (e) {
-      alert((e && e.message) || "Не удалось присоединиться к звонку");
+      if (!e || e.name !== "MediaCancelled") alert((e && e.message) || "Не удалось присоединиться к звонку");
       leaveGroupCall();
     }
   }
