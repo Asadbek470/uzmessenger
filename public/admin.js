@@ -398,7 +398,7 @@ async function unmuteUser() {
 }
 
 // ---------------- ЖАЛОБЫ ----------------
-const REPORT_TYPE_LABEL = { story: "История", comment: "Комментарий", post: "Пост", user: "Человек" };
+const REPORT_TYPE_LABEL = { story: "История", comment: "Комментарий к истории", post: "Пост", postcomment: "Комментарий к посту", user: "Человек" };
 let reportsStatus = "open";
 async function loadReports(status) {
   reportsStatus = status || reportsStatus;
