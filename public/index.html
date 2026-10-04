@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="google-site-verification" content="DrhRAp88TUKCKXi76zqCO7jqeZJkP5PuIU8Kpn59bQI" />
+  <script>
+    // Кто уже вошёл — сразу попадает в чаты, а не на страницу входа (важно для приложения из магазина).
+    // «Добавить аккаунт» (?add=1) по-прежнему открывает форму входа.
+    try {
+      if (localStorage.getItem("token") && !/[?&]add=1/.test(location.search)) location.replace("chat.html" + location.search);
+    } catch (e) {}
+  </script>
   <script src="splash.js"></script>
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Zumo (Зумо) — мессенджер без номера телефона</title>
