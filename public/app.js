@@ -142,7 +142,8 @@
 .postsfeed.hidden{display:none}
 .postsfilter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(var(--z-accent-rgb),.12);border:1px solid rgba(var(--z-accent-rgb),.35);font-size:14px;font-weight:600}
 .postsfilter button{border:none;background:none;color:var(--z-accent-hi);font:inherit;font-weight:700;cursor:pointer}
-.post{background:var(--z-surface);border:1px solid var(--z-line);border-radius:22px;overflow:hidden}
+.post{flex:none;background:var(--z-surface);border:1px solid var(--z-line);border-radius:22px;overflow:hidden}
+.postsfilter,.postsempty{flex:none}
 .post-head{display:flex;align-items:center;gap:10px;padding:12px 10px 10px 14px}
 .post-author{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:0}
 .post-author .avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none}
