@@ -4,8 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zumo Admin</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=10">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+    <style>
+      .sanction-box{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:rgba(var(--z-accent-rgb),.06);display:flex;flex-direction:column;gap:10px}
+      .user-card > .row{margin-top:12px}
+      .sanction-help{font-size:13px;line-height:1.45;color:var(--muted)}
+      .sanction-help b{color:var(--text)}
+      .sanction-row{display:flex;gap:8px;flex-wrap:wrap}
+      .sanction-box select,.sanction-box input{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(11,19,43,.6);color:var(--text);font:inherit;min-width:0}
+      .sanction-box select{flex:1 1 220px}
+      #sanctionCustom{flex:0 0 120px}
+      .sanction-state{margin-top:10px;font-size:14px;line-height:1.5}
+      .sanction-state .bad{color:#ff8a8a;font-weight:700}
+      .rep-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+      .rep-type{padding:2px 9px;border-radius:999px;background:rgba(var(--z-accent-rgb),.2);color:var(--text);font-weight:700;font-size:12px}
+      .rep-body{margin:8px 0;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);white-space:pre-wrap;word-break:break-word}
+      .rep-media{max-width:220px;max-height:220px;border-radius:12px;display:block;margin:8px 0}
+      .rep-reason{font-size:14px}
+      #reportsBadge:not(:empty){display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:999px;background:#ff4d5a;color:#fff;font-size:12px;font-weight:700}
+    </style>
 </head>
 <body class="adminbody">
 
@@ -39,6 +57,7 @@
 
     <div class="admin-tabs">
       <button class="admintab active" data-tab="users" onclick="switchAdminTab('users')">Пользователи</button>
+      <button class="admintab" data-tab="reports" onclick="switchAdminTab('reports')">Жалобы <span id="reportsBadge"></span></button>
       <button class="admintab" data-tab="verification" onclick="switchAdminTab('verification')">Верификация</button>
       <button class="admintab" data-tab="support" onclick="switchAdminTab('support')">Поддержка</button>
       <button class="admintab" data-tab="sessions" onclick="switchAdminTab('sessions')">Сессии</button>
@@ -64,12 +83,36 @@
             </div>
         </div>
 
-        <div class="admin-actions">
-            <button onclick="banUser()" class="danger">Забанить</button>
-            <button onclick="unbanUser()" class="success">Разбанить</button>
-            <button onclick="muteUser()">Мут</button>
-            <button onclick="unmuteUser()">Размут</button>
+        <div id="userSanctions" class="sanction-state"></div>
+
+        <!-- Мут и бан: срок и причина -->
+        <div class="sanction-box">
+          <div class="sanction-help">
+            <b>Мут</b> — человек всё читает, но не может писать и что-либо делать (только обратиться в поддержку).
+            <b>Бан</b> — аккаунт не работает совсем.
+          </div>
+          <div class="sanction-row">
+            <select id="sanctionTerm" onchange="onSanctionTermChange()">
+              <option value="24">На 24 часа</option>
+              <option value="48">На 48 часов</option>
+              <option value="72">На 72 часа</option>
+              <option value="168">На 7 дней</option>
+              <option value="720">На 30 дней</option>
+              <option value="1200">На 50 дней</option>
+              <option value="hours">Свой срок в часах…</option>
+              <option value="days">Свой срок в днях (1–50)…</option>
+              <option value="0">Без срока — пока сам не сниму (навсегда)</option>
+            </select>
+            <input id="sanctionCustom" class="hidden" type="number" min="1" placeholder="Сколько">
+          </div>
+          <input id="sanctionReason" maxlength="200" placeholder="Причина — её увидит пользователь (не обязательно)">
+          <div class="admin-actions">
+            <button onclick="muteUser()">🔇 Дать мут</button>
+            <button onclick="unmuteUser()" class="success">Снять мут</button>
+            <button onclick="banUser()" class="danger">🚫 Забанить</button>
+            <button onclick="unbanUser()" class="success">Снять бан</button>
             <button onclick="deleteUser()" class="danger">Удалить аккаунт</button>
+          </div>
         </div>
 
         <div class="row">
@@ -124,6 +167,15 @@
       </div>
     </div>
 
+    <!-- REPORTS TAB: жалобы пользователей на истории, комментарии, посты и людей -->
+    <div id="tabReports" class="admintabpanel hidden">
+      <div class="admin-tabs" style="margin-bottom:10px">
+        <button class="admintab active" id="repOpenBtn" onclick="loadReports('open')">Новые</button>
+        <button class="admintab" id="repClosedBtn" onclick="loadReports('closed')">Разобранные</button>
+      </div>
+      <div id="reportsList" class="ver-list"></div>
+    </div>
+
     <!-- VERIFICATION TAB -->
     <div id="tabVerification" class="admintabpanel hidden">
       <div id="verificationList" class="ver-list"></div>
@@ -155,6 +207,6 @@
     </div>
   </div>
 
-  <script src="admin.js"></script>
+  <script src="admin.js?v=2"></script>
 </body>
 </html>
