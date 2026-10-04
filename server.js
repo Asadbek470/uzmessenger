@@ -448,6 +448,62 @@ async function initSchema() {
 
   await addColumn("users", "banned", "INTEGER NOT NULL DEFAULT 0");
   await addColumn("users", "muted", "INTEGER NOT NULL DEFAULT 0");
+  // мут и бан на срок: 0 — без срока (пока администратор сам не снимет)
+  await addColumn("users", "bannedUntil", "INTEGER NOT NULL DEFAULT 0");
+  await addColumn("users", "mutedUntil", "INTEGER NOT NULL DEFAULT 0");
+  await addColumn("users", "banReason", "TEXT NOT NULL DEFAULT ''");
+  await addColumn("users", "muteReason", "TEXT NOT NULL DEFAULT ''");
+
+  // жалобы пользователей — их разбирает администрация
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reporter TEXT NOT NULL,
+      targetType TEXT NOT NULL,
+      targetId TEXT NOT NULL,
+      targetOwner TEXT NOT NULL DEFAULT '',
+      parentId INTEGER NOT NULL DEFAULT 0,
+      snapshot TEXT NOT NULL DEFAULT '',
+      mediaUrl TEXT NOT NULL DEFAULT '',
+      reason TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      createdAt INTEGER NOT NULL,
+      resolvedAt INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, createdAt)`);
+
+  // рейтинг людей: каждый может поставить другому «плюс» или «минус»
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS user_ratings (
+      rater TEXT NOT NULL,
+      target TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      createdAt INTEGER NOT NULL,
+      PRIMARY KEY (rater, target)
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_user_ratings_target ON user_ratings(target)`);
+
+  // посты: картинка и текст под ней
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      mediaUrl TEXT NOT NULL DEFAULT '',
+      createdAt INTEGER NOT NULL
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_posts_owner ON posts(owner, createdAt)`);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS post_likes (
+      postId INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      PRIMARY KEY (postId, username)
+    )
+  `);
   await addColumn("users", "verified", "INTEGER NOT NULL DEFAULT 0");
   await addColumn("users", "totpSecret", "TEXT NOT NULL DEFAULT ''");
   await addColumn("users", "totpEnabled", "INTEGER NOT NULL DEFAULT 0");
@@ -804,9 +860,53 @@ function safeUser(u) {
     verified: !!u.verified,
     totpEnabled: !!u.totpEnabled,
     tosAcceptedAt: u.tosAcceptedAt || 0,
+    muted: !!u.muted,
+    mutedUntil: u.muted ? (u.mutedUntil || 0) : 0,
+    muteReason: u.muted ? (u.muteReason || "") : "",
     settings: parseSettings(u)
   };
 }
+
+// ---------------- МУТ И БАН ----------------
+// Мут: человек всё видит, но ничего не может писать и делать (кроме обращения в поддержку).
+// Бан: аккаунт не работает совсем. И то и другое — на срок или без срока (until = 0).
+function applySanctionExpiry(user) {
+  if (!user) return user;
+  const t = now();
+  if (user.banned && user.bannedUntil > 0 && user.bannedUntil <= t) {
+    user.banned = 0; user.bannedUntil = 0;
+    db.run(`UPDATE users SET banned=0, bannedUntil=0, banReason='' WHERE username=?`, [user.username]);
+  }
+  if (user.muted && user.mutedUntil > 0 && user.mutedUntil <= t) {
+    user.muted = 0; user.mutedUntil = 0;
+    db.run(`UPDATE users SET muted=0, mutedUntil=0, muteReason='' WHERE username=?`, [user.username]);
+  }
+  return user;
+}
+function untilText(ts) {
+  if (!ts) return "бессрочно";
+  const d = new Date(ts + TZ_OFFSET_MS_FOR_TEXT);
+  const p = (n) => String(n).padStart(2, "0");
+  return `до ${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+const TZ_OFFSET_MS_FOR_TEXT = (Number(process.env.TZ_OFFSET_MINUTES) || 300) * 60 * 1000;
+function banMessage(user) {
+  return `Аккаунт заблокирован ${untilText(user.bannedUntil)}` + (user.banReason ? `. Причина: ${user.banReason}` : "");
+}
+function muteMessage(user) {
+  return `Аккаунт в режиме «только чтение» ${untilText(user.mutedUntil)}` + (user.muteReason ? `. Причина: ${user.muteReason}` : "") + ". Можно написать в поддержку.";
+}
+// что замьюченному всё-таки можно: выйти, отметить просмотр, получить ключи для чтения, уведомления
+const MUTE_ALLOWED = [
+  /^\/api\/auth\//, /^\/api\/2fa\//, /^\/api\/push\//, /^\/api\/e2e\//, /^\/api\/me\/accept-terms$/, /^\/api\/me\/sessions\//,
+  /^\/api\/stories\/\d+\/(view|watch)$/, /^\/api\/messages\/\d+\/view-once$/
+];
+// снятие истёкших мутов и банов — раз в минуту, чтобы люди снова появлялись в поиске
+setInterval(() => {
+  const t = now();
+  db.run(`UPDATE users SET banned=0, bannedUntil=0, banReason='' WHERE banned=1 AND bannedUntil>0 AND bannedUntil<=?`, [t], () => {});
+  db.run(`UPDATE users SET muted=0, mutedUntil=0, muteReason='' WHERE muted=1 AND mutedUntil>0 AND mutedUntil<=?`, [t], () => {});
+}, 60 * 1000);
 
 const SUPPORT_CARD = {
   username: "support",
@@ -888,7 +988,14 @@ function verifyAuth(req, res, next) {
 
     const proceed = (user) => {
       if (!user) return res.status(401).json({ ok: false, error: "Пользователь не найден" });
-      if (user.banned) return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+      applySanctionExpiry(user);
+      if (user.banned) return res.status(403).json({ ok: false, banned: true, until: user.bannedUntil || 0, reason: user.banReason || "", error: banMessage(user) });
+      if (user.muted && req.method !== "GET") {
+        const p = (req.baseUrl || "") + (req.path || "");
+        if (!MUTE_ALLOWED.some((re) => re.test(p))) {
+          return res.status(403).json({ ok: false, muted: true, until: user.mutedUntil || 0, reason: user.muteReason || "", error: muteMessage(user) });
+        }
+      }
       req.user = user;
       req.sessionJti = decoded.jti || null;
       next();
@@ -1148,7 +1255,8 @@ app.post("/api/auth/login", rateLimit(10, 60 * 1000), (req, res) => {
 
   db.get(`SELECT * FROM users WHERE username=?`, [usernameRaw], async (err, user) => {
     if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
-    if (user.banned) return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+    applySanctionExpiry(user);
+    if (user.banned) return res.status(403).json({ ok: false, error: banMessage(user) });
 
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
@@ -1227,6 +1335,9 @@ async function wipeUserData(u) {
   await dbRun(`DELETE FROM story_likes WHERE storyId IN (SELECT id FROM stories WHERE owner=?)`, [u]);
   await dbRun(`DELETE FROM story_likes WHERE username=?`, [u]);
   await dbRun(`DELETE FROM story_promos WHERE owner=?`, [u]);
+  await dbRun(`DELETE FROM post_likes WHERE username=? OR postId IN (SELECT id FROM posts WHERE owner=?)`, [u, u]);
+  await dbRun(`DELETE FROM posts WHERE owner=?`, [u]);
+  await dbRun(`DELETE FROM user_ratings WHERE rater=? OR target=?`, [u, u]);
   await dbRun(`DELETE FROM e2e_keys WHERE username=?`, [u]);
   await dbRun(`DELETE FROM stories WHERE owner=?`, [u]);
   await dbRun(`DELETE FROM group_members WHERE username=?`, [u]);
@@ -1304,6 +1415,12 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
     await dbRun(`UPDATE story_comments SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE story_likes SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE story_promos SET owner=? WHERE owner=?`, [newUsername, old]);
+    await dbRun(`UPDATE posts SET owner=? WHERE owner=?`, [newUsername, old]);
+    await dbRun(`UPDATE post_likes SET username=? WHERE username=?`, [newUsername, old]);
+    await dbRun(`UPDATE user_ratings SET rater=? WHERE rater=?`, [newUsername, old]);
+    await dbRun(`UPDATE user_ratings SET target=? WHERE target=?`, [newUsername, old]);
+    await dbRun(`UPDATE reports SET targetOwner=? WHERE targetOwner=?`, [newUsername, old]);
+    await dbRun(`UPDATE reports SET reporter=? WHERE reporter=?`, [newUsername, old]);
     await dbRun(`UPDATE stories SET repostOfOwner=? WHERE repostOfOwner=?`, [newUsername, old]);
     await dbRun(`UPDATE groups SET owner=? WHERE owner=?`, [newUsername, old]);
     await dbRun(`UPDATE group_members SET username=? WHERE username=?`, [newUsername, old]);
@@ -1444,7 +1561,8 @@ app.post("/api/auth/google", rateLimit(15, 60 * 1000), async (req, res) => {
     user = await dbGet(`SELECT * FROM users WHERE username=?`, [candidate]);
   }
 
-  if (user.banned) return res.status(403).json({ ok: false, error: "Аккаунт заблокирован" });
+  applySanctionExpiry(user);
+  if (user.banned) return res.status(403).json({ ok: false, error: banMessage(user) });
 
   const jti = await recordSession(req, user.username);
   res.json({ ok: true, token: signToken(user.username, { jti }), user: safeUser(user) });
@@ -1892,9 +2010,137 @@ app.get("/api/users/:username", verifyAuth, async (req, res) => {
       dmGated: dmGateOn(row) && row.username !== viewer,
       canMessage: blocked ? false : await dmAllowed(row, viewer),
       blocked,
-      iBlockedThem: !!(await dbGet(`SELECT 1 FROM blocked_users WHERE owner=? AND blocked=?`, [viewer, row.username]))
+      iBlockedThem: !!(await dbGet(`SELECT 1 FROM blocked_users WHERE owner=? AND blocked=?`, [viewer, row.username])),
+      rating: await ratingOf(row.username, viewer),
+      postCount: ((await dbGet(`SELECT COUNT(*) AS c FROM posts WHERE owner=?`, [row.username])) || {}).c || 0
     }
   });
+});
+
+// ---------------- РЕЙТИНГ ЛЮДЕЙ ----------------
+async function ratingOf(target, viewer) {
+  const r = await dbGet(
+    `SELECT COALESCE(SUM(CASE WHEN value=1 THEN 1 ELSE 0 END),0) AS up,
+            COALESCE(SUM(CASE WHEN value=-1 THEN 1 ELSE 0 END),0) AS down
+     FROM user_ratings WHERE target=?`, [target]);
+  const mine = viewer ? await dbGet(`SELECT value FROM user_ratings WHERE rater=? AND target=?`, [viewer, target]) : null;
+  return { up: r.up || 0, down: r.down || 0, mine: mine ? mine.value : 0 };
+}
+app.post("/api/users/:username/rate", verifyAuth, rateLimit(40, 60 * 1000), async (req, res) => {
+  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const me = req.user.username;
+  if (target === me) return res.status(400).json({ ok: false, error: "Себе рейтинг поставить нельзя" });
+  const exists = await dbGet(`SELECT username FROM users WHERE username=? AND banned=0`, [target]);
+  if (!exists) return res.status(404).json({ ok: false, error: "Не найден" });
+  const value = Number(req.body.value);
+  if (value === 1 || value === -1) {
+    await dbRun(
+      `INSERT INTO user_ratings (rater, target, value, createdAt) VALUES (?,?,?,?)
+       ON CONFLICT(rater, target) DO UPDATE SET value=excluded.value, createdAt=excluded.createdAt`,
+      [me, target, value, now()]);
+  } else {
+    await dbRun(`DELETE FROM user_ratings WHERE rater=? AND target=?`, [me, target]);
+  }
+  res.json({ ok: true, rating: await ratingOf(target, me) });
+});
+app.get("/api/me/rating", verifyAuth, async (req, res) => {
+  res.json({ ok: true, rating: await ratingOf(req.user.username, null),
+    postCount: ((await dbGet(`SELECT COUNT(*) AS c FROM posts WHERE owner=?`, [req.user.username])) || {}).c || 0 });
+});
+
+// ---------------- ЖАЛОБЫ ----------------
+const REPORT_TYPES = ["story", "comment", "post", "user"];
+app.post("/api/report", verifyAuth, rateLimit(15, 10 * 60 * 1000), async (req, res) => {
+  const me = req.user.username;
+  const type = String(req.body.targetType || "");
+  const id = String(req.body.targetId || "").slice(0, 40);
+  const reason = String(req.body.reason || "").trim().slice(0, 300);
+  if (!REPORT_TYPES.includes(type) || !id) return res.status(400).json({ ok: false, error: "Неверная жалоба" });
+
+  let owner = "", snapshot = "", mediaUrl = "", parentId = 0;
+  if (type === "story") {
+    const st = await dbGet(`SELECT * FROM stories WHERE id=?`, [Number(id)]);
+    if (!st) return res.status(404).json({ ok: false, error: "История не найдена" });
+    owner = st.owner; snapshot = st.text || ""; mediaUrl = st.mediaUrl || "";
+  } else if (type === "comment") {
+    const c = await dbGet(`SELECT * FROM story_comments WHERE id=?`, [Number(id)]);
+    if (!c) return res.status(404).json({ ok: false, error: "Комментарий не найден" });
+    owner = c.username; snapshot = c.text || ""; parentId = c.storyId;
+  } else if (type === "post") {
+    const p = await dbGet(`SELECT * FROM posts WHERE id=?`, [Number(id)]);
+    if (!p) return res.status(404).json({ ok: false, error: "Пост не найден" });
+    owner = p.owner; snapshot = p.text || ""; mediaUrl = p.mediaUrl || "";
+  } else {
+    const u = await dbGet(`SELECT username, displayName, bio FROM users WHERE username=?`, [id.replace(/^@+/, "").toLowerCase()]);
+    if (!u) return res.status(404).json({ ok: false, error: "Не найден" });
+    owner = u.username; snapshot = [u.displayName, u.bio].filter(Boolean).join(" — ");
+  }
+  if (owner === me) return res.status(400).json({ ok: false, error: "На себя пожаловаться нельзя" });
+
+  const dup = await dbGet(`SELECT id FROM reports WHERE reporter=? AND targetType=? AND targetId=? AND status='open'`, [me, type, id]);
+  if (!dup) {
+    await dbRun(
+      `INSERT INTO reports (reporter, targetType, targetId, targetOwner, parentId, snapshot, mediaUrl, reason, status, createdAt)
+       VALUES (?,?,?,?,?,?,?,?, 'open', ?)`,
+      [me, type, id, owner, parentId, snapshot.slice(0, 1000), mediaUrl, reason, now()]);
+  }
+  res.json({ ok: true });
+});
+
+// ---------------- ПОСТЫ (картинка и текст под ней) ----------------
+const POST_SELECT = `
+  SELECT p.id, p.owner, p.text, p.mediaUrl, p.createdAt, u.displayName, u.avatarUrl, u.verified,
+         (SELECT COUNT(*) FROM post_likes l WHERE l.postId=p.id) AS likeCount,
+         (SELECT COUNT(*) FROM post_likes l WHERE l.postId=p.id AND l.username=?) AS liked
+  FROM posts p JOIN users u ON u.username=p.owner`;
+app.get("/api/posts", verifyAuth, async (req, res) => {
+  const me = req.user.username;
+  const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
+  const user = String(req.query.user || "").replace(/^@+/, "").toLowerCase();
+  const params = [me, before, me, me];
+  let where = `WHERE p.id < ? AND u.banned=0
+    AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (b.owner=? AND b.blocked=p.owner) OR (b.owner=p.owner AND b.blocked=?))`;
+  if (user) { where += ` AND p.owner=?`; params.push(user); }
+  const rows = await dbAll(`${POST_SELECT} ${where} ORDER BY p.id DESC LIMIT 30`, params);
+  res.json({ ok: true, posts: rows.map((r) => ({ ...r, liked: !!r.liked, verified: !!r.verified })) });
+});
+app.post("/api/posts", verifyAuth, rateLimit(20, 60 * 60 * 1000), singleUpload("file"), async (req, res) => {
+  const text = String(req.body.text || "").trim().slice(0, 1000);
+  let mediaUrl = "";
+  if (req.file) {
+    if (guessMediaType(req.file.mimetype) !== "image") return res.status(400).json({ ok: false, error: "К посту можно прикрепить только картинку" });
+    mediaUrl = await saveUploadedFile(req.file.buffer, req.file.mimetype, "post");
+  }
+  if (!text && !mediaUrl) return res.status(400).json({ ok: false, error: "Добавь текст или картинку" });
+  const r = await dbRun(`INSERT INTO posts (owner, text, mediaUrl, createdAt) VALUES (?,?,?,?)`, [req.user.username, text, mediaUrl, now()]);
+  const row = await dbGet(`${POST_SELECT} WHERE p.id=?`, [req.user.username, r.lastID]);
+  res.json({ ok: true, post: { ...row, liked: false, verified: !!row.verified } });
+});
+async function deletePostById(id) {
+  const p = await dbGet(`SELECT * FROM posts WHERE id=?`, [id]);
+  if (!p) return false;
+  await dbRun(`DELETE FROM posts WHERE id=?`, [id]);
+  await dbRun(`DELETE FROM post_likes WHERE postId=?`, [id]);
+  const m = /^\/media\/([\w-]+)/.exec(p.mediaUrl || "");
+  if (m) await dbRun(`DELETE FROM media_blobs WHERE id=?`, [m[1]]).catch(() => {});
+  return true;
+}
+app.delete("/api/posts/:id", verifyAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const p = await dbGet(`SELECT owner FROM posts WHERE id=?`, [id]);
+  if (!p) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  if (p.owner !== req.user.username) return res.status(403).json({ ok: false, error: "Удалить можно только свой пост" });
+  await deletePostById(id);
+  res.json({ ok: true });
+});
+app.post("/api/posts/:id/like", verifyAuth, rateLimit(120, 60 * 1000), async (req, res) => {
+  const id = Number(req.params.id);
+  const p = await dbGet(`SELECT id FROM posts WHERE id=?`, [id]);
+  if (!p) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  if (req.body.value) await dbRun(`INSERT OR IGNORE INTO post_likes (postId, username, createdAt) VALUES (?,?,?)`, [id, req.user.username, now()]);
+  else await dbRun(`DELETE FROM post_likes WHERE postId=? AND username=?`, [id, req.user.username]);
+  const c = await dbGet(`SELECT COUNT(*) AS c FROM post_likes WHERE postId=?`, [id]);
+  res.json({ ok: true, likeCount: c.c, liked: !!req.body.value });
 });
 
 // ---------------- VERIFICATION (official badge) ----------------
@@ -3184,6 +3430,17 @@ app.get("/api/stories/:id/comments", verifyAuth, async (req, res) => {
   res.json({ ok: true, comments: rows });
 });
 
+// Удалить комментарий может автор истории (любой комментарий под ней) или тот, кто его написал
+app.delete("/api/stories/:id/comments/:commentId", verifyAuth, async (req, res) => {
+  const storyId = Number(req.params.id), cid = Number(req.params.commentId);
+  const me = req.user.username;
+  const c = await dbGet(`SELECT sc.id, sc.username, s.owner FROM story_comments sc LEFT JOIN stories s ON s.id=sc.storyId WHERE sc.id=? AND sc.storyId=?`, [cid, storyId]);
+  if (!c) return res.status(404).json({ ok: false, error: "Комментарий не найден" });
+  if (c.username !== me && c.owner !== me) return res.status(403).json({ ok: false, error: "Удалять комментарии может только автор истории" });
+  await dbRun(`DELETE FROM story_comments WHERE id=?`, [cid]);
+  res.json({ ok: true });
+});
+
 app.post("/api/stories/:id/comments", verifyAuth, async (req, res) => {
   const id = Number(req.params.id);
   const me = req.user.username;
@@ -3468,7 +3725,7 @@ app.get("/api/admin/users", verifySuperAdmin, (req, res) => {
   const params = q ? [`%${q}%`] : [];
 
   db.all(
-    `SELECT username, displayName, avatarUrl, banned, muted, verified, createdAt FROM users ${where} ORDER BY createdAt DESC LIMIT 200`,
+    `SELECT username, displayName, avatarUrl, banned, muted, bannedUntil, mutedUntil, verified, createdAt FROM users ${where} ORDER BY createdAt DESC LIMIT 200`,
     params,
     (err, rows) => res.json({ ok: true, users: rows || [] })
   );
@@ -3480,11 +3737,13 @@ app.get("/api/admin/users", verifySuperAdmin, (req, res) => {
 app.get("/api/admin/user/:username", verifySuperAdmin, (req, res) => {
   const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
   db.get(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, banned, muted, verified, createdAt, lastSeen FROM users WHERE username=?`,
+    `SELECT username, displayName, bio, avatarUrl, birthDate, banned, muted, bannedUntil, mutedUntil, banReason, muteReason, verified, createdAt, lastSeen FROM users WHERE username=?`,
     [u],
-    (err, row) => {
+    async (err, row) => {
       if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
-      res.json({ ok: true, user: { ...row, online: isOnline(row.username) } });
+      applySanctionExpiry(row);
+      const openReports = await dbGet(`SELECT COUNT(*) AS c FROM reports WHERE targetOwner=? AND status='open'`, [row.username]);
+      res.json({ ok: true, user: { ...row, online: isOnline(row.username), rating: await ratingOf(row.username, null), openReports: openReports.c } });
     }
   );
 });
@@ -3731,25 +3990,69 @@ app.delete("/api/admin/messages/:id", verifySuperAdmin, async (req, res) => {
   res.json({ ok: true });
 });
 
-function adminSetFlag(field, value) {
-  return (req, res) => {
+// Мут или бан. Тело запроса: { hours } — на сколько часов (0 или пусто — без срока, пока не снимут), { reason } — причина.
+function adminSanction(kind, on) {
+  const flag = kind === "ban" ? "banned" : "muted";
+  const untilCol = kind === "ban" ? "bannedUntil" : "mutedUntil";
+  const reasonCol = kind === "ban" ? "banReason" : "muteReason";
+  return async (req, res) => {
     const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+    const body = req.body || {};
+    let hours = Number(body.hours) || 0;
+    if (hours < 0) hours = 0;
+    if (hours > 24 * 366 * 10) hours = 0; // слишком большой срок = без срока
+    const until = on && hours > 0 ? now() + Math.round(hours * 3600 * 1000) : 0;
+    const reason = on ? String(body.reason || "").trim().slice(0, 200) : "";
 
-    db.run(`UPDATE users SET ${field}=? WHERE username=?`, [value, u], function (err) {
-      if (err || this.changes === 0) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
+    const r = await dbRun(`UPDATE users SET ${flag}=?, ${untilCol}=?, ${reasonCol}=? WHERE username=?`, [on ? 1 : 0, until, reason, u]);
+    if (!r.changes) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
 
-      if (field === "banned" && value === 1) {
-        closeAllConnections(u);
-      }
-      res.json({ ok: true });
-    });
+    wsSendToUser(u, { type: "sanction", kind, on: !!on, until, reason });
+    if (kind === "ban" && on) setTimeout(() => closeAllConnections(u), 300);
+    res.json({ ok: true, until });
   };
 }
 
-app.post("/api/admin/ban/:username", verifySuperAdmin, adminSetFlag("banned", 1));
-app.post("/api/admin/unban/:username", verifySuperAdmin, adminSetFlag("banned", 0));
-app.post("/api/admin/mute/:username", verifySuperAdmin, adminSetFlag("muted", 1));
-app.post("/api/admin/unmute/:username", verifySuperAdmin, adminSetFlag("muted", 0));
+app.post("/api/admin/ban/:username", verifySuperAdmin, adminSanction("ban", true));
+app.post("/api/admin/unban/:username", verifySuperAdmin, adminSanction("ban", false));
+app.post("/api/admin/mute/:username", verifySuperAdmin, adminSanction("mute", true));
+app.post("/api/admin/unmute/:username", verifySuperAdmin, adminSanction("mute", false));
+
+// ---- жалобы ----
+app.get("/api/admin/reports", verifySuperAdmin, async (req, res) => {
+  const status = req.query.status === "closed" ? "closed" : "open";
+  const rows = await dbAll(
+    `SELECT r.*, u.displayName AS ownerName, u.banned AS ownerBanned, u.muted AS ownerMuted
+     FROM reports r LEFT JOIN users u ON u.username=r.targetOwner
+     WHERE r.status=? ORDER BY r.createdAt DESC LIMIT 300`, [status]);
+  const open = await dbGet(`SELECT COUNT(*) AS c FROM reports WHERE status='open'`);
+  res.json({ ok: true, reports: rows, openCount: open.c });
+});
+app.post("/api/admin/reports/:id/close", verifySuperAdmin, async (req, res) => {
+  await dbRun(`UPDATE reports SET status='closed', resolvedAt=? WHERE id=?`, [now(), Number(req.params.id)]);
+  res.json({ ok: true });
+});
+// удалить то, на что пожаловались (историю, комментарий или пост), и закрыть все жалобы на это
+app.post("/api/admin/reports/:id/delete-content", verifySuperAdmin, async (req, res) => {
+  const r = await dbGet(`SELECT * FROM reports WHERE id=?`, [Number(req.params.id)]);
+  if (!r) return res.status(404).json({ ok: false, error: "Жалоба не найдена" });
+  const id = Number(r.targetId);
+  if (r.targetType === "story") {
+    await dbRun(`DELETE FROM stories WHERE id=?`, [id]);
+    await dbRun(`DELETE FROM story_views WHERE storyId=?`, [id]);
+    await dbRun(`DELETE FROM story_comments WHERE storyId=?`, [id]);
+    await dbRun(`DELETE FROM story_likes WHERE storyId=?`, [id]);
+    await dbRun(`UPDATE story_promos SET expiresAt=0 WHERE storyId=?`, [id]);
+  } else if (r.targetType === "comment") {
+    await dbRun(`DELETE FROM story_comments WHERE id=?`, [id]);
+  } else if (r.targetType === "post") {
+    await deletePostById(id);
+  } else {
+    return res.status(400).json({ ok: false, error: "У этой жалобы нечего удалять — используй мут или бан" });
+  }
+  await dbRun(`UPDATE reports SET status='closed', resolvedAt=? WHERE targetType=? AND targetId=? AND status='open'`, [now(), r.targetType, r.targetId]);
+  res.json({ ok: true });
+});
 
 // Удаление аккаунта — необратимо и затрагивает все личные данные, поэтому
 // тоже закрыто кодом разблокировки (в отличие от бана/мута — это не
@@ -3895,6 +4198,7 @@ wss.on("connection", (ws, req) => {
     const username = String(decoded.username || "");
 
     const proceedConnection = (user) => {
+      applySanctionExpiry(user);
       if (!user || user.banned) return ws.close();
 
       ws.username = username;
@@ -3927,11 +4231,13 @@ wss.on("connection", (ws, req) => {
         if (calls.handleSignal(ws, data, from)) return;
 
         if (data.type === "text-message") {
-          const user = await dbGet(`SELECT muted, banned FROM users WHERE username=?`, [from]);
-          if (!user || user.banned || user.muted) return;
+          const user = applySanctionExpiry(await dbGet(`SELECT username, muted, banned, mutedUntil, bannedUntil, muteReason FROM users WHERE username=?`, [from]));
+          if (!user || user.banned) return;
 
           const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
           const chatType = resolveChatType(receiver);
+          // в муте писать можно только в поддержку
+          if (user.muted && chatType !== "support") return wsSend(ws, { type: "post-error", to: receiver, muted: true, message: muteMessage(user) });
           const text = cleanMsgText(data.text);
           if (!text) return;
 
@@ -4009,8 +4315,9 @@ wss.on("connection", (ws, req) => {
         }
 
         if (data.type === "list-message") {
-          const user = await dbGet(`SELECT muted, banned FROM users WHERE username=?`, [from]);
-          if (!user || user.banned || user.muted) return;
+          const user = applySanctionExpiry(await dbGet(`SELECT username, muted, banned, mutedUntil, bannedUntil, muteReason FROM users WHERE username=?`, [from]));
+          if (!user || user.banned) return;
+          if (user.muted) return wsSend(ws, { type: "post-error", muted: true, message: muteMessage(user) });
 
           const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
           const chatType = resolveChatType(receiver);
@@ -4037,8 +4344,9 @@ wss.on("connection", (ws, req) => {
         }
 
         if (data.type === "location-message") {
-          const user = await dbGet(`SELECT muted, banned FROM users WHERE username=?`, [from]);
-          if (!user || user.banned || user.muted) return;
+          const user = applySanctionExpiry(await dbGet(`SELECT username, muted, banned, mutedUntil, bannedUntil, muteReason FROM users WHERE username=?`, [from]));
+          if (!user || user.banned) return;
+          if (user.muted) return wsSend(ws, { type: "post-error", muted: true, message: muteMessage(user) });
 
           const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
           const chatType = resolveChatType(receiver);
