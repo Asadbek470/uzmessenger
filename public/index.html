@@ -5,9 +5,9 @@
   <meta name="google-site-verification" content="DrhRAp88TUKCKXi76zqCO7jqeZJkP5PuIU8Kpn59bQI" />
   <script>
     // Кто уже вошёл — сразу попадает в чаты, а не на страницу входа (важно для приложения из магазина).
-    // «Добавить аккаунт» (?add=1) по-прежнему открывает форму входа.
+    // «Добавить аккаунт» (?add=1) и установка на компьютер (?install=1) по-прежнему открывают эту страницу.
     try {
-      if (localStorage.getItem("token") && !/[?&]add=1/.test(location.search)) location.replace("chat.html" + location.search);
+      if (localStorage.getItem("token") && !/[?&](add|install)=1/.test(location.search)) location.replace("chat.html" + location.search);
     } catch (e) {}
   </script>
   <script src="splash.js"></script>
@@ -60,10 +60,23 @@
     .seoabout h2{font-size:15px;margin:0 0 8px;color:#cdd9ea}
     .seoabout p{margin:0 0 8px}
     .seoabout-founder{font-size:12px;opacity:.8}
+    .installbar{width:100%;max-width:440px;margin:0 auto 14px;padding:14px 16px;border-radius:18px;display:flex;align-items:center;gap:14px;
+      background:rgba(58,134,255,.14);border:1px solid rgba(110,164,255,.55)}
+    .installbar-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.4;color:#cdd9ea}
+    .installbar-text b{font-size:15px;color:#eef3ff}
+    .installbar .btn{flex:none}
   </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body class="auth">
+  <!-- Установка Zumo как приложения (Windows, Chrome OS, Android). Появляется, когда браузер готов установить -->
+  <div id="installBar" class="installbar" style="display:none">
+    <div class="installbar-text">
+      <b id="installTitle">Установить Zumo как приложение</b>
+      <span id="installHint">Появится значок Zumo, и мессенджер будет открываться в своём окне, как обычная программа.</span>
+    </div>
+    <button type="button" class="btn primary" id="installBtn">Установить</button>
+  </div>
   <div class="auth-card" id="authCard">
     <div class="brand">
       <div class="logo">Z</div>
@@ -525,5 +538,37 @@ For questions related to personal data — via the "Support" section inside the 
       }
     }
   </script>
+<script>
+  // ===== Установка Zumo как приложения =====
+  (function () {
+    var bar = document.getElementById("installBar"), btn = document.getElementById("installBtn");
+    var title = document.getElementById("installTitle"), hint = document.getElementById("installHint");
+    var asked = /[?&]install=1/.test(location.search), deferred = null;
+    var standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    if (standalone) return; // уже открыто как приложение
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault(); deferred = e;
+      btn.style.display = ""; bar.style.display = "flex";
+    });
+    window.addEventListener("appinstalled", function () {
+      title.textContent = "Zumo установлен ✅";
+      hint.textContent = "Значок Zumo уже среди твоих приложений. Эту вкладку можно закрыть.";
+      btn.style.display = "none"; bar.style.display = "flex";
+    });
+    btn.addEventListener("click", function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice.finally(function () { deferred = null; });
+    });
+    // пришли с официального сайта по кнопке «Установить», а браузер сам установку не предложил
+    if (asked) setTimeout(function () {
+      if (deferred) return;
+      title.textContent = "Как установить Zumo";
+      hint.textContent = "В Chrome или Edge нажми значок установки справа в адресной строке (монитор со стрелкой) или открой меню ⋮ → «Установить Zumo». Если такого пункта нет — Zumo уже установлен или этот браузер не умеет устанавливать приложения.";
+      btn.style.display = "none"; bar.style.display = "flex";
+    }, 2500);
+  })();
+</script>
 </body>
 </html>
