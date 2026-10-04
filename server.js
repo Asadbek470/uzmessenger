@@ -496,6 +496,28 @@ async function initSchema() {
     )
   `);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_posts_owner ON posts(owner, createdAt)`);
+  await addColumn("posts", "repostOfId", "INTEGER NOT NULL DEFAULT 0");
+  await addColumn("posts", "repostOfOwner", "TEXT NOT NULL DEFAULT ''");
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS post_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      postId INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      text TEXT NOT NULL,
+      createdAt INTEGER NOT NULL
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_post_comments_post ON post_comments(postId)`);
+  // реакции на посты: один человек — одна реакция (эмодзи)
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS post_reactions (
+      postId INTEGER NOT NULL,
+      username TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      createdAt INTEGER NOT NULL,
+      PRIMARY KEY (postId, username)
+    )
+  `);
   await dbRun(`
     CREATE TABLE IF NOT EXISTS post_likes (
       postId INTEGER NOT NULL,
@@ -504,6 +526,9 @@ async function initSchema() {
       PRIMARY KEY (postId, username)
     )
   `);
+  // старые «лайки» постов становятся реакцией ❤️
+  await dbRun(`INSERT OR IGNORE INTO post_reactions (postId, username, emoji, createdAt) SELECT postId, username, '❤️', createdAt FROM post_likes`);
+  await dbRun(`DELETE FROM post_likes`);
   await addColumn("users", "verified", "INTEGER NOT NULL DEFAULT 0");
   await addColumn("users", "totpSecret", "TEXT NOT NULL DEFAULT ''");
   await addColumn("users", "totpEnabled", "INTEGER NOT NULL DEFAULT 0");
@@ -1335,7 +1360,8 @@ async function wipeUserData(u) {
   await dbRun(`DELETE FROM story_likes WHERE storyId IN (SELECT id FROM stories WHERE owner=?)`, [u]);
   await dbRun(`DELETE FROM story_likes WHERE username=?`, [u]);
   await dbRun(`DELETE FROM story_promos WHERE owner=?`, [u]);
-  await dbRun(`DELETE FROM post_likes WHERE username=? OR postId IN (SELECT id FROM posts WHERE owner=?)`, [u, u]);
+  await dbRun(`DELETE FROM post_reactions WHERE username=? OR postId IN (SELECT id FROM posts WHERE owner=?)`, [u, u]);
+  await dbRun(`DELETE FROM post_comments WHERE username=? OR postId IN (SELECT id FROM posts WHERE owner=?)`, [u, u]);
   await dbRun(`DELETE FROM posts WHERE owner=?`, [u]);
   await dbRun(`DELETE FROM user_ratings WHERE rater=? OR target=?`, [u, u]);
   await dbRun(`DELETE FROM e2e_keys WHERE username=?`, [u]);
@@ -1416,7 +1442,9 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
     await dbRun(`UPDATE story_likes SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE story_promos SET owner=? WHERE owner=?`, [newUsername, old]);
     await dbRun(`UPDATE posts SET owner=? WHERE owner=?`, [newUsername, old]);
-    await dbRun(`UPDATE post_likes SET username=? WHERE username=?`, [newUsername, old]);
+    await dbRun(`UPDATE posts SET repostOfOwner=? WHERE repostOfOwner=?`, [newUsername, old]);
+    await dbRun(`UPDATE post_reactions SET username=? WHERE username=?`, [newUsername, old]);
+    await dbRun(`UPDATE post_comments SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE user_ratings SET rater=? WHERE rater=?`, [newUsername, old]);
     await dbRun(`UPDATE user_ratings SET target=? WHERE target=?`, [newUsername, old]);
     await dbRun(`UPDATE reports SET targetOwner=? WHERE targetOwner=?`, [newUsername, old]);
@@ -2049,7 +2077,7 @@ app.get("/api/me/rating", verifyAuth, async (req, res) => {
 });
 
 // ---------------- ЖАЛОБЫ ----------------
-const REPORT_TYPES = ["story", "comment", "post", "user"];
+const REPORT_TYPES = ["story", "comment", "post", "postcomment", "user"];
 app.post("/api/report", verifyAuth, rateLimit(15, 10 * 60 * 1000), async (req, res) => {
   const me = req.user.username;
   const type = String(req.body.targetType || "");
@@ -2070,6 +2098,10 @@ app.post("/api/report", verifyAuth, rateLimit(15, 10 * 60 * 1000), async (req, r
     const p = await dbGet(`SELECT * FROM posts WHERE id=?`, [Number(id)]);
     if (!p) return res.status(404).json({ ok: false, error: "Пост не найден" });
     owner = p.owner; snapshot = p.text || ""; mediaUrl = p.mediaUrl || "";
+  } else if (type === "postcomment") {
+    const c = await dbGet(`SELECT * FROM post_comments WHERE id=?`, [Number(id)]);
+    if (!c) return res.status(404).json({ ok: false, error: "Комментарий не найден" });
+    owner = c.username; snapshot = c.text || ""; parentId = c.postId;
   } else {
     const u = await dbGet(`SELECT username, displayName, bio FROM users WHERE username=?`, [id.replace(/^@+/, "").toLowerCase()]);
     if (!u) return res.status(404).json({ ok: false, error: "Не найден" });
@@ -2088,21 +2120,42 @@ app.post("/api/report", verifyAuth, rateLimit(15, 10 * 60 * 1000), async (req, r
 });
 
 // ---------------- ПОСТЫ (картинка и текст под ней) ----------------
+// У поста есть реакции (эмодзи), комментарии, репосты и отправка в чат.
+const POST_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "👎"];
 const POST_SELECT = `
-  SELECT p.id, p.owner, p.text, p.mediaUrl, p.createdAt, u.displayName, u.avatarUrl, u.verified,
-         (SELECT COUNT(*) FROM post_likes l WHERE l.postId=p.id) AS likeCount,
-         (SELECT COUNT(*) FROM post_likes l WHERE l.postId=p.id AND l.username=?) AS liked
+  SELECT p.id, p.owner, p.text, p.mediaUrl, p.createdAt, p.repostOfId, p.repostOfOwner, u.displayName, u.avatarUrl, u.verified,
+         (SELECT COUNT(*) FROM post_comments c WHERE c.postId=p.id) AS commentCount,
+         (SELECT COUNT(*) FROM posts r WHERE r.repostOfId=(CASE WHEN p.repostOfId>0 THEN p.repostOfId ELSE p.id END)) AS repostCount
   FROM posts p JOIN users u ON u.username=p.owner`;
+// дописывает к постам реакции: { "❤️": 3, "👍": 1 } и мою реакцию
+async function decoratePosts(rows, me) {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const marks = ids.map(() => "?").join(",");
+  const counts = await dbAll(`SELECT postId, emoji, COUNT(*) AS c FROM post_reactions WHERE postId IN (${marks}) GROUP BY postId, emoji`, ids);
+  const mine = await dbAll(`SELECT postId, emoji FROM post_reactions WHERE username=? AND postId IN (${marks})`, [me, ...ids]);
+  const byPost = new Map(), myBy = new Map(mine.map((m) => [m.postId, m.emoji]));
+  for (const c of counts) { if (!byPost.has(c.postId)) byPost.set(c.postId, {}); byPost.get(c.postId)[c.emoji] = c.c; }
+  return rows.map((r) => {
+    const reactions = byPost.get(r.id) || {};
+    return { ...r, verified: !!r.verified, reactions, myReaction: myBy.get(r.id) || "",
+             likeCount: reactions["❤️"] || 0, liked: myBy.get(r.id) === "❤️" };
+  });
+}
+async function postForViewer(id, me) {
+  const row = await dbGet(`${POST_SELECT} WHERE p.id=?`, [id]);
+  return row ? (await decoratePosts([row], me))[0] : null;
+}
 app.get("/api/posts", verifyAuth, async (req, res) => {
   const me = req.user.username;
   const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
   const user = String(req.query.user || "").replace(/^@+/, "").toLowerCase();
-  const params = [me, before, me, me];
+  const params = [before, me, me];
   let where = `WHERE p.id < ? AND u.banned=0
     AND NOT EXISTS (SELECT 1 FROM blocked_users b WHERE (b.owner=? AND b.blocked=p.owner) OR (b.owner=p.owner AND b.blocked=?))`;
   if (user) { where += ` AND p.owner=?`; params.push(user); }
   const rows = await dbAll(`${POST_SELECT} ${where} ORDER BY p.id DESC LIMIT 30`, params);
-  res.json({ ok: true, posts: rows.map((r) => ({ ...r, liked: !!r.liked, verified: !!r.verified })) });
+  res.json({ ok: true, posts: await decoratePosts(rows, me) });
 });
 app.post("/api/posts", verifyAuth, rateLimit(20, 60 * 60 * 1000), singleUpload("file"), async (req, res) => {
   const text = String(req.body.text || "").trim().slice(0, 1000);
@@ -2113,16 +2166,24 @@ app.post("/api/posts", verifyAuth, rateLimit(20, 60 * 60 * 1000), singleUpload("
   }
   if (!text && !mediaUrl) return res.status(400).json({ ok: false, error: "Добавь текст или картинку" });
   const r = await dbRun(`INSERT INTO posts (owner, text, mediaUrl, createdAt) VALUES (?,?,?,?)`, [req.user.username, text, mediaUrl, now()]);
-  const row = await dbGet(`${POST_SELECT} WHERE p.id=?`, [req.user.username, r.lastID]);
-  res.json({ ok: true, post: { ...row, liked: false, verified: !!row.verified } });
+  res.json({ ok: true, post: await postForViewer(r.lastID, req.user.username) });
 });
+// Удаление поста. Оригинал удаляется вместе со своими репостами; картинка стирается, если её не переслали в чат.
 async function deletePostById(id) {
   const p = await dbGet(`SELECT * FROM posts WHERE id=?`, [id]);
   if (!p) return false;
-  await dbRun(`DELETE FROM posts WHERE id=?`, [id]);
-  await dbRun(`DELETE FROM post_likes WHERE postId=?`, [id]);
-  const m = /^\/media\/([\w-]+)/.exec(p.mediaUrl || "");
-  if (m) await dbRun(`DELETE FROM media_blobs WHERE id=?`, [m[1]]).catch(() => {});
+  const ids = [id];
+  if (!p.repostOfId) (await dbAll(`SELECT id FROM posts WHERE repostOfId=?`, [id])).forEach((r) => ids.push(r.id));
+  for (const pid of ids) {
+    await dbRun(`DELETE FROM posts WHERE id=?`, [pid]);
+    await dbRun(`DELETE FROM post_reactions WHERE postId=?`, [pid]);
+    await dbRun(`DELETE FROM post_comments WHERE postId=?`, [pid]);
+  }
+  if (!p.repostOfId && p.mediaUrl) {
+    const used = await dbGet(`SELECT 1 FROM messages WHERE mediaUrl=? LIMIT 1`, [p.mediaUrl]);
+    const m = /^\/media\/([\w-]+)/.exec(p.mediaUrl);
+    if (!used && m) await dbRun(`DELETE FROM media_blobs WHERE id=?`, [m[1]]).catch(() => {});
+  }
   return true;
 }
 app.delete("/api/posts/:id", verifyAuth, async (req, res) => {
@@ -2133,14 +2194,115 @@ app.delete("/api/posts/:id", verifyAuth, async (req, res) => {
   await deletePostById(id);
   res.json({ ok: true });
 });
+
+// реакция на пост: { emoji } — поставить или заменить, пустая — убрать
+app.post("/api/posts/:id/react", verifyAuth, rateLimit(120, 60 * 1000), async (req, res) => {
+  const id = Number(req.params.id);
+  const me = req.user.username;
+  if (!(await dbGet(`SELECT id FROM posts WHERE id=?`, [id]))) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  const emoji = String(req.body.emoji || "");
+  if (emoji && !POST_EMOJIS.includes(emoji)) return res.status(400).json({ ok: false, error: "Такой реакции нет" });
+  if (emoji) {
+    await dbRun(
+      `INSERT INTO post_reactions (postId, username, emoji, createdAt) VALUES (?,?,?,?)
+       ON CONFLICT(postId, username) DO UPDATE SET emoji=excluded.emoji, createdAt=excluded.createdAt`, [id, me, emoji, now()]);
+  } else {
+    await dbRun(`DELETE FROM post_reactions WHERE postId=? AND username=?`, [id, me]);
+  }
+  res.json({ ok: true, post: await postForViewer(id, me) });
+});
+// старый адрес «лайка» — то же, что реакция ❤️
 app.post("/api/posts/:id/like", verifyAuth, rateLimit(120, 60 * 1000), async (req, res) => {
   const id = Number(req.params.id);
-  const p = await dbGet(`SELECT id FROM posts WHERE id=?`, [id]);
-  if (!p) return res.status(404).json({ ok: false, error: "Пост не найден" });
-  if (req.body.value) await dbRun(`INSERT OR IGNORE INTO post_likes (postId, username, createdAt) VALUES (?,?,?)`, [id, req.user.username, now()]);
-  else await dbRun(`DELETE FROM post_likes WHERE postId=? AND username=?`, [id, req.user.username]);
-  const c = await dbGet(`SELECT COUNT(*) AS c FROM post_likes WHERE postId=?`, [id]);
-  res.json({ ok: true, likeCount: c.c, liked: !!req.body.value });
+  const me = req.user.username;
+  if (!(await dbGet(`SELECT id FROM posts WHERE id=?`, [id]))) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  if (req.body.value) await dbRun(`INSERT OR REPLACE INTO post_reactions (postId, username, emoji, createdAt) VALUES (?,?,?,?)`, [id, me, "❤️", now()]);
+  else await dbRun(`DELETE FROM post_reactions WHERE postId=? AND username=?`, [id, me]);
+  const p = await postForViewer(id, me);
+  res.json({ ok: true, likeCount: p.likeCount, liked: p.liked });
+});
+
+// комментарии к посту
+app.get("/api/posts/:id/comments", verifyAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const post = await dbGet(`SELECT id, owner FROM posts WHERE id=?`, [id]);
+  if (!post) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  const rows = await dbAll(
+    `SELECT c.id, c.username, c.text, c.createdAt, u.displayName, u.avatarUrl, u.verified
+     FROM post_comments c LEFT JOIN users u ON u.username=c.username
+     WHERE c.postId=? ORDER BY c.createdAt ASC LIMIT 300`, [id]);
+  res.json({ ok: true, owner: post.owner, comments: rows });
+});
+app.post("/api/posts/:id/comments", verifyAuth, rateLimit(40, 60 * 1000), async (req, res) => {
+  const id = Number(req.params.id);
+  const me = req.user.username;
+  const text = String(req.body.text || "").trim().slice(0, 300);
+  if (!text) return res.status(400).json({ ok: false, error: "Пустой комментарий" });
+  const post = await dbGet(`SELECT id, owner FROM posts WHERE id=?`, [id]);
+  if (!post) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  if (await isBlocked(post.owner, me)) return res.status(403).json({ ok: false, error: "Комментировать этот пост нельзя" });
+  await dbRun(`INSERT INTO post_comments (postId, username, text, createdAt) VALUES (?,?,?,?)`, [id, me, text, now()]);
+  if (post.owner !== me) {
+    sendPushToUser(post.owner, { title: "Комментарий к посту", body: `@${me}: ${text}`, tag: `post-comment-${id}` }).catch(() => {});
+  }
+  res.json({ ok: true });
+});
+// удалить комментарий может автор поста (любой под ним) или тот, кто его написал
+app.delete("/api/posts/:id/comments/:commentId", verifyAuth, async (req, res) => {
+  const postId = Number(req.params.id), cid = Number(req.params.commentId);
+  const me = req.user.username;
+  const c = await dbGet(`SELECT c.id, c.username, p.owner FROM post_comments c LEFT JOIN posts p ON p.id=c.postId WHERE c.id=? AND c.postId=?`, [cid, postId]);
+  if (!c) return res.status(404).json({ ok: false, error: "Комментарий не найден" });
+  if (c.username !== me && c.owner !== me) return res.status(403).json({ ok: false, error: "Удалять комментарии может только автор поста" });
+  await dbRun(`DELETE FROM post_comments WHERE id=?`, [cid]);
+  res.json({ ok: true });
+});
+
+// репост: чужой пост появляется в ленте от моего имени с пометкой «репост от @автор»
+app.post("/api/posts/:id/repost", verifyAuth, rateLimit(20, 60 * 60 * 1000), async (req, res) => {
+  const me = req.user.username;
+  let src = await dbGet(`SELECT * FROM posts WHERE id=?`, [Number(req.params.id)]);
+  if (src && src.repostOfId) src = await dbGet(`SELECT * FROM posts WHERE id=?`, [src.repostOfId]); // всегда репостим оригинал
+  if (!src) return res.status(404).json({ ok: false, error: "Пост не найден" });
+  if (src.owner === me) return res.status(400).json({ ok: false, error: "Свой пост репостить не нужно" });
+  if (await isBlocked(src.owner, me)) return res.status(403).json({ ok: false, error: "Этот пост репостить нельзя" });
+  if (await dbGet(`SELECT id FROM posts WHERE owner=? AND repostOfId=?`, [me, src.id])) {
+    return res.status(400).json({ ok: false, error: "Ты уже сделал(а) репост этого поста" });
+  }
+  const r = await dbRun(
+    `INSERT INTO posts (owner, text, mediaUrl, createdAt, repostOfId, repostOfOwner) VALUES (?,?,?,?,?,?)`,
+    [me, src.text, src.mediaUrl, now(), src.id, src.owner]);
+  sendPushToUser(src.owner, { title: "Репост", body: `@${me} сделал(а) репост твоего поста`, tag: `post-repost-${src.id}` }).catch(() => {});
+  res.json({ ok: true, post: await postForViewer(r.lastID, me) });
+});
+
+// отправить пост в чат — как обычное сообщение с картинкой и подписью
+app.post("/api/posts/:id/share", verifyAuth, rateLimit(30, 60 * 1000), async (req, res) => {
+  const me = req.user.username;
+  const to = String(req.body.to || "").replace(/^@+/, "").toLowerCase();
+  if (!to) return res.status(400).json({ ok: false, error: "Не указан чат" });
+  const post = await dbGet(`SELECT * FROM posts WHERE id=?`, [Number(req.params.id)]);
+  if (!post) return res.status(404).json({ ok: false, error: "Пост не найден" });
+
+  const chatType = resolveChatType(to);
+  const perm = await canPostTo(chatType, to, me);
+  if (!perm.canPost) return res.status(403).json({ ok: false, gated: !!perm.gated, error: perm.error || "Нет доступа" });
+
+  const author = post.repostOfOwner || post.owner;
+  let text = `📰 Пост @${author}` + (post.text ? `\n${post.text}` : "");
+  // текстовый пост в личный чат клиент присылает уже зашифрованным
+  if (!post.mediaUrl && req.body.text != null) text = cleanMsgText(req.body.text);
+  const mediaType = post.mediaUrl ? "image" : "text";
+  const createdAt = now();
+  const result = await dbRun(
+    `INSERT INTO messages (chatType, sender, receiver, text, mediaType, mediaUrl, createdAt, fileName, fileSize, forwardedFrom, duration)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [chatType, me, to, text.slice(0, 12000), mediaType, post.mediaUrl || "", createdAt, "", 0, "", 0]);
+  await broadcastMessage({
+    duration: 0, id: result.lastID, chatType, sender: me, receiver: to, text, mediaType, mediaUrl: post.mediaUrl || "",
+    createdAt, fileName: "", fileSize: 0, forwardedFrom: "", replyTo: 0
+  });
+  res.json({ ok: true });
 });
 
 // ---------------- VERIFICATION (official badge) ----------------
@@ -4047,6 +4209,8 @@ app.post("/api/admin/reports/:id/delete-content", verifySuperAdmin, async (req, 
     await dbRun(`DELETE FROM story_comments WHERE id=?`, [id]);
   } else if (r.targetType === "post") {
     await deletePostById(id);
+  } else if (r.targetType === "postcomment") {
+    await dbRun(`DELETE FROM post_comments WHERE id=?`, [id]);
   } else {
     return res.status(400).json({ ok: false, error: "У этой жалобы нечего удалять — используй мут или бан" });
   }
