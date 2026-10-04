@@ -98,6 +98,65 @@
 .roundrec-main:active{transform:scale(.94)}
 @media (max-height:560px){ .roundrec-stage{gap:10px;padding-top:12px} .roundrec-hint{display:none} .roundrec-tools{min-height:0} }
 @media (prefers-reduced-motion:reduce){ .roundrec,.roundrec.recording .roundrec-dot{animation:none} }
+/* ---- модерация, рейтинг, посты ---- */
+.zmodal{position:fixed;inset:0;z-index:320;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,9,22,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.zmodal-card{width:100%;max-width:480px;max-height:88vh;overflow:auto;background:var(--z-surface);border:1px solid var(--z-line);border-radius:26px 26px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));color:var(--z-text);display:flex;flex-direction:column;gap:12px}
+@media (min-width:641px){.zmodal{align-items:center}.zmodal-card{border-radius:26px}}
+.zmodal-title{font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.zmodal-x{width:36px;height:36px;border-radius:50%;border:1px solid var(--z-line);background:rgba(160,185,255,.07);color:var(--z-text);cursor:pointer;font-size:15px}
+.zmodal textarea,.zmodal input[type=text]{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:14px;border:1px solid var(--z-line);background:rgba(11,19,43,.6);color:var(--z-text);font:inherit;resize:vertical}
+.zmodal textarea:focus{outline:none;border-color:rgba(var(--z-accent-rgb),.6)}
+.zhint{font-size:13px;color:var(--z-muted);line-height:1.4}
+.zchips{display:flex;flex-wrap:wrap;gap:8px}
+.zchip{padding:9px 14px;border-radius:999px;border:1px solid var(--z-line);background:rgba(160,185,255,.06);color:var(--z-text);font:inherit;font-size:14px;cursor:pointer}
+.zchip.on{background:var(--z-grad);border-color:transparent;color:var(--z-on-accent);font-weight:700}
+.zbtn{padding:13px 16px;border-radius:16px;border:none;background:var(--z-grad);color:var(--z-on-accent);font:inherit;font-weight:700;cursor:pointer;box-shadow:var(--z-glow)}
+.zbtn:disabled{opacity:.5;cursor:default;box-shadow:none}
+.zbtn.ghost{background:rgba(160,185,255,.07);border:1px solid var(--z-line);color:var(--z-text);box-shadow:none}
+.cmt-acts{display:flex;gap:2px;flex:none;margin-left:auto}
+.cmt-act{width:32px;height:32px;border-radius:50%;border:none;background:none;color:var(--z-muted);cursor:pointer;font-size:13px}
+.cmt-act:hover,.cmt-act:active{background:rgba(160,185,255,.1);color:var(--z-text)}
+.cmt-act.del:hover,.cmt-act.del:active{color:#ff6b78}
+.ratebox{display:inline-flex;gap:8px}
+.ratebox .ratebtn{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;border:1px solid var(--z-line)!important;background:rgba(160,185,255,.06)!important;color:var(--z-text)!important;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.ratebtn:disabled{cursor:default}
+.ratebox .ratebtn.up.on{background:rgba(41,209,125,.2)!important;border-color:rgba(41,209,125,.55)!important;color:#5fe0a0!important}
+.ratebox .ratebtn.down.on{background:rgba(255,77,90,.18)!important;border-color:rgba(255,77,90,.55)!important;color:#ff8a94!important}
+.tglinkbtn{border:none;background:none;padding:0;color:var(--z-accent-hi)!important;font:inherit;font-weight:600;cursor:pointer}
+.tglinkbtn.warn{color:#ff8a94!important}
+.mutebanner{margin:0 0 10px;padding:10px 14px;border-radius:14px;background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:#ffd28a;font-size:13px;line-height:1.4}
+.banscreen{position:fixed;inset:0;z-index:2147482000;background:var(--z-ink);color:var(--z-text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center}
+.banscreen i.big{font-size:54px;color:#ff6b78}
+.banscreen h2{margin:0;font-size:24px}
+.banscreen p{margin:0;max-width:340px;color:var(--z-muted);line-height:1.45}
+.banscreen b{color:var(--z-text)}
+.feedseg{display:inline-flex;padding:4px;border-radius:999px;background:rgba(11,19,43,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.feedseg button{padding:8px 16px;border-radius:999px;border:none;background:none;color:rgba(255,255,255,.75);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.feedseg button.on{background:var(--z-grad);color:var(--z-on-accent)}
+#screenStories.postsmode{background:var(--z-ink)}
+#screenStories.postsmode .reels-top{background:linear-gradient(var(--z-ink) 70%,transparent)}
+#screenStories.postsmode #reelsFeed{display:none}
+.postsfeed{position:absolute;inset:0;overflow-y:auto;padding:72px 12px 110px;display:flex;flex-direction:column;gap:12px}
+.postsfeed.hidden{display:none}
+.postsfilter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(var(--z-accent-rgb),.12);border:1px solid rgba(var(--z-accent-rgb),.35);font-size:14px;font-weight:600}
+.postsfilter button{border:none;background:none;color:var(--z-accent-hi);font:inherit;font-weight:700;cursor:pointer}
+.post{background:var(--z-surface);border:1px solid var(--z-line);border-radius:22px;overflow:hidden}
+.post-head{display:flex;align-items:center;gap:10px;padding:12px 10px 10px 14px}
+.post-author{display:flex;align-items:center;gap:10px;min-width:0;flex:1;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;padding:0}
+.post-author .avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;flex:none}
+.post-author .pa-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.post-author .pa-sub{font-size:12px;color:var(--z-muted)}
+.post-img{display:block;width:100%;max-height:520px;object-fit:cover;background:#060b1c}
+.post-text{padding:12px 14px 2px;font-size:15px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-actions{display:flex;align-items:center;gap:6px;padding:8px 8px 10px}
+.post-like{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;border:none;background:none;color:var(--z-muted);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.post-like.on{color:#ff5c7a}
+.post-like:active i{transform:scale(.85)}
+.postsempty{margin:auto;display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--z-muted);text-align:center;padding:30px}
+.postsempty i{font-size:40px;opacity:.6}
+.postprev{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--z-line)}
+.postprev img{display:block;width:100%;max-height:260px;object-fit:cover}
+.postprev button{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(5,9,22,.7);color:#fff;cursor:pointer}
 .accrow{border-bottom:none!important;padding:10px 12px!important;border-radius:16px;background:rgba(150,175,255,.05);margin-bottom:8px}
 .accrow .avatar{width:42px;height:42px;border-radius:50%;overflow:hidden;flex:none}
 .accrow-on{color:#3de8a0;font-size:18px}
@@ -126,6 +185,75 @@ function setAccent(hex) {
   try { localStorage.setItem("zumoAccent", hex); } catch (e) {}
 }
 try { setAccent(localStorage.getItem("zumoAccent") || DEFAULT_ACCENT); } catch (e) { setAccent(DEFAULT_ACCENT); }
+
+// ================== МУТ И БАН ==================
+// Сервер отвечает 403 с пометкой banned / muted — ловим это в одном месте для всех запросов.
+(function () {
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async function (input, init) {
+    const r = await realFetch(input, init);
+    if (r.status === 403) {
+      try {
+        const d = await r.clone().json();
+        if (d && d.banned) showBanScreen(d);
+        else if (d && d.muted) noteMuted(d);
+      } catch (e) {}
+    }
+    return r;
+  };
+})();
+function sanctionUntilText(ts) {
+  if (!ts) return "без срока";
+  return "до " + new Date(ts).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+}
+function showBanScreen(d) {
+  if (document.getElementById("banScreen")) return;
+  const el = document.createElement("div");
+  el.id = "banScreen";
+  el.className = "banscreen";
+  el.innerHTML = `
+    <i class="fa-solid fa-ban big"></i>
+    <h2>Аккаунт заблокирован</h2>
+    <p>Срок: <b>${esc(sanctionUntilText(d.until))}</b></p>
+    ${d.reason ? `<p>Причина: <b>${esc(d.reason)}</b></p>` : ""}
+    <p>Пока действует блокировка, пользоваться аккаунтом нельзя.</p>
+    <button class="zbtn" onclick="logout()">Выйти из аккаунта</button>`;
+  document.body.appendChild(el);
+  const boot = document.getElementById("bootError");
+  if (boot) boot.remove();
+}
+let lastMuteToast = 0;
+function noteMuted(d) {
+  if (typeof me !== "undefined" && me) { me.muted = true; me.mutedUntil = d.until || 0; me.muteReason = d.reason || ""; applyMuteUi(); }
+  if (Date.now() - lastMuteToast > 3000) { lastMuteToast = Date.now(); toast("🔇 Режим «только чтение» " + sanctionUntilText(d.until)); }
+}
+// плашка в списке чатов, пока действует мут
+function applyMuteUi() {
+  let el = document.getElementById("muteBanner");
+  const on = !!(me && me.muted && (!me.mutedUntil || me.mutedUntil > Date.now()));
+  if (!on) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "muteBanner";
+    el.className = "mutebanner";
+    const head = document.querySelector("#screenChats .screen-header");
+    if (!head) return;
+    head.insertBefore(el, head.firstChild);
+  }
+  el.innerHTML = `🔇 <b>Режим «только чтение»</b> ${esc(sanctionUntilText(me.mutedUntil))}.` +
+    (me.muteReason ? ` Причина: ${esc(me.muteReason)}.` : "") + ` Читать можно всё, писать — только в поддержку.`;
+}
+function handleSanction(data) {
+  if (data.kind === "ban") {
+    if (data.on) showBanScreen(data);
+    else location.reload();
+    return;
+  }
+  if (!me) return;
+  me.muted = !!data.on; me.mutedUntil = data.until || 0; me.muteReason = data.reason || "";
+  applyMuteUi();
+  toast(data.on ? "🔇 Администрация включила тебе режим «только чтение» " + sanctionUntilText(data.until) : "🔊 Режим «только чтение» снят");
+}
 
 // ================== AUTH ==================
 // Ссылка-приглашение в группу (?invite=код) — запоминаем, чтобы не потерять её при входе в аккаунт
@@ -772,6 +900,7 @@ async function initApp() {
 
   applyTheme(me.settings || {});
   applyLanguage((me.settings && me.settings.language) || currentLang);
+  applyMuteUi();
   connectWS();
 
   rememberCurrentAccount();
@@ -893,6 +1022,7 @@ async function loadMe() {
       if (r.status === 401) return logout();
 
       const d = await r.json();
+      if (d.banned) return; // экран блокировки уже показан
       if (!d.ok) {
         showBootError("Не удалось загрузить профиль, пробую ещё раз...");
         await sleep(3000);
@@ -1000,7 +1130,7 @@ function switchTab(tab) {
   document.querySelectorAll(".navbtn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   document.getElementById("bottomNav").classList.remove("hidden");
 
-  if (tab === "stories") loadReels(); else pauseAllReels();
+  if (tab === "stories") { ensureFeedDom(); if (feedMode === "posts") { pauseAllReels(); loadPosts(); } else loadReels(); } else pauseAllReels();
   if (tab === "profile") loadMyProfileTab();
   if (tab === "settings") openSettings();
 }
@@ -1129,9 +1259,12 @@ function connectWS() {
 
     if (data.type === "post-error") {
       if (data.gated) openContactRequest(data.to, lastSentText);
+      else if (data.muted) noteMuted({ until: me && me.mutedUntil, reason: me && me.muteReason });
       else if (data.message) alert(data.message);
       return;
     }
+
+    if (data.type === "sanction") { handleSanction(data); return; }
 
     if (data.type === "wallpaperChanged") {
       if (currentChat === data.chat) applyChatWallpaper(data.value);
@@ -3275,6 +3408,9 @@ async function openProfile(username, isMe) {
   if (p.bio) rows.push(infoRow("о себе", esc(p.bio)));
   if (p.verified) rows.push(infoRow("статус", `<span class="tgverified"><i class="fa-solid fa-circle-check"></i> Официально подтверждён</span>`));
   if (p.birthdayToday) rows.push(infoRow("день рождения", "🎂 Сегодня!"));
+  if (p.rating) rows.push(infoRow("рейтинг", ratingHtml(p.username, p.rating, true)));
+  if (p.postCount) rows.push(infoRow("посты", `<button class="tglinkbtn" onclick="closeProfile(); openUserPosts('${esc(p.username)}')">${p.postCount} — открыть</button>`));
+  rows.push(infoRow("жалоба", `<button class="tglinkbtn warn" onclick="openReport('user', '${esc(p.username)}')"><i class="fa-solid fa-flag"></i> Пожаловаться на этого человека</button>`));
   document.getElementById("profileInfo").innerHTML =
     `<div class="tgcard">${rows.join("")}</div><div class="tgcard giftcard"><div class="tgcardtitle">Подарки</div><div id="profileGiftsRow" class="gifts-row"></div></div>`;
 
@@ -4606,6 +4742,13 @@ async function loadMyProfileTab() {
   if (me.bio) rows.push(infoRow("о себе", esc(me.bio)));
   if (me.birthDate) rows.push(infoRow("день рождения", esc(formatBirthDate(me.birthDate))));
   if (me.verified) rows.push(infoRow("статус", `<span class="tgverified"><i class="fa-solid fa-circle-check"></i> Официально подтверждён</span>`));
+  try {
+    const rd = await (await fetch("/api/me/rating", { headers: authHeaders() })).json();
+    if (rd.ok) {
+      rows.push(infoRow("рейтинг", ratingHtml(me.username, rd.rating, false)));
+      rows.push(infoRow("посты", `<button class="tglinkbtn" onclick="openUserPosts(me.username)">${rd.postCount} — открыть</button> · <button class="tglinkbtn" onclick="openPostComposer()">новый пост</button>`));
+    }
+  } catch (e) {}
   document.getElementById("myProfileInfo").innerHTML =
     `<div class="tgcard">${rows.join("")}</div><div class="tgcard giftcard"><div class="tgcardtitle">Подарки</div><div id="myGiftsRow" class="gifts-row"></div></div>`;
 
@@ -5079,7 +5222,9 @@ async function openStoryViewersModal(storyId) {
     </div>
     ${section("fa-thumbs-up", "Лайки", d.likes, d.likes.map(v => person(v)).join(""))}
     ${section("fa-thumbs-down", "Дизлайки", d.dislikes, d.dislikes.map(v => person(v)).join(""))}
-    ${section("fa-comment", "Комментарии", d.comments, d.comments.map(v => person(v, "", esc(v.text))).join(""))}
+    ${section("fa-comment", "Комментарии", d.comments, d.comments.map(v => person(v,
+      `<button class="cmt-act del" onclick="event.stopPropagation(); deleteStoryComment(${storyId}, ${v.id}, true)" title="Удалить комментарий"><i class="fa-solid fa-trash"></i></button>`,
+      esc(v.text))).join(""))}
     ${section("fa-retweet", "Репосты", d.reposts, d.reposts.map(v => person(v)).join(""))}
     ${section("fa-eye", t("story.viewersTitle"), d.viewers, d.viewers.map(v => person(v, v.reaction ? `<span class="storyviewer-viewer-reaction">${esc(v.reaction)}</span>` : "")).join(""))}
   `;
@@ -5087,6 +5232,267 @@ async function openStoryViewersModal(storyId) {
 function closeStoryViewersModal() {
   document.getElementById("storyViewersModal").classList.add("hidden");
   if (currentStory) resumeStory();
+}
+
+
+// ================== ЖАЛОБЫ, УДАЛЕНИЕ КОММЕНТАРИЕВ, РЕЙТИНГ ==================
+function zModal(id, html) {
+  closeZModal(id);
+  const m = document.createElement("div");
+  m.id = id;
+  m.className = "zmodal";
+  m.innerHTML = `<div class="zmodal-card">${html}</div>`;
+  m.addEventListener("click", (e) => { if (e.target === m) closeZModal(id); });
+  document.body.appendChild(m);
+  return m;
+}
+function closeZModal(id) {
+  const m = document.getElementById(id);
+  if (m) m.remove();
+}
+
+async function deleteStoryComment(storyId, commentId, fromStats) {
+  if (!confirm("Удалить этот комментарий?")) return;
+  try {
+    const r = await fetch(`/api/stories/${storyId}/comments/${commentId}`, { method: "DELETE", headers: authHeaders() });
+    const d = await r.json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+  } catch { return alert(t("common.error")); }
+  toast("Комментарий удалён");
+  if (fromStats) openStoryViewersModal(storyId);
+  else loadReelComments();
+  const s = reelById(storyId);
+  if (s) { s.commentCount = Math.max(0, (s.commentCount || 1) - 1); refreshReelRail(storyId); }
+}
+
+const REPORT_REASONS = ["Спам", "Оскорбления", "Жестокость или насилие", "Контент 18+", "Мошенничество", "Другое"];
+const REPORT_WHAT = { story: "на историю", comment: "на комментарий", post: "на пост", user: "на человека" };
+let reportTarget = null;
+function openReport(type, id) {
+  reportTarget = { type, id: String(id), reason: "" };
+  zModal("reportModal", `
+    <div class="zmodal-title">Жалоба ${REPORT_WHAT[type] || ""}<button class="zmodal-x" onclick="closeZModal('reportModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="zhint">Что не так? Жалоба сразу уйдёт администрации Zumo. Автор не узнает, кто пожаловался.</div>
+    <div class="zchips">${REPORT_REASONS.map((r, i) => `<button class="zchip" onclick="pickReportReason(${i}, this)">${r}</button>`).join("")}</div>
+    <textarea id="reportText" rows="3" maxlength="250" placeholder="Подробности (не обязательно)"></textarea>
+    <button class="zbtn" id="reportSendBtn" disabled onclick="sendReport()">Отправить жалобу</button>`);
+}
+function pickReportReason(i, btn) {
+  reportTarget.reason = REPORT_REASONS[i];
+  btn.parentNode.querySelectorAll(".zchip").forEach((b) => b.classList.toggle("on", b === btn));
+  document.getElementById("reportSendBtn").disabled = false;
+}
+async function sendReport() {
+  if (!reportTarget || !reportTarget.reason) return;
+  const extra = document.getElementById("reportText").value.trim();
+  const btn = document.getElementById("reportSendBtn");
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/report", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ targetType: reportTarget.type, targetId: reportTarget.id, reason: reportTarget.reason + (extra ? ": " + extra : "") })
+    });
+    const d = await r.json();
+    if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
+  } catch { btn.disabled = false; return alert(t("common.error")); }
+  closeZModal("reportModal");
+  toast("Жалоба отправлена администрации ✅");
+}
+
+// ---- рейтинг человека: плюс или минус ----
+function ratingHtml(username, r, canRate) {
+  const u = esc(username);
+  return `<span class="ratebox" data-rate="${u}">
+    <button class="ratebtn up ${r.mine === 1 ? "on" : ""}" ${canRate ? `onclick="rateUser('${u}', 1)"` : "disabled"} title="Хороший человек"><i class="fa-solid fa-thumbs-up"></i><b>${fmtCount(r.up)}</b></button>
+    <button class="ratebtn down ${r.mine === -1 ? "on" : ""}" ${canRate ? `onclick="rateUser('${u}', -1)"` : "disabled"} title="Плохой рейтинг"><i class="fa-solid fa-thumbs-down"></i><b>${fmtCount(r.down)}</b></button>
+  </span>`;
+}
+async function rateUser(username, value) {
+  const box = document.querySelector(`.ratebox[data-rate="${username}"]`);
+  const already = box && box.querySelector(value === 1 ? ".up.on" : ".down.on");
+  try {
+    const r = await fetch(`/api/users/${encodeURIComponent(username)}/rate`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ value: already ? 0 : value }) // повторное нажатие снимает оценку
+    });
+    const d = await r.json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+    if (box) box.outerHTML = ratingHtml(username, d.rating, true);
+    const cached = userInfoCache.get(username);
+    if (cached) cached.rating = d.rating;
+  } catch { alert(t("common.error")); }
+}
+
+// ================== ПОСТЫ (картинка и текст под ней) ==================
+let feedMode = "stories";      // что открыто на вкладке «Сторис»: "stories" или "posts"
+let postsFilterUser = "";      // если задан — показываем посты только этого человека
+let postsData = [];
+let postFile = null;
+
+// Переключатель «Сторис / Посты» и лента постов добавляются на вкладку отсюда
+function ensureFeedDom() {
+  const screen = document.getElementById("screenStories");
+  if (!screen || screen.dataset.feedBuilt) return;
+  screen.dataset.feedBuilt = "1";
+  const title = screen.querySelector(".reels-title");
+  if (title) {
+    title.removeAttribute("data-i18n");
+    title.innerHTML = `<div class="feedseg">
+      <button data-m="stories" class="on" onclick="setFeedMode('stories')">Сторис</button>
+      <button data-m="posts" onclick="setFeedMode('posts')">Посты</button></div>`;
+  }
+  const add = screen.querySelector(".reels-add");
+  if (add) {
+    add.removeAttribute("onclick");
+    add.title = "Добавить";
+    add.addEventListener("click", () => (feedMode === "posts" ? openPostComposer() : openStoryComposer()));
+  }
+  const feed = document.createElement("div");
+  feed.id = "postsFeed";
+  feed.className = "postsfeed hidden";
+  screen.appendChild(feed);
+}
+function setFeedMode(mode) {
+  ensureFeedDom();
+  feedMode = mode;
+  const screen = document.getElementById("screenStories");
+  screen.classList.toggle("postsmode", mode === "posts");
+  screen.querySelectorAll(".feedseg button").forEach((b) => b.classList.toggle("on", b.dataset.m === mode));
+  document.getElementById("postsFeed").classList.toggle("hidden", mode !== "posts");
+  if (mode === "posts") { pauseAllReels(); loadPosts(); }
+  else { postsFilterUser = ""; loadReels(); }
+}
+function openUserPosts(username) {
+  postsFilterUser = username;
+  switchTab("stories");
+  setFeedMode("posts");
+}
+function clearPostsFilter() { postsFilterUser = ""; loadPosts(); }
+
+function postCardHtml(p) {
+  const info = { username: p.owner, displayName: p.displayName, avatarUrl: p.avatarUrl, verified: p.verified };
+  const mine = p.owner === me.username;
+  return `
+    <article class="post" data-id="${p.id}">
+      <div class="post-head">
+        <button class="post-author" onclick="openProfile('${esc(p.owner)}')">
+          <span class="avatar">${avatarHtml(info)}</span>
+          <span style="min-width:0">
+            <div class="pa-name">${nameHtml(info)}</div>
+            <div class="pa-sub">@${esc(p.owner)} · ${commentTime(p.createdAt)}</div>
+          </span>
+        </button>
+        ${mine
+          ? `<button class="cmt-act del" onclick="deletePost(${p.id})" title="Удалить пост"><i class="fa-solid fa-trash"></i></button>`
+          : `<button class="cmt-act" onclick="openReport('post', ${p.id})" title="Пожаловаться"><i class="fa-solid fa-flag"></i></button>`}
+      </div>
+      ${p.mediaUrl ? `<img class="post-img" src="${esc(p.mediaUrl)}" alt="" loading="lazy">` : ""}
+      ${p.text ? `<div class="post-text">${formatText(p.text)}</div>` : ""}
+      <div class="post-actions">
+        <button class="post-like ${p.liked ? "on" : ""}" onclick="likePost(${p.id})"><i class="fa-${p.liked ? "solid" : "regular"} fa-heart"></i><span>${fmtCount(p.likeCount)}</span></button>
+      </div>
+    </article>`;
+}
+function renderPosts() {
+  const feed = document.getElementById("postsFeed");
+  if (!feed) return;
+  const filter = postsFilterUser
+    ? `<div class="postsfilter"><span>Посты @${esc(postsFilterUser)}</span><button onclick="clearPostsFilter()">Показать все</button></div>` : "";
+  if (!postsData.length) {
+    feed.innerHTML = filter + `
+      <div class="postsempty">
+        <i class="fa-regular fa-newspaper"></i>
+        <div>${postsFilterUser ? "Здесь пока нет постов" : "Постов пока нет — напиши первый"}</div>
+        <button class="zbtn" onclick="openPostComposer()">Написать пост</button>
+      </div>`;
+    return;
+  }
+  feed.innerHTML = filter + postsData.map(postCardHtml).join("");
+}
+async function loadPosts() {
+  const feed = document.getElementById("postsFeed");
+  if (!feed) return;
+  if (!feed.children.length) feed.innerHTML = `<div class="postsempty">${t("common.loading")}</div>`;
+  try {
+    const r = await fetch("/api/posts" + (postsFilterUser ? "?user=" + encodeURIComponent(postsFilterUser) : ""), { headers: authHeaders() });
+    const d = await r.json();
+    if (!d.ok) { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; return; }
+    postsData = d.posts;
+    renderPosts();
+  } catch { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; }
+}
+async function likePost(id) {
+  const p = postsData.find((x) => x.id === id);
+  if (!p) return;
+  try {
+    const r = await fetch(`/api/posts/${id}/like`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ value: p.liked ? 0 : 1 })
+    });
+    const d = await r.json();
+    if (!d.ok) return;
+    p.liked = d.liked; p.likeCount = d.likeCount;
+    const card = document.querySelector(`.post[data-id="${id}"]`);
+    if (card) card.outerHTML = postCardHtml(p);
+  } catch (e) {}
+}
+async function deletePost(id) {
+  if (!confirm("Удалить этот пост?")) return;
+  try {
+    const d = await (await fetch(`/api/posts/${id}`, { method: "DELETE", headers: authHeaders() })).json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+  } catch { return alert(t("common.error")); }
+  postsData = postsData.filter((x) => x.id !== id);
+  renderPosts();
+  toast("Пост удалён");
+}
+
+function openPostComposer() {
+  postFile = null;
+  zModal("postModal", `
+    <div class="zmodal-title">Новый пост<button class="zmodal-x" onclick="closeZModal('postModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div id="postPrev"></div>
+    <textarea id="postText" rows="4" maxlength="1000" placeholder="О чём хочешь рассказать?"></textarea>
+    <input id="postFileInput" type="file" accept="image/*" hidden onchange="pickPostImage(this)">
+    <button class="zbtn ghost" onclick="document.getElementById('postFileInput').click()"><i class="fa-solid fa-image"></i> Добавить картинку</button>
+    <button class="zbtn" id="postSendBtn" onclick="submitPost()">Опубликовать</button>`);
+  setTimeout(() => { const ta = document.getElementById("postText"); if (ta) ta.focus(); }, 60);
+}
+function pickPostImage(input) {
+  const f = input.files && input.files[0];
+  input.value = "";
+  if (!f) return;
+  if (!/^image\//.test(f.type)) return alert("К посту можно прикрепить только картинку");
+  if (f.size > MAX_UPLOAD_BYTES) return alert("Картинка больше 20 МБ");
+  postFile = f;
+  document.getElementById("postPrev").innerHTML =
+    `<div class="postprev"><img src="${URL.createObjectURL(f)}" alt=""><button onclick="removePostImage()" title="Убрать"><i class="fa-solid fa-xmark"></i></button></div>`;
+}
+function removePostImage() {
+  postFile = null;
+  document.getElementById("postPrev").innerHTML = "";
+}
+async function submitPost() {
+  const text = document.getElementById("postText").value.trim();
+  if (!text && !postFile) return toast("Добавь текст или картинку");
+  const btn = document.getElementById("postSendBtn");
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append("text", text);
+  if (postFile) fd.append("file", postFile);
+  try {
+    const r = await fetch("/api/posts", { method: "POST", headers: authHeaders(), body: fd });
+    const d = await r.json();
+    if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
+  } catch { btn.disabled = false; return alert(t("common.error")); }
+  closeZModal("postModal");
+  toast("Пост опубликован ✅");
+  postsFilterUser = "";
+  switchTab("stories");
+  setFeedMode("posts");
 }
 
 // ================== ЛЕНТА «СТОРИС» (как Shorts / Reels) ==================
@@ -5131,7 +5537,10 @@ function reelRailHtml(s) {
     </button>` : `
     <div class="reel-act reel-views" title="Просмотры">
       <i class="fa-solid fa-eye"></i><span>${fmtCount(s.viewCount)}</span>
-    </div>`}
+    </div>
+    <button class="reel-act" onclick="openReport('story', ${s.id})" title="Пожаловаться">
+      <i class="fa-solid fa-flag"></i><span>жалоба</span>
+    </button>`}
   `;
 }
 
@@ -5356,15 +5765,23 @@ async function loadReelComments() {
     if (s) { s.commentCount = d.comments.length; refreshReelRail(id); }
 
     if (!d.comments.length) { list.innerHTML = `<div class="hint">Комментариев пока нет — будь первым</div>`; return; }
-    list.innerHTML = d.comments.map(c => `
+    // удалить комментарий может автор истории (любой) и тот, кто его написал; на чужой можно пожаловаться
+    const storyMine = !!(s && s.owner === me.username) || !!(currentStory && currentStory.id === id && currentStory.owner === me.username);
+    list.innerHTML = d.comments.map(c => {
+      const mine = c.username === me.username;
+      return `
       <div class="reelcomment">
         <div class="avatar">${avatarHtml(c)}</div>
         <div class="reelcomment-body">
           <div class="reelcomment-head">${nameHtml(c)}<span class="reelcomment-time">${commentTime(c.createdAt)}</span></div>
           <div class="reelcomment-text">${esc(c.text)}</div>
         </div>
-      </div>
-    `).join("");
+        <div class="cmt-acts">
+          ${mine ? "" : `<button class="cmt-act" onclick="openReport('comment', ${c.id})" title="Пожаловаться"><i class="fa-solid fa-flag"></i></button>`}
+          ${mine || storyMine ? `<button class="cmt-act del" onclick="deleteStoryComment(${id}, ${c.id})" title="Удалить"><i class="fa-solid fa-trash"></i></button>` : ""}
+        </div>
+      </div>`;
+    }).join("");
     list.scrollTop = list.scrollHeight;
   } catch {}
 }
