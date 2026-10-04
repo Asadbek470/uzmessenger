@@ -107,6 +107,8 @@
 .zmodal textarea,.zmodal input[type=text]{width:100%;box-sizing:border-box;padding:12px 14px;border-radius:14px;border:1px solid var(--z-line);background:rgba(11,19,43,.6);color:var(--z-text);font:inherit;resize:vertical}
 .zmodal textarea:focus{outline:none;border-color:rgba(var(--z-accent-rgb),.6)}
 .zhint{font-size:13px;color:var(--z-muted);line-height:1.4}
+.zsteps{margin:0;padding:0 0 0 22px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.4;color:var(--z-text)}
+.zsteps li::marker{color:var(--z-accent-hi);font-weight:700}
 .zchips{display:flex;flex-wrap:wrap;gap:8px}
 .zchip{padding:9px 14px;border-radius:999px;border:1px solid var(--z-line);background:rgba(160,185,255,.06);color:var(--z-text);font:inherit;font-size:14px;cursor:pointer}
 .zchip.on{background:var(--z-grad);border-color:transparent;color:var(--z-on-accent);font-weight:700}
@@ -130,7 +132,7 @@
 .banscreen h2{margin:0;font-size:24px}
 .banscreen p{margin:0;max-width:340px;color:var(--z-muted);line-height:1.45}
 .banscreen b{color:var(--z-text)}
-.feedseg{display:inline-flex;padding:4px;border-radius:999px;background:rgba(11,19,43,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.feedseg{pointer-events:auto;position:relative;z-index:2;display:inline-flex;padding:4px;border-radius:999px;background:rgba(11,19,43,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .feedseg button{padding:8px 16px;border-radius:999px;border:none;background:none;color:rgba(255,255,255,.75);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
 .feedseg button.on{background:var(--z-grad);color:var(--z-on-accent)}
 #screenStories.postsmode{background:var(--z-ink)}
@@ -148,10 +150,30 @@
 .post-author .pa-sub{font-size:12px;color:var(--z-muted)}
 .post-img{display:block;width:100%;max-height:520px;object-fit:cover;background:#060b1c}
 .post-text{padding:12px 14px 2px;font-size:15px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
-.post-actions{display:flex;align-items:center;gap:6px;padding:8px 8px 10px}
-.post-like{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;border:none;background:none;color:var(--z-muted);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
-.post-like.on{color:#ff5c7a}
-.post-like:active i{transform:scale(.85)}
+.post-repost{padding:10px 14px 0;font-size:12px;font-weight:600;color:var(--z-muted)}
+.post-reactions{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:12px 12px 2px}
+.post-rx{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--z-line);background:rgba(160,185,255,.06);color:var(--z-text);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.post-rx span{font-size:13px}
+.post-rx.on{background:rgba(var(--z-accent-rgb),.22);border-color:rgba(var(--z-accent-rgb),.6)}
+.post-rx.heart.on{background:rgba(255,92,122,.16);border-color:rgba(255,92,122,.5);color:#ff7a93}
+.post-rx.add{color:var(--z-muted);gap:3px;padding:0 10px}
+.post-rx:active{transform:scale(.95)}
+.post-rxpicker{position:absolute;left:10px;bottom:calc(100% - 6px);z-index:5;display:flex;gap:2px;padding:6px;border-radius:999px;background:var(--z-raised);border:1px solid var(--z-line);box-shadow:0 18px 40px -14px rgba(0,0,0,.9)}
+.post-rxpicker button{width:42px;height:42px;border-radius:50%;border:none;background:none;font-size:22px;cursor:pointer}
+.post-rxpicker button:active{transform:scale(1.2)}
+.post-actions{display:flex;align-items:center;gap:2px;padding:6px 6px 8px;margin-top:8px;border-top:1px solid var(--z-line)}
+.post-act{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:12px;border:none;background:none;color:var(--z-muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+button.post-act:hover,button.post-act:active{background:rgba(160,185,255,.08);color:var(--z-text)}
+.post-act.static{cursor:default;opacity:.6}
+.pcomments{display:flex;flex-direction:column;gap:14px;max-height:48vh;min-height:90px;overflow-y:auto}
+.pcomments-input{display:flex;gap:8px}
+.pcomments-input input{flex:1;min-width:0}
+.pcomments-input .zbtn{padding:0 16px}
+.psharelist{display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto}
+.composeseg{display:flex;padding:4px;border-radius:14px;background:rgba(11,19,43,.6);border:1px solid var(--z-line);gap:4px;margin:0 0 4px}
+.modal .composeseg{margin:0 0 12px}
+.composeseg button{flex:1;padding:10px 8px;border-radius:10px;border:none;background:none;color:var(--z-muted);font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.composeseg button.on{background:var(--z-grad);color:var(--z-on-accent)}
 .postsempty{margin:auto;display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--z-muted);text-align:center;padding:30px}
 .postsempty i{font-size:40px;opacity:.6}
 .postprev{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--z-line)}
@@ -2139,6 +2161,100 @@ function pickRoundMime() {
   return "";
 }
 
+// ================== ДОСТУП К КАМЕРЕ И МИКРОФОНУ ==================
+// Каждый раз, когда нужна камера или микрофон, заново спрашиваем браузер. Если не получилось —
+// не просто «нет доступа», а понятное окно: в чём причина, как включить, и кнопка «Запросить снова».
+function mediaWhat(c) {
+  return c.video && c.audio ? "камере и микрофону" : c.video ? "камере" : "микрофону";
+}
+async function mediaPermissionState(c) {
+  const names = [];
+  if (c.audio) names.push("microphone");
+  if (c.video) names.push("camera");
+  let denied = false;
+  for (const name of names) {
+    try {
+      const st = await navigator.permissions.query({ name });
+      if (st.state === "denied") denied = true;
+    } catch (e) {}
+  }
+  return denied ? "denied" : "unknown";
+}
+function mediaUnblockSteps() {
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return ["Открой «Настройки» телефона → Safari (или тот браузер, где открыт Zumo).",
+            "Пункты «Камера» и «Микрофон» → выбери «Разрешить» или «Спрашивать».",
+            "Вернись в Zumo и нажми «Запросить снова»."];
+  }
+  if (/Android/i.test(ua)) {
+    return ["Нажми на значок слева от адреса сайта (замок или ⓘ) → «Разрешения».",
+            "Включи «Камера» и «Микрофон».",
+            "Если Zumo установлен как приложение: «Настройки» телефона → «Приложения» → Zumo и Chrome → «Разрешения» → включи камеру и микрофон.",
+            "Вернись в Zumo и нажми «Запросить снова»."];
+  }
+  return ["Нажми на значок слева от адреса сайта (замок или ⓘ).",
+          "Для «Камера» и «Микрофон» выбери «Разрешить».",
+          "Нажми «Запросить снова»."];
+}
+function mediaProblemDialog(err, c, allowAudioOnly, state) {
+  const name = (err && err.name) || "";
+  const what = mediaWhat(c);
+  let title = "Нужен доступ к " + what, text = "", steps = [];
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    title = "Не найдено устройство";
+    text = c.video ? "На этом устройстве не нашлась камера или микрофон. Проверь, что они подключены." : "На этом устройстве не нашёлся микрофон. Проверь, что он подключён.";
+  } else if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
+    title = c.video ? "Камера или микрофон заняты" : "Микрофон занят";
+    text = "Похоже, их сейчас использует другое приложение или другая вкладка (например, ещё один звонок). Закрой его и нажми «Запросить снова».";
+  } else if (state === "denied") {
+    text = "Браузер запомнил запрет для Zumo и сам больше не показывает окно с вопросом. Доступ нужно включить вручную — это полминуты:";
+    steps = mediaUnblockSteps();
+  } else {
+    text = "Разрешение не было дано. Нажми «Запросить снова» и в окне браузера выбери «Разрешить».";
+    steps = [];
+  }
+  return new Promise((resolve) => {
+    const done = (v) => { closeZModal("mediaModal"); resolve(v); };
+    const m = zModal("mediaModal", `
+      <div class="zmodal-title">${title}</div>
+      <div class="zhint" style="font-size:14px;color:var(--z-text)">${text}</div>
+      ${steps.length ? `<ol class="zsteps">${steps.map((s) => `<li>${s}</li>`).join("")}</ol>` : ""}
+      <button class="zbtn" data-a="retry">Запросить снова</button>
+      ${allowAudioOnly ? `<button class="zbtn ghost" data-a="audio">Продолжить без камеры</button>` : ""}
+      <button class="zbtn ghost" data-a="cancel">Отмена</button>`);
+    m.style.zIndex = "2147481000"; // поверх окна звонка и записи кружочка
+    m.querySelectorAll("button[data-a]").forEach((b) => b.addEventListener("click", () => done(b.dataset.a)));
+    // нажатие мимо окна = отмена (обработчик zModal уже убрал окно)
+    m.addEventListener("click", (e) => { if (e.target === m) resolve("cancel"); });
+  });
+}
+// Возвращает поток с камеры/микрофона или null, если человек отказался.
+async function zumoMedia(constraints, opts) {
+  opts = opts || {};
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Этот браузер не даёт сайтам доступ к камере и микрофону. Открой Zumo в Chrome или Safari.");
+    return null;
+  }
+  let c = constraints, simplified = false;
+  for (;;) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(c); // если браузер может спросить — он спросит именно здесь
+    } catch (err) {
+      if (!simplified && err && (err.name === "OverconstrainedError" || err.name === "ConstraintNotSatisfiedError")) {
+        simplified = true;
+        c = { audio: !!c.audio, video: !!c.video }; // без пожеланий к качеству — подойдёт любая камера
+        continue;
+      }
+      const state = await mediaPermissionState(c);
+      const answer = await mediaProblemDialog(err, c, !!(opts.allowAudioOnly && c.video && c.audio), state);
+      if (answer === "audio") { c = { audio: c.audio, video: false }; continue; }
+      if (answer !== "retry") return null;
+    }
+  }
+}
+window.zumoMedia = zumoMedia;
+
 async function openCameraStream(facing) {
   const opts = { video: { facingMode: { ideal: facing }, width: { ideal: ROUND_SIZE }, height: { ideal: ROUND_SIZE }, aspectRatio: 1 }, audio: true };
   return navigator.mediaDevices.getUserMedia(opts);
@@ -2193,12 +2309,10 @@ async function openRoundRecorder() {
   document.getElementById("roundRecorderModal").classList.remove("hidden");
   roundFacing = "user";
 
-  try {
-    roundStream = await openCameraStream(roundFacing);
-  } catch {
-    alert("Нет доступа к камере или микрофону — разреши его в настройках браузера");
-    closeRoundRecorder();
-    return;
+  roundStream = await zumoMedia({ video: { facingMode: { ideal: roundFacing }, width: { ideal: ROUND_SIZE }, height: { ideal: ROUND_SIZE }, aspectRatio: 1 }, audio: true });
+  if (!roundStream) { closeRoundRecorder(); return; }
+  if (document.getElementById("roundRecorderModal").classList.contains("hidden")) { // окно успели закрыть
+    roundStream.getTracks().forEach((t) => t.stop()); roundStream = null; return;
   }
 
   const v = document.getElementById("roundLiveVideo");
@@ -4647,14 +4761,8 @@ async function startHoldVoice() {
   const session = voiceRec = { chat: currentChat, chunks: [], wantStop: false };
   voiceUi(true);
 
-  try {
-    session.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    });
-  } catch {
-    voiceCleanup(session);
-    return alert("Не удалось включить микрофон (разрешение?)");
-  }
+  session.stream = await zumoMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  if (!session.stream) { voiceCleanup(session); return; }
 
   // кнопку отпустили раньше, чем включился микрофон — ничего не записываем
   if (session.wantStop) {
@@ -4883,7 +4991,24 @@ function goToNextStory() {
 }
 function goToPrevStory() { if (storyFeedIndex > 0) openStoryFeedAt(storyFeedIndex - 1); }
 
+// Переключатель вида публикации — одинаковый в окне сторис и в окне поста
+function composerSwitchHtml(active) {
+  return `<div class="composeseg">
+    <button class="${active === "story" ? "on" : ""}" onclick="switchComposer('story')"><i class="fa-solid fa-clapperboard"></i> Сторис</button>
+    <button class="${active === "post" ? "on" : ""}" onclick="switchComposer('post')"><i class="fa-regular fa-newspaper"></i> Пост</button>
+  </div>`;
+}
+function switchComposer(kind) {
+  if (kind === "post") { closeStoryComposer(); openPostComposer(); }
+  else { closeZModal("postModal"); openStoryComposer(); }
+}
+
 function openStoryComposer() {
+  const sm = document.getElementById("storyModal");
+  if (sm && !sm.querySelector(".composeseg")) {
+    const top = sm.querySelector(".cardtop");
+    if (top) top.insertAdjacentHTML("afterend", composerSwitchHtml("story"));
+  }
   document.getElementById("storyModal").classList.remove("hidden");
   document.getElementById("storyFile").value = "";
   document.getElementById("storyText").value = "";
@@ -5266,7 +5391,7 @@ async function deleteStoryComment(storyId, commentId, fromStats) {
 }
 
 const REPORT_REASONS = ["Спам", "Оскорбления", "Жестокость или насилие", "Контент 18+", "Мошенничество", "Другое"];
-const REPORT_WHAT = { story: "на историю", comment: "на комментарий", post: "на пост", user: "на человека" };
+const REPORT_WHAT = { story: "на историю", comment: "на комментарий", post: "на пост", postcomment: "на комментарий", user: "на человека" };
 let reportTarget = null;
 function openReport(type, id) {
   reportTarget = { type, id: String(id), reason: "" };
@@ -5371,11 +5496,19 @@ function openUserPosts(username) {
 }
 function clearPostsFilter() { postsFilterUser = ""; loadPosts(); }
 
+const POST_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "👎"];
 function postCardHtml(p) {
   const info = { username: p.owner, displayName: p.displayName, avatarUrl: p.avatarUrl, verified: p.verified };
   const mine = p.owner === me.username;
+  const rx = p.reactions || {};
+  const hearts = rx["❤️"] || 0;
+  // сердце — всегда; остальные реакции — только те, что уже кто-то поставил
+  const chips = POST_EMOJIS.filter((e) => e !== "❤️" && rx[e]).map((e) =>
+    `<button class="post-rx ${p.myReaction === e ? "on" : ""}" onclick="reactPost(${p.id}, '${e}')">${e}<span>${fmtCount(rx[e])}</span></button>`).join("");
+  const canRepost = !mine && p.repostOfOwner !== me.username;
   return `
     <article class="post" data-id="${p.id}">
+      ${p.repostOfOwner ? `<div class="post-repost"><i class="fa-solid fa-retweet"></i> репост от @${esc(p.repostOfOwner)}</div>` : ""}
       <div class="post-head">
         <button class="post-author" onclick="openProfile('${esc(p.owner)}')">
           <span class="avatar">${avatarHtml(info)}</span>
@@ -5390,10 +5523,24 @@ function postCardHtml(p) {
       </div>
       ${p.mediaUrl ? `<img class="post-img" src="${esc(p.mediaUrl)}" alt="" loading="lazy">` : ""}
       ${p.text ? `<div class="post-text">${formatText(p.text)}</div>` : ""}
+      <div class="post-reactions">
+        <button class="post-rx heart ${p.myReaction === "❤️" ? "on" : ""}" onclick="reactPost(${p.id}, '❤️')" title="Нравится"><i class="fa-${p.myReaction === "❤️" ? "solid" : "regular"} fa-heart"></i><span>${fmtCount(hearts)}</span></button>
+        ${chips}
+        <button class="post-rx add" onclick="openPostReactions(${p.id}, this)" title="Другая реакция"><i class="fa-regular fa-face-smile"></i><i class="fa-solid fa-plus" style="font-size:9px"></i></button>
+      </div>
       <div class="post-actions">
-        <button class="post-like ${p.liked ? "on" : ""}" onclick="likePost(${p.id})"><i class="fa-${p.liked ? "solid" : "regular"} fa-heart"></i><span>${fmtCount(p.likeCount)}</span></button>
+        <button class="post-act" onclick="openPostComments(${p.id})" title="Комментарии"><i class="fa-regular fa-comment"></i><span>${fmtCount(p.commentCount)}</span></button>
+        ${canRepost ? `<button class="post-act" onclick="repostPost(${p.id})" title="Репост"><i class="fa-solid fa-retweet"></i><span>${fmtCount(p.repostCount)}</span></button>`
+                    : `<span class="post-act static" title="Репосты"><i class="fa-solid fa-retweet"></i><span>${fmtCount(p.repostCount)}</span></span>`}
+        <button class="post-act" onclick="openPostShare(${p.id})" title="Отправить в чат"><i class="fa-regular fa-paper-plane"></i><span>Отправить</span></button>
       </div>
     </article>`;
+}
+function replacePostCard(p) {
+  const i = postsData.findIndex((x) => x.id === p.id);
+  if (i >= 0) postsData[i] = p;
+  const card = document.querySelector(`.post[data-id="${p.id}"]`);
+  if (card) card.outerHTML = postCardHtml(p);
 }
 function renderPosts() {
   const feed = document.getElementById("postsFeed");
@@ -5423,22 +5570,157 @@ async function loadPosts() {
     renderPosts();
   } catch { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; }
 }
-async function likePost(id) {
+// ---- реакции ----
+async function reactPost(id, emoji) {
+  closePostReactions();
   const p = postsData.find((x) => x.id === id);
   if (!p) return;
   try {
-    const r = await fetch(`/api/posts/${id}/like`, {
+    const r = await fetch(`/api/posts/${id}/react`, {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ value: p.liked ? 0 : 1 })
+      body: JSON.stringify({ emoji: p.myReaction === emoji ? "" : emoji }) // повторное нажатие убирает реакцию
     });
     const d = await r.json();
-    if (!d.ok) return;
-    p.liked = d.liked; p.likeCount = d.likeCount;
-    const card = document.querySelector(`.post[data-id="${id}"]`);
-    if (card) card.outerHTML = postCardHtml(p);
+    if (d.ok) replacePostCard(d.post);
   } catch (e) {}
 }
+function closePostReactions() {
+  const el = document.getElementById("postRxPicker");
+  if (el) el.remove();
+}
+function openPostReactions(id, btn) {
+  const had = document.getElementById("postRxPicker");
+  closePostReactions();
+  if (had && Number(had.dataset.id) === id) return;
+  const el = document.createElement("div");
+  el.id = "postRxPicker";
+  el.className = "post-rxpicker";
+  el.dataset.id = String(id);
+  el.innerHTML = POST_EMOJIS.map((e) => `<button onclick="reactPost(${id}, '${e}')">${e}</button>`).join("");
+  btn.closest(".post-reactions").appendChild(el);
+  setTimeout(() => document.addEventListener("click", function once(ev) {
+    if (!el.contains(ev.target)) closePostReactions();
+    document.removeEventListener("click", once);
+  }), 0);
+}
+
+// ---- комментарии к посту ----
+let postCommentsId = null;
+function openPostComments(id) {
+  postCommentsId = id;
+  zModal("postCommentsModal", `
+    <div class="zmodal-title">Комментарии<button class="zmodal-x" onclick="closeZModal('postCommentsModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div id="postCommentsList" class="pcomments"><div class="zhint">${t("common.loading")}</div></div>
+    <div class="pcomments-input">
+      <input type="text" id="postCommentInput" maxlength="300" placeholder="Оставить комментарий..." onkeydown="if(event.key==='Enter') submitPostComment()">
+      <button class="zbtn" onclick="submitPostComment()" title="Отправить"><i class="fa-solid fa-paper-plane"></i></button>
+    </div>`);
+  loadPostComments();
+}
+async function loadPostComments() {
+  const id = postCommentsId;
+  const list = document.getElementById("postCommentsList");
+  if (!id || !list) return;
+  let d;
+  try { d = await (await fetch(`/api/posts/${id}/comments`, { headers: authHeaders() })).json(); } catch { d = { ok: false }; }
+  if (postCommentsId !== id || !document.getElementById("postCommentsList")) return;
+  if (!d.ok) { list.innerHTML = `<div class="zhint">${esc(d.error || t("common.error"))}</div>`; return; }
+  const p = postsData.find((x) => x.id === id);
+  if (p && p.commentCount !== d.comments.length) { p.commentCount = d.comments.length; replacePostCard(p); }
+  if (!d.comments.length) { list.innerHTML = `<div class="zhint">Комментариев пока нет — будь первым</div>`; return; }
+  const postMine = d.owner === me.username;
+  list.innerHTML = d.comments.map((c) => {
+    const mine = c.username === me.username;
+    return `
+      <div class="reelcomment">
+        <div class="avatar">${avatarHtml(c)}</div>
+        <div class="reelcomment-body">
+          <div class="reelcomment-head">${nameHtml(c)}<span class="reelcomment-time">${commentTime(c.createdAt)}</span></div>
+          <div class="reelcomment-text">${esc(c.text)}</div>
+        </div>
+        <div class="cmt-acts">
+          ${mine ? "" : `<button class="cmt-act" onclick="openReport('postcomment', ${c.id})" title="Пожаловаться"><i class="fa-solid fa-flag"></i></button>`}
+          ${mine || postMine ? `<button class="cmt-act del" onclick="deletePostComment(${id}, ${c.id})" title="Удалить"><i class="fa-solid fa-trash"></i></button>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+  list.scrollTop = list.scrollHeight;
+}
+async function submitPostComment() {
+  const id = postCommentsId;
+  const input = document.getElementById("postCommentInput");
+  const text = input ? input.value.trim() : "";
+  if (!id || !text) return;
+  input.value = "";
+  try {
+    const d = await (await fetch(`/api/posts/${id}/comments`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    })).json();
+    if (!d.ok) { input.value = text; return alert(d.error || t("common.error")); }
+    loadPostComments();
+  } catch { input.value = text; }
+}
+async function deletePostComment(postId, commentId) {
+  if (!confirm("Удалить этот комментарий?")) return;
+  try {
+    const d = await (await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: "DELETE", headers: authHeaders() })).json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+  } catch { return alert(t("common.error")); }
+  toast("Комментарий удалён");
+  loadPostComments();
+}
+
+// ---- репост ----
+async function repostPost(id) {
+  if (!confirm("Сделать репост? Пост появится в ленте от твоего имени.")) return;
+  try {
+    const d = await (await fetch(`/api/posts/${id}/repost`, { method: "POST", headers: authHeaders() })).json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+    toast("Репост сделан ✅");
+    loadPosts();
+  } catch { alert(t("common.error")); }
+}
+
+// ---- отправить пост в чат ----
+function openPostShare(id) {
+  const extra = Array.from(document.querySelectorAll(".chatitem[data-chat]"))
+    .map((b) => b.dataset.chat)
+    .filter((c, i, arr) => c !== "global" && c !== "support" && c !== me.username && arr.indexOf(c) === i)
+    .map((c) => {
+      const btn = document.querySelector(`.chatitem[data-chat="${c}"]`);
+      const nm = btn && btn.querySelector(".name");
+      return { chat: c, label: (nm && nm.textContent.trim()) || (c.startsWith("group:") ? c : "@" + c) };
+    });
+  const chats = [{ chat: "global", label: t("chats.globalChat") }, { chat: me.username, label: "⭐ Избранное" }].concat(extra);
+  zModal("postShareModal", `
+    <div class="zmodal-title">Отправить пост<button class="zmodal-x" onclick="closeZModal('postShareModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="zhint">Выбери чат — пост придёт туда сообщением.</div>
+    <div class="psharelist">${chats.map((c) => `<button class="zbtn ghost" style="text-align:left" onclick="sharePost(${id}, '${esc(c.chat)}')">${esc(c.label)}</button>`).join("")}</div>`);
+}
+async function sharePost(id, chat) {
+  const p = postsData.find((x) => x.id === id);
+  const body = { to: chat };
+  // текстовый пост в личный чат шифруем на устройстве, как обычное сообщение
+  if (p && !p.mediaUrl && e2eIsChat(chat)) {
+    const out = await e2eEncryptFor(chat, `📰 Пост @${p.repostOfOwner || p.owner}\n${p.text || ""}`);
+    if (out == null) return;
+    body.text = out;
+  }
+  try {
+    const d = await (await fetch(`/api/posts/${id}/share`, {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })).json();
+    if (!d.ok) return alert(d.error || t("common.error"));
+  } catch { return alert(t("common.error")); }
+  closeZModal("postShareModal");
+  toast("Пост отправлен ✅");
+}
+
 async function deletePost(id) {
   if (!confirm("Удалить этот пост?")) return;
   try {
@@ -5453,7 +5735,8 @@ async function deletePost(id) {
 function openPostComposer() {
   postFile = null;
   zModal("postModal", `
-    <div class="zmodal-title">Новый пост<button class="zmodal-x" onclick="closeZModal('postModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="zmodal-title">Новая публикация<button class="zmodal-x" onclick="closeZModal('postModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    ${composerSwitchHtml("post")}
     <div id="postPrev"></div>
     <textarea id="postText" rows="4" maxlength="1000" placeholder="О чём хочешь рассказать?"></textarea>
     <input id="postFileInput" type="file" accept="image/*" hidden onchange="pickPostImage(this)">
@@ -6039,7 +6322,8 @@ async function createPeer(peer) {
   remoteStream = new MediaStream();
   document.getElementById("remoteAudio").srcObject = remoteStream;
 
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  localStream = await zumoMedia({ audio: true, video: false });
+  if (!localStream) { const e = new Error("Нет доступа к микрофону"); e.name = "MediaCancelled"; throw e; }
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
 
   pc.onicecandidate = (ev) => {
