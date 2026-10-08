@@ -900,6 +900,7 @@ function safeUser(u) {
     birthDate: u.birthDate || "",
     verified: !!u.verified,
     totpEnabled: !!u.totpEnabled,
+    googleLinked: !!u.googleSub,
     tosAcceptedAt: u.tosAcceptedAt || 0,
     muted: !!u.muted,
     mutedUntil: u.muted ? (u.mutedUntil || 0) : 0,
@@ -1354,9 +1355,13 @@ app.post("/api/2fa/confirm", verifyAuth, (req, res) => {
 });
 
 app.post("/api/2fa/disable", verifyAuth, async (req, res) => {
-  const password = String(req.body.password || "");
-  const ok = await bcrypt.compare(password, req.user.passwordHash);
-  if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  // Google-аккаунтам пароль не нужен. Обычные аккаунты по-прежнему
+  // должны подтвердить действие своим паролем.
+  if (!req.user.googleSub) {
+    const password = String(req.body.password || "");
+    const ok = await bcrypt.compare(password, req.user.passwordHash);
+    if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  }
 
   db.run(`UPDATE users SET totpEnabled=0, totpSecret='' WHERE username=?`, [req.user.username], (err) => {
     if (err) return res.status(500).json({ ok: false, error: "Ошибка" });
@@ -1394,9 +1399,13 @@ async function wipeUserData(u) {
 }
 
 app.delete("/api/me", verifyAuth, async (req, res) => {
-  const password = String(req.body.password || "");
-  const ok = await bcrypt.compare(password, req.user.passwordHash);
-  if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  // Для Google-аккаунта дополнительный пароль не требуется.
+  // Для обычного аккаунта пароль остаётся обязательным.
+  if (!req.user.googleSub) {
+    const password = String(req.body.password || "");
+    const ok = await bcrypt.compare(password, req.user.passwordHash);
+    if (!ok) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  }
 
   const u = req.user.username;
   await wipeUserData(u);
@@ -1438,8 +1447,12 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
   if (RESERVED_USERNAMES.includes(newUsername)) {
     return res.status(400).json({ ok: false, error: "Этот юзернейм зарезервирован" });
   }
-  const passOk = await bcrypt.compare(password, req.user.passwordHash);
-  if (!passOk) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  // Google-аккаунт уже подтверждён через Google, поэтому пароль аккаунта не требуется.
+  // Для обычных аккаунтов старая проверка пароля остаётся без изменений.
+  if (!req.user.googleSub) {
+    const passOk = await bcrypt.compare(password, req.user.passwordHash);
+    if (!passOk) return res.status(400).json({ ok: false, error: "Неверный пароль" });
+  }
 
   const old = req.user.username;
   if (newUsername === old) return res.json({ ok: true, username: old });
@@ -2410,9 +2423,15 @@ function validE2EBackup(raw) {
 // Проверка пароля аккаунта (нужна, чтобы закрыть им резервную копию ключа шифрования).
 // Сам пароль нигде не сохраняется — только сверяется с хэшем.
 app.post("/api/auth/check-password", verifyAuth, rateLimit(8, 60 * 1000), async (req, res) => {
+  // Для Google-аккаунта отдельного пароля аккаунта нет: сама Google-сессия
+  // уже является подтверждением личности.
+  if (req.user.googleSub) {
+    return res.json({ ok: true, google: true });
+  }
+
   const password = String(req.body.password || "").trim();
   const ok = !!password && (await bcrypt.compare(password, req.user.passwordHash || ""));
-  res.json({ ok, google: !!req.user.googleSub, error: ok ? undefined : "Неверный пароль" });
+  res.json({ ok, google: false, error: ok ? undefined : "Неверный пароль" });
 });
 
 app.get("/api/e2e/me", verifyAuth, async (req, res) => {
