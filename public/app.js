@@ -4142,20 +4142,30 @@ async function removeFromBlacklist(username) {
 function renderUsernameSection() {
   const box = document.getElementById("usernameSection");
   if (!box) return;
+
+  const googleLinked = !!(me && me.googleLinked);
+
   box.innerHTML = `
     <div class="hint">${t("username.current")}: @${esc(me.username)}</div>
     <label>${t("username.new")}</label>
     <input id="newUsernameInput" placeholder="new_username">
-    <label>${t("username.passwordConfirm")}</label>
-    <input id="usernameChangePassword" type="password">
+    ${googleLinked ? "" : `
+      <label>${t("username.passwordConfirm")}</label>
+      <input id="usernameChangePassword" type="password">
+    `}
     <button class="btn ghost full" onclick="changeUsername()">${t("username.changeBtn")}</button>
   `;
 }
 
 async function changeUsername() {
   const username = document.getElementById("newUsernameInput").value.trim().replace(/^@+/, "").toLowerCase();
-  const password = document.getElementById("usernameChangePassword").value;
-  if (!username || !password) return alert(t("username.fillBoth"));
+  const googleLinked = !!(me && me.googleLinked);
+  const passwordInput = document.getElementById("usernameChangePassword");
+  const password = !googleLinked && passwordInput ? passwordInput.value : "";
+
+  if (!username || (!googleLinked && !password)) {
+    return alert(t("username.fillBoth"));
+  }
 
   const r = await fetch("/api/me/username", {
     method: "POST",
@@ -4240,18 +4250,27 @@ function renderDeleteAccountSection() {
 
 function revealDeleteAccountForm() {
   const box = document.getElementById("deleteAccountSection");
+  const googleLinked = !!(me && me.googleLinked);
+
   box.innerHTML = `
     <div class="hint">${t("deleteAcc.warning")}</div>
-    <label>${t("deleteAcc.password")}</label>
-    <input id="deleteAccountPassword" type="password">
+    ${googleLinked ? "" : `
+      <label>${t("deleteAcc.password")}</label>
+      <input id="deleteAccountPassword" type="password">
+    `}
     <button class="btn danger full" onclick="confirmDeleteAccount()">${t("deleteAcc.confirmBtn")}</button>
     <button class="btn ghost full" onclick="renderDeleteAccountSection()">${t("common.cancel")}</button>
   `;
 }
 
 async function confirmDeleteAccount() {
-  const password = document.getElementById("deleteAccountPassword").value;
-  if (!password) return alert(t("deleteAcc.enterPassword"));
+  const googleLinked = !!(me && me.googleLinked);
+  const passwordInput = document.getElementById("deleteAccountPassword");
+  const password = !googleLinked && passwordInput ? passwordInput.value : "";
+
+  if (!googleLinked && !password) {
+    return alert(t("deleteAcc.enterPassword"));
+  }
   if (!confirm(t("deleteAcc.confirmFinal"))) return;
 
   const r = await fetch("/api/me", {
@@ -4567,10 +4586,14 @@ async function uploadChatWallpaper(input) {
 function render2FASection() {
   const box = document.getElementById("twoFASection");
   if (me.totpEnabled) {
+    const googleLinked = !!(me && me.googleLinked);
+
     box.innerHTML = `
       <div class="hint">${t("twofa.enabled")} ✅</div>
-      <label>${t("twofa.passwordToDisable")}</label>
-      <input id="disable2FAPassword" type="password">
+      ${googleLinked ? "" : `
+        <label>${t("twofa.passwordToDisable")}</label>
+        <input id="disable2FAPassword" type="password">
+      `}
       <button class="btn danger full" onclick="disable2FA()">${t("twofa.disableBtn")}</button>
     `;
   } else {
@@ -4618,7 +4641,10 @@ async function confirm2FASetup() {
 }
 
 async function disable2FA() {
-  const password = document.getElementById("disable2FAPassword").value;
+  const googleLinked = !!(me && me.googleLinked);
+  const passwordInput = document.getElementById("disable2FAPassword");
+  const password = !googleLinked && passwordInput ? passwordInput.value : "";
+
   const r = await fetch("/api/2fa/disable", {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
