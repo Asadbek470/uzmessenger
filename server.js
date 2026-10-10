@@ -2148,6 +2148,48 @@ app.post("/api/report", verifyAuth, rateLimit(15, 10 * 60 * 1000), async (req, r
   res.json({ ok: true });
 });
 
+// Жалоба на одно или несколько сообщений в переписке (личка/группа/общий чат).
+// Сервер не может прочитать текст E2E-сообщений — их расшифровывает только
+// клиент получателя. Поэтому расшифрованный текст присылает сам клиент: это
+// осознанное раскрытие пользователем своей же переписки администрации, а не
+// взлом шифрования и не бэкдор — сервер по-прежнему не видит переписку, пока
+// её участник сам не пожалуется.
+app.post("/api/report/messages", verifyAuth, rateLimit(10, 10 * 60 * 1000), async (req, res) => {
+  const me = req.user.username;
+  const items = Array.isArray(req.body.items) ? req.body.items.slice(0, 20) : [];
+  const reason = String(req.body.reason || "").trim().slice(0, 300);
+  if (!items.length) return res.status(400).json({ ok: false, error: "Нечего отправлять" });
+
+  const lines = [];
+  const ids = [];
+  let owner = "";
+  let mediaUrl = "";
+
+  for (const it of items) {
+    const id = Number(it && it.id);
+    if (!id) continue;
+    const row = await dbGet(`SELECT * FROM messages WHERE id=?`, [id]);
+    if (!row || !(await canReadMessage(row, me))) continue; // не твоё сообщение — молча пропускаем
+
+    if (row.sender !== me) owner = row.sender; // жалуемся на автора чужого сообщения
+    if (!mediaUrl && row.mediaUrl) mediaUrl = row.mediaUrl;
+
+    const text = String((it && it.text) || "").trim().slice(0, 500) || (row.mediaType !== "text" ? `[${row.mediaType}]` : "");
+    lines.push(`@${row.sender} (${new Date(row.createdAt).toLocaleString("ru-RU")}): ${text}`);
+    ids.push(id);
+  }
+
+  if (!ids.length) return res.status(404).json({ ok: false, error: "Сообщения не найдены" });
+  if (!owner) return res.status(400).json({ ok: false, error: "Нельзя пожаловаться только на свои сообщения" });
+
+  await dbRun(
+    `INSERT INTO reports (reporter, targetType, targetId, targetOwner, parentId, snapshot, mediaUrl, reason, status, createdAt)
+     VALUES (?, 'message', ?, ?, 0, ?, ?, ?, 'open', ?)`,
+    [me, ids.join(","), owner, lines.join("\n").slice(0, 1000), mediaUrl, reason, now()]
+  );
+  res.json({ ok: true });
+});
+
 // ---------------- ПОСТЫ (картинка и текст под ней) ----------------
 // У поста есть реакции (эмодзи), комментарии, репосты и отправка в чат.
 const POST_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "👎"];
