@@ -398,7 +398,7 @@ async function unmuteUser() {
 }
 
 // ---------------- ЖАЛОБЫ ----------------
-const REPORT_TYPE_LABEL = { story: "История", comment: "Комментарий к истории", post: "Пост", postcomment: "Комментарий к посту", user: "Человек" };
+const REPORT_TYPE_LABEL = { story: "История", comment: "Комментарий к истории", post: "Пост", postcomment: "Комментарий к посту", user: "Человек", message: "Сообщение в переписке" };
 let reportsStatus = "open";
 async function loadReports(status) {
   reportsStatus = status || reportsStatus;
@@ -428,7 +428,7 @@ async function loadReports(status) {
         ${media}
         <div class="rep-reason"><b>Причина:</b> ${esc(r.reason || "не указана")}</div>
         <div class="ver-actions admin-actions">
-          ${reportsStatus === "open" && r.targetType !== "user" ? `<button class="danger" onclick="reportDeleteContent(${r.id})">Удалить это</button>` : ""}
+          ${reportsStatus === "open" && r.targetType !== "user" && r.targetType !== "message" ? `<button class="danger" onclick="reportDeleteContent(${r.id})">Удалить это</button>` : ""}
           <button onclick="reportOpenUser('${esc(r.targetOwner)}')">Мут / бан автора</button>
           ${reportsStatus === "open" ? `<button class="success" onclick="reportClose(${r.id})">Закрыть жалобу</button>` : ""}
         </div>
