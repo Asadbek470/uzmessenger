@@ -115,6 +115,18 @@
 .zbtn{padding:13px 16px;border-radius:16px;border:none;background:var(--z-grad);color:var(--z-on-accent);font:inherit;font-weight:700;cursor:pointer;box-shadow:var(--z-glow)}
 .zbtn:disabled{opacity:.5;cursor:default;box-shadow:none}
 .zbtn.ghost{background:rgba(160,185,255,.07);border:1px solid var(--z-line);color:var(--z-text);box-shadow:none}
+/* ---- выбор сообщений для жалобы ---- */
+.mrow.selectable .bubble{cursor:pointer}
+.mrow.selected .bubble{outline:2px solid var(--z-accent-hi);outline-offset:2px;background:rgba(var(--z-accent-rgb),.1)}
+.msg-select-bar{
+  position:fixed;left:0;right:0;bottom:0;z-index:330;display:flex;align-items:center;gap:10px;
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+  background:var(--z-surface);border-top:1px solid var(--z-line);color:var(--z-text);font-size:14px;font-weight:600;
+}
+.msg-select-bar button{margin-left:auto}
+.msg-select-bar button + button{margin-left:8px}
+.rep-preview-box{max-height:180px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:14px;background:rgba(11,19,43,.6);border:1px solid var(--z-line)}
+.rep-preview-item{font-size:13px;line-height:1.4;color:var(--z-text);word-break:break-word}
 .cmt-acts{display:flex;gap:2px;flex:none;margin-left:auto}
 .cmt-act{width:32px;height:32px;border-radius:50%;border:none;background:none;color:var(--z-muted);cursor:pointer;font-size:13px}
 .cmt-act:hover,.cmt-act:active{background:rgba(160,185,255,.1);color:var(--z-text)}
@@ -1949,6 +1961,53 @@ function markTicksRead(upToId) {
   });
 }
 
+// ---------------- ВЫБОР НЕСКОЛЬКИХ СООБЩЕНИЙ (для жалобы) ----------------
+let msgSelectMode = false;
+const msgSelectIds = new Set();
+
+function enterSelectMode(id) {
+  msgSelectMode = true;
+  msgSelectIds.clear();
+  msgSelectIds.add(id);
+  document.querySelectorAll("#messages .mrow[data-mid]").forEach(row => {
+    row.classList.add("selectable");
+    row.classList.toggle("selected", Number(row.dataset.mid) === id);
+  });
+  renderSelectBar();
+}
+
+function toggleMsgSelect(id, rowEl) {
+  if (!id) return;
+  if (msgSelectIds.has(id)) msgSelectIds.delete(id); else msgSelectIds.add(id);
+  if (rowEl) rowEl.classList.toggle("selected", msgSelectIds.has(id));
+  if (msgSelectIds.size === 0) exitSelectMode(); else renderSelectBar();
+}
+
+function exitSelectMode() {
+  msgSelectMode = false;
+  msgSelectIds.clear();
+  document.querySelectorAll("#messages .mrow").forEach(row => row.classList.remove("selectable", "selected"));
+  renderSelectBar();
+}
+
+function renderSelectBar() {
+  let bar = document.getElementById("msgSelectBar");
+  if (!msgSelectMode) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "msgSelectBar";
+    bar.className = "msg-select-bar";
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = `
+    <span>${msgSelectIds.size} выбрано</span>
+    <button class="btn ghost" onclick="exitSelectMode()">Отмена</button>
+    <button class="btn danger" ${msgSelectIds.size ? "" : "disabled"} onclick="openReportModal(Array.from(msgSelectIds))">
+      <i class="fa-solid fa-flag"></i> Пожаловаться
+    </button>
+  `;
+}
+
 // ---------------- ДОЛГОЕ НАЖАТИЕ НА СООБЩЕНИЕ → МЕНЮ ДЕЙСТВИЙ ----------------
 function attachLongPress(el, id) {
   if (!el) return;
@@ -1958,12 +2017,20 @@ function attachLongPress(el, id) {
     moved = false;
     startX = x; startY = y;
     clearTimeout(timer);
+    if (msgSelectMode) return; // в режиме выбора долгое нажатие не нужно
     timer = setTimeout(() => { if (!moved) openMsgActions(id); }, 420);
   };
   const move = (x, y) => {
     if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) { moved = true; clearTimeout(timer); }
   };
-  const end = () => clearTimeout(timer);
+  const end = () => {
+    clearTimeout(timer);
+    if (msgSelectMode && !moved) toggleMsgSelect(id, el.closest(".mrow"));
+  };
+
+  // В режиме выбора глушим обычный клик по картинке/файлу и т.п., чтобы тап
+  // по сообщению только переключал чекбокс, а не открывал вложение.
+  el.addEventListener("click", (e) => { if (msgSelectMode) { e.preventDefault(); e.stopPropagation(); } }, true);
 
   el.addEventListener("mousedown", (e) => start(e.clientX, e.clientY));
   el.addEventListener("mousemove", (e) => move(e.clientX, e.clientY));
@@ -1972,7 +2039,7 @@ function attachLongPress(el, id) {
   el.addEventListener("touchstart", (e) => { const t = e.touches[0]; start(t.clientX, t.clientY); }, { passive: true });
   el.addEventListener("touchmove", (e) => { const t = e.touches[0]; move(t.clientX, t.clientY); }, { passive: true });
   el.addEventListener("touchend", end);
-  el.addEventListener("contextmenu", (e) => { e.preventDefault(); openMsgActions(id); });
+  el.addEventListener("contextmenu", (e) => { e.preventDefault(); if (!msgSelectMode) openMsgActions(id); });
 }
 
 function downloadMsgMedia(id) {
@@ -2008,6 +2075,10 @@ function openMsgActions(id) {
   }
   if (mine && m.chatType !== "support") {
     items.push({ icon: "fa-eye", label: t("msgact.readInfo"), fn: `openReadInfo(${id}); closeMsgActions();` });
+  }
+  if (m.chatType !== "support" && !isSelfChat(currentChat)) {
+    items.push({ icon: "fa-flag", label: "Пожаловаться", fn: `closeMsgActions(); openReportModal([${id}]);` });
+    items.push({ icon: "fa-square-check", label: "Выбрать несколько", fn: `closeMsgActions(); enterSelectMode(${id});` });
   }
   if (mine) {
     items.push({ icon: "fa-trash", label: t("msgact.delete"), fn: `closeMsgActions(); deleteMsg(${id});`, danger: true });
@@ -5449,6 +5520,68 @@ async function sendReport() {
     if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
   } catch { btn.disabled = false; return alert(t("common.error")); }
   closeZModal("reportModal");
+  toast("Жалоба отправлена администрации ✅");
+}
+
+// ---- жалоба на сообщение(я) в переписке ----
+let reportMsgIds = [];
+let msgReportReason = "";
+
+function openReportModal(ids) {
+  reportMsgIds = (ids || []).filter(Boolean);
+  if (!reportMsgIds.length) return;
+  exitSelectMode();
+  msgReportReason = "";
+
+  const items = reportMsgIds.map(id => messageCache.get(id)).filter(Boolean);
+  const preview = items.map(m => {
+    const who = m.sender === me.username ? "Вы" : "@" + m.sender;
+    const txt = m.mediaType === "text"
+      ? (m.e2eFail ? "[не удалось расшифровать]" : (m.text || ""))
+      : `[${m.mediaType}]`;
+    return `<div class="rep-preview-item"><b>${esc(who)}:</b> ${esc(txt.slice(0, 200))}</div>`;
+  }).join("");
+
+  zModal("msgReportModal", `
+    <div class="zmodal-title">Пожаловаться на сообщени${reportMsgIds.length > 1 ? "я" : "е"}<button class="zmodal-x" onclick="closeZModal('msgReportModal')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="zhint">Текст выбранных сообщений уйдёт администрации вместе с жалобой. Автор не узнает, кто пожаловался.</div>
+    <div class="rep-preview-box">${preview}</div>
+    <div class="zchips">${REPORT_REASONS.map((r, i) => `<button class="zchip" onclick="pickMsgReportReason(${i}, this)">${r}</button>`).join("")}</div>
+    <textarea id="msgReportText" rows="3" maxlength="250" placeholder="Подробности (не обязательно)"></textarea>
+    <button class="zbtn" id="msgReportSendBtn" disabled onclick="sendMsgReport()">Отправить жалобу</button>
+  `);
+}
+
+function pickMsgReportReason(i, btn) {
+  msgReportReason = REPORT_REASONS[i];
+  btn.parentNode.querySelectorAll(".zchip").forEach((b) => b.classList.toggle("on", b === btn));
+  document.getElementById("msgReportSendBtn").disabled = false;
+}
+
+async function sendMsgReport() {
+  if (!reportMsgIds.length || !msgReportReason) return;
+  const extra = document.getElementById("msgReportText").value.trim();
+  const btn = document.getElementById("msgReportSendBtn");
+  btn.disabled = true;
+
+  const items = reportMsgIds.map(id => {
+    const m = messageCache.get(id);
+    const text = (m && m.mediaType === "text" && !m.e2eFail) ? (m.text || "") : (m ? `[${m.mediaType}]` : "");
+    return { id, text };
+  });
+
+  try {
+    const r = await fetch("/api/report/messages", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ items, reason: msgReportReason + (extra ? ": " + extra : "") })
+    });
+    const d = await r.json();
+    if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
+  } catch { btn.disabled = false; return alert(t("common.error")); }
+
+  closeZModal("msgReportModal");
+  reportMsgIds = [];
   toast("Жалоба отправлена администрации ✅");
 }
 
