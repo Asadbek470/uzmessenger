@@ -61,6 +61,7 @@
       <button class="admintab" data-tab="verification" onclick="switchAdminTab('verification')">Верификация</button>
       <button class="admintab" data-tab="support" onclick="switchAdminTab('support')">Поддержка</button>
       <button class="admintab" data-tab="sessions" onclick="switchAdminTab('sessions')">Сессии</button>
+      <button class="admintab" data-tab="deleted" onclick="switchAdminTab('deleted')">Удалённые</button>
     </div>
 
     <!-- USERS TAB -->
@@ -197,6 +198,16 @@
       </div>
     </div>
 
+    <!-- DELETED ACCOUNTS TAB -->
+    <div id="tabDeleted" class="admintabpanel hidden">
+      <div class="admin-search">
+        <input id="searchDeleted" placeholder="Поиск удалённого: @username, имя или email" onkeydown="if(event.key==='Enter') loadDeletedAccounts()">
+        <button onclick="loadDeletedAccounts()">Найти</button>
+      </div>
+      <p class="hint">Удалённые аккаунты хранятся без ограничения по времени. Восстановление возвращает профиль, переписки, истории, посты и контакты.</p>
+      <div id="deletedList" class="ver-list"></div>
+    </div>
+
     <!-- SESSIONS TAB -->
     <div id="tabSessions" class="admintabpanel hidden">
       <div class="admin-search">
@@ -207,6 +218,6 @@
     </div>
   </div>
 
-  <script src="admin.js?v=2"></script>
+  <script src="admin.js?v=3"></script>
 </body>
 </html>
