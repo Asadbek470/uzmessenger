@@ -847,6 +847,31 @@ async function initSchema() {
     )
   `);
 
+  // Архив удалённых аккаунтов: при удалении (самим человеком или админом) все данные
+  // сохраняются сюда, чтобы администрация могла восстановить аккаунт в любой момент.
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS deleted_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      displayName TEXT NOT NULL DEFAULT '',
+      googleEmail TEXT NOT NULL DEFAULT '',
+      deletedAt INTEGER NOT NULL,
+      deletedBy TEXT NOT NULL DEFAULT 'user',
+      complete INTEGER NOT NULL DEFAULT 0,
+      restoredAt INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_deleted_accounts_username ON deleted_accounts(username)`);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS deleted_account_data (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      archiveId INTEGER NOT NULL,
+      tbl TEXT NOT NULL,
+      chunk TEXT NOT NULL
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_deleted_account_data_archive ON deleted_account_data(archiveId)`);
+
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_msg ON messages(chatType, sender, receiver, createdAt)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_st_exp ON stories(expiresAt)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_gm_user ON group_members(username)`);
@@ -1266,6 +1291,10 @@ app.post("/api/auth/register", rateLimit(10, 60 * 1000), async (req, res) => {
     return res.status(400).json({ ok: false, error: "Нужно принять Условия использования и Политику конфиденциальности" });
   }
 
+  if (await isUsernameReserved(usernameRaw)) {
+    return res.status(400).json({ ok: false, error: "Юзернейм занят" });
+  }
+
   const hash = await bcrypt.hash(password, 10);
   const acceptedAt = now();
 
@@ -1296,7 +1325,12 @@ app.post("/api/auth/login", rateLimit(10, 60 * 1000), (req, res) => {
   const password = String(req.body.password || "").trim();
 
   db.get(`SELECT * FROM users WHERE username=?`, [usernameRaw], async (err, user) => {
-    if (!user) return res.status(400).json({ ok: false, error: "Пользователь не найден" });
+    if (!user) {
+      if (await isUsernameReserved(usernameRaw)) {
+        return res.status(403).json({ ok: false, error: "Этот аккаунт удалён. Чтобы восстановить его, обратись в администрацию." });
+      }
+      return res.status(400).json({ ok: false, error: "Пользователь не найден" });
+    }
     applySanctionExpiry(user);
     if (user.banned) return res.status(403).json({ ok: false, error: banMessage(user) });
 
@@ -1398,6 +1432,149 @@ async function wipeUserData(u) {
   await dbRun(`DELETE FROM users WHERE username=?`, [u]);
 }
 
+// ---------------- АРХИВ УДАЛЁННЫХ АККАУНТОВ (восстановление админом, без срока) ----------------
+// Какие данные пользователя сохраняем перед удалением (то же, что стирает wipeUserData).
+const ARCHIVE_SPECS = [
+  ["users", "username=?"],
+  ["messages", "sender=? OR receiver=?"],
+  ["stories", "owner=?"],
+  ["story_views", "storyId IN (SELECT id FROM stories WHERE owner=?) OR viewer=?"],
+  ["story_comments", "storyId IN (SELECT id FROM stories WHERE owner=?) OR username=?"],
+  ["story_likes", "storyId IN (SELECT id FROM stories WHERE owner=?) OR username=?"],
+  ["story_promos", "owner=?"],
+  ["posts", "owner=?"],
+  ["post_reactions", "username=? OR postId IN (SELECT id FROM posts WHERE owner=?)"],
+  ["post_comments", "username=? OR postId IN (SELECT id FROM posts WHERE owner=?)"],
+  ["user_ratings", "rater=? OR target=?"],
+  ["e2e_keys", "username=?"],
+  ["group_members", "username=?"],
+  ["friends", "owner=? OR friend=?"],
+  ["dm_exceptions", "owner=? OR allowed=?"],
+  ["contact_requests", "fromUser=? OR toUser=?"],
+  ["chat_wallpapers", "owner=? OR chat=?"],
+  ["message_reads", "reader=?"],
+  ["blocked_users", "owner=? OR blocked=?"],
+  ["contacts", "owner=? OR username=?"]
+];
+
+function plainRow(row) {
+  const o = {};
+  for (const k of Object.keys(row)) {
+    if (/^\d+$/.test(k)) continue;
+    const v = row[k];
+    o[k] = typeof v === "bigint" ? Number(v) : v;
+  }
+  return o;
+}
+
+// Юзернейм удалённого (ещё не восстановленного) аккаунта занят навсегда —
+// чтобы его не перехватил кто-то другой и аккаунт можно было вернуть.
+async function isUsernameReserved(name) {
+  const r = await dbGet(`SELECT id FROM deleted_accounts WHERE username=? AND complete=1 AND restoredAt=0 LIMIT 1`, [name]);
+  return !!r;
+}
+
+async function archiveUserData(u, deletedBy) {
+  const user = await dbGet(`SELECT * FROM users WHERE username=?`, [u]);
+  if (!user) return null;
+  const ins = await dbRun(
+    `INSERT INTO deleted_accounts (username, displayName, googleEmail, deletedAt, deletedBy, complete, restoredAt) VALUES (?,?,?,?,?,0,0)`,
+    [u, user.displayName || "", user.googleEmail || "", now(), deletedBy]
+  );
+  const archiveId = ins.lastID;
+  try {
+    for (const [tbl, where] of ARCHIVE_SPECS) {
+      const n = (where.match(/\?/g) || []).length;
+      const rows = (await dbAll(`SELECT * FROM ${tbl} WHERE ${where}`, Array(n).fill(u))).map(plainRow);
+      let part = [], size = 0;
+      const flush = async () => {
+        if (!part.length) return;
+        await dbRun(`INSERT INTO deleted_account_data (archiveId, tbl, chunk) VALUES (?,?,?)`, [archiveId, tbl, JSON.stringify(part)]);
+        part = []; size = 0;
+      };
+      for (const r of rows) {
+        const len = JSON.stringify(r).length;
+        if (part.length && (size + len > 800000 || part.length >= 300)) await flush();
+        part.push(r); size += len;
+      }
+      await flush();
+    }
+    await dbRun(`UPDATE deleted_accounts SET complete=1 WHERE id=?`, [archiveId]);
+  } catch (e) {
+    await dbRun(`DELETE FROM deleted_account_data WHERE archiveId=?`, [archiveId]).catch(() => {});
+    await dbRun(`DELETE FROM deleted_accounts WHERE id=?`, [archiveId]).catch(() => {});
+    throw e;
+  }
+  return archiveId;
+}
+
+// Сначала полностью сохраняем данные в архив, и только потом стираем.
+// Если архив не записался — аккаунт НЕ удаляется.
+async function deleteAccountWithArchive(u, deletedBy) {
+  await archiveUserData(u, deletedBy);
+  await wipeUserData(u);
+}
+
+// Возвращает данные из архива. opts: { newPassword, resetTwoFactor }
+async function restoreDeletedAccount(archive, opts = {}) {
+  const chunks = await dbAll(`SELECT tbl, chunk FROM deleted_account_data WHERE archiveId=? ORDER BY id ASC`, [archive.id]);
+  const byTable = {};
+  for (const c of chunks) (byTable[c.tbl] = byTable[c.tbl] || []).push(...JSON.parse(c.chunk));
+
+  const userRow = (byTable.users || [])[0];
+  if (!userRow) throw new Error("В архиве нет данных этого аккаунта");
+
+  const warnings = [];
+  const existing = await dbGet(`SELECT id FROM users WHERE username=?`, [archive.username]);
+  if (existing && Number(existing.id) !== Number(userRow.id)) {
+    throw new Error("Этот юзернейм уже занят другим аккаунтом, восстановить нельзя");
+  }
+
+  // Если с тех пор кто-то зарегистрировался через тот же Google — не создаём дубль входа
+  if (userRow.googleSub) {
+    const other = await dbGet(`SELECT username FROM users WHERE googleSub=? AND username!=?`, [userRow.googleSub, archive.username]);
+    if (other) {
+      userRow.googleSub = "";
+      warnings.push(`Google уже привязан к @${other.username}, поэтому у восстановленного аккаунта вход через Google отвязан (вход по паролю работает)`);
+    }
+  }
+
+  const colCache = {};
+  const insertRows = async (tbl, rows) => {
+    if (!colCache[tbl]) colCache[tbl] = (await dbAll(`PRAGMA table_info(${tbl})`)).map(c => c.name);
+    const cols = colCache[tbl];
+    for (const r of rows) {
+      const keys = Object.keys(r).filter(k => cols.includes(k));
+      if (!keys.length) continue;
+      await dbRun(
+        `INSERT OR IGNORE INTO ${tbl} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
+        keys.map(k => r[k])
+      );
+    }
+  };
+
+  await insertRows("users", [userRow]);
+  for (const [tbl] of ARCHIVE_SPECS) {
+    if (tbl === "users") continue;
+    if (byTable[tbl]) await insertRows(tbl, byTable[tbl]);
+  }
+
+  const u = archive.username;
+  if (opts.newPassword) {
+    const hash = await bcrypt.hash(opts.newPassword, 10);
+    await dbRun(`UPDATE users SET passwordHash=? WHERE username=?`, [hash, u]);
+  }
+  if (opts.resetTwoFactor) {
+    await dbRun(`UPDATE users SET totpEnabled=0, totpSecret='' WHERE username=?`, [u]);
+  }
+  // старые входы на устройствах закрываем — человек войдёт заново
+  await dbRun(`UPDATE sessions SET revoked=1 WHERE username=?`, [u]).catch(() => {});
+
+  await dbRun(`UPDATE deleted_accounts SET restoredAt=? WHERE id=?`, [now(), archive.id]);
+  await dbRun(`DELETE FROM deleted_account_data WHERE archiveId=?`, [archive.id]);
+  return warnings;
+}
+
 app.delete("/api/me", verifyAuth, async (req, res) => {
   // Для Google-аккаунта дополнительный пароль не требуется.
   // Для обычного аккаунта пароль остаётся обязательным.
@@ -1408,7 +1585,12 @@ app.delete("/api/me", verifyAuth, async (req, res) => {
   }
 
   const u = req.user.username;
-  await wipeUserData(u);
+  try {
+    await deleteAccountWithArchive(u, "user");
+  } catch (e) {
+    console.error("[DELETE ACCOUNT]", e.message);
+    return res.status(500).json({ ok: false, error: "Не удалось удалить аккаунт, попробуй ещё раз" });
+  }
 
   closeAllConnections(u);
   res.json({ ok: true });
@@ -1457,7 +1639,7 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
   const old = req.user.username;
   if (newUsername === old) return res.json({ ok: true, username: old });
 
-  const taken = await dbGet(`SELECT username FROM users WHERE username=?`, [newUsername]);
+  const taken = (await dbGet(`SELECT username FROM users WHERE username=?`, [newUsername])) || ((await isUsernameReserved(newUsername)) ? { username: newUsername } : null);
   if (taken) return res.status(409).json({ ok: false, error: "Этот юзернейм уже занят" });
 
   try {
@@ -1603,6 +1785,7 @@ app.post("/api/auth/google", rateLimit(15, 60 * 1000), async (req, res) => {
     let candidate = base, i = 0;
     while (
       RESERVED_USERNAMES.includes(candidate) ||
+      (await isUsernameReserved(candidate)) ||
       (await dbGet(`SELECT username FROM users WHERE username=?`, [candidate]))
     ) {
       i++; candidate = (base.slice(0, 16 - String(i).length) + i);
@@ -4303,9 +4486,52 @@ app.delete("/api/admin/delete/:username", verifySuperAdmin, requireMsgUnlock, as
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
   if (!exists) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
 
-  await wipeUserData(u);
+  try {
+    await deleteAccountWithArchive(u, "admin");
+  } catch (e) {
+    console.error("[ADMIN DELETE]", e.message);
+    return res.status(500).json({ ok: false, error: "Не удалось сохранить архив, аккаунт не удалён" });
+  }
   closeAllConnections(u);
   res.json({ ok: true });
+});
+
+// Список удалённых аккаунтов (ещё не восстановленных) — для кнопки «Восстановить»
+app.get("/api/admin/deleted-accounts", verifySuperAdmin, async (req, res) => {
+  const q = String(req.query.q || "").trim().replace(/^@+/, "").toLowerCase();
+  const like = `%${q}%`;
+  const rows = q
+    ? await dbAll(
+        `SELECT id, username, displayName, googleEmail, deletedAt, deletedBy FROM deleted_accounts
+         WHERE complete=1 AND restoredAt=0 AND (username LIKE ? OR LOWER(displayName) LIKE ? OR LOWER(googleEmail) LIKE ?)
+         ORDER BY deletedAt DESC LIMIT 200`, [like, like, like])
+    : await dbAll(
+        `SELECT id, username, displayName, googleEmail, deletedAt, deletedBy FROM deleted_accounts
+         WHERE complete=1 AND restoredAt=0 ORDER BY deletedAt DESC LIMIT 200`);
+  res.json({ ok: true, accounts: rows });
+});
+
+// Восстановление удалённого аккаунта — без ограничения по времени.
+// Тело (необязательно): { newPassword, resetTwoFactor }
+app.post("/api/admin/restore/:username", verifySuperAdmin, requireMsgUnlock, async (req, res) => {
+  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const archive = await dbGet(
+    `SELECT * FROM deleted_accounts WHERE username=? AND complete=1 AND restoredAt=0 ORDER BY deletedAt DESC LIMIT 1`, [u]);
+  if (!archive) return res.status(404).json({ ok: false, error: "Удалённый аккаунт не найден" });
+
+  const newPassword = String(req.body.newPassword || "").trim();
+  if (newPassword && newPassword.length < 6) {
+    return res.status(400).json({ ok: false, error: "Пароль минимум 6 символов" });
+  }
+
+  try {
+    const warnings = await restoreDeletedAccount(archive, { newPassword, resetTwoFactor: req.body.resetTwoFactor === true });
+    sendSupportMessage(u, "✅ Администрация восстановила твой аккаунт. С возвращением!").catch(() => {});
+    res.json({ ok: true, username: u, warnings });
+  } catch (e) {
+    console.error("[RESTORE]", e.message);
+    res.status(400).json({ ok: false, error: e.message || "Не удалось восстановить" });
+  }
 });
 
 // ================================================================
