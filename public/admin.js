@@ -126,10 +126,12 @@ function switchAdminTab(tab) {
   document.getElementById("tabVerification").classList.toggle("hidden", tab !== "verification");
   document.getElementById("tabSupport").classList.toggle("hidden", tab !== "support");
   document.getElementById("tabSessions").classList.toggle("hidden", tab !== "sessions");
+  document.getElementById("tabDeleted").classList.toggle("hidden", tab !== "deleted");
   if (tab === "reports") loadReports("open");
   if (tab === "verification") loadVerificationRequests();
   if (tab === "support") loadSupportConversations();
   if (tab === "sessions") loadAdminSessions();
+  if (tab === "deleted") loadDeletedAccounts();
 }
 
 // ---------------- USER SEARCH / LIST ----------------
@@ -463,7 +465,7 @@ async function refreshReportsBadge() {
 async function deleteUser() {
   if (!currentUser) return;
   if (!msgUnlockToken) return openMsgUnlockModal(() => deleteUser());
-  if (!confirm("Удалить аккаунт навсегда? Это действие необратимо.")) return;
+  if (!confirm("Удалить аккаунт? Все данные сохранятся в архиве — его можно будет восстановить во вкладке «Удалённые».")) return;
 
   const res = await fetch(`/api/admin/delete/${encodeURIComponent(currentUser)}`, { method: "DELETE", headers: msgHeaders() });
   const d = await res.json();
@@ -623,4 +625,49 @@ async function revokeAdminSession(id) {
     return alert(data.error || "Ошибка");
   }
   loadAdminSessions();
+}
+
+// ---------------- DELETED ACCOUNTS (восстановление) ----------------
+async function loadDeletedAccounts() {
+  const q = document.getElementById("searchDeleted").value.trim();
+  const box = document.getElementById("deletedList");
+  const res = await fetch(`/api/admin/deleted-accounts?q=${encodeURIComponent(q)}`, { headers: adminHeaders() });
+  const data = await res.json();
+  if (!data.ok) { box.innerHTML = "<p>Ошибка загрузки</p>"; return; }
+
+  if (data.accounts.length === 0) {
+    box.innerHTML = "<p class='hint'>Удалённых аккаунтов не найдено</p>";
+    return;
+  }
+
+  box.innerHTML = data.accounts.map(a => `
+    <div class="ver-item">
+      <div><b>@${esc(a.username)}</b> ${a.displayName && a.displayName !== a.username ? `· ${esc(a.displayName)}` : ""}</div>
+      <div class="hint">${a.googleEmail ? esc(a.googleEmail) + " · " : ""}удалён ${new Date(a.deletedAt).toLocaleString("ru-RU")} · ${a.deletedBy === "admin" ? "админом" : "самим пользователем"}</div>
+      <div class="ver-actions"><button onclick="restoreAccount('${esc(a.username)}')">Восстановить</button></div>
+    </div>
+  `).join("");
+}
+
+async function restoreAccount(username) {
+  if (!msgUnlockToken) return openMsgUnlockModal(() => restoreAccount(username));
+  if (!confirm(`Восстановить аккаунт @${username}?`)) return;
+
+  const newPassword = prompt("Новый пароль для человека (минимум 6 символов).\nЕсли он помнит старый пароль — оставь пустым:", "");
+  if (newPassword === null) return;
+  const resetTwoFactor = confirm("Сбросить двухфакторную защиту (2FA)?\nНажми «ОК», если человек потерял доступ к приложению-аутентификатору.");
+
+  const res = await fetch(`/api/admin/restore/${encodeURIComponent(username)}`, {
+    method: "POST",
+    headers: { ...msgHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ newPassword: newPassword.trim(), resetTwoFactor })
+  });
+  const d = await res.json();
+  if (!d.ok) {
+    if (d.needUnlock) { msgUnlockToken = null; return openMsgUnlockModal(() => restoreAccount(username)); }
+    return alert(d.error || "Ошибка");
+  }
+
+  alert(`Аккаунт @${username} восстановлен.` + (d.warnings && d.warnings.length ? "\n\n" + d.warnings.join("\n") : ""));
+  loadDeletedAccounts();
 }
