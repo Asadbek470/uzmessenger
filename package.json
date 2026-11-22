@@ -1,7 +1,7 @@
 {
   "name": "one-messenger",
-  "version": "4.1.0",
-  "description": "One Messenger (Telegram UI + Stories + Calls + Push + Turso for everything, incl. files)",
+  "version": "5.0.0",
+  "description": "One Messenger (Telegram UI + Stories + Calls + Push + Quick Contact + Bot builder)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

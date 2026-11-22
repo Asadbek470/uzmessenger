@@ -402,7 +402,8 @@ function nameHtml(info, opts = {}) {
   const name = esc(saved || info.displayName || info.username || "");
   const status = info.emojiStatus ? `<span class="emojistatus" title="Статус">${esc(info.emojiStatus)}</span>` : "";
   const bday = info.birthdayToday ? `<span class="bdaymark" title="Сегодня день рождения">🎂</span>` : "";
-  return `<span class="uname">${name}</span>${status}${verifiedBadge(info.verified)}${opts.noBday ? "" : bday}`;
+  const botMark = info.isBot ? `<span class="botbadge">БОТ</span>` : "";
+  return `<span class="uname">${name}</span>${botMark}${status}${verifiedBadge(info.verified)}${opts.noBday ? "" : bday}`;
 }
 
 function mergeUserInfo(username, info) {
@@ -1232,6 +1233,9 @@ function connectWS() {
   ws.onmessage = async (e) => {
     const data = JSON.parse(e.data);
 
+    // v5: события «Быстрого контакта» (features-v5.js)
+    if (window.zumoExt && window.zumoExt.onWs && window.zumoExt.onWs(data)) return;
+
     if (data.type === "presence") {
       onlineSet.clear();
       (data.online || []).forEach(u => onlineSet.add(u));
@@ -1688,6 +1692,7 @@ function renderMessage(m) {
   `;
 
   box.appendChild(row);
+  if (window.zumoExt && window.zumoExt.afterRender) { try { window.zumoExt.afterRender(row, m); } catch {} }
   if (m.mediaType === "audio") setupVoicePlayer(m.id);
   attachLongPress(row.querySelector(".bubble"), m.id);
   scrollBottom();

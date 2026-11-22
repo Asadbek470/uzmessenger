@@ -24,6 +24,9 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
+
+// Юзернеймы ботов из конструктора (заполняется при старте и при создании бота)
+const BOT_USERNAMES = new Set();
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
 
 // Часовой пояс для дней рождения (в минутах от UTC). По умолчанию Ташкент (UTC+5).
@@ -875,6 +878,51 @@ async function initSchema() {
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_msg ON messages(chatType, sender, receiver, createdAt)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_st_exp ON stories(expiresAt)`);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_gm_user ON group_members(username)`);
+
+  // ---- Быстрый контакт: приглашения людей «рядом» ----
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS quick_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fromUser TEXT NOT NULL,
+      toUser TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      createdAt INTEGER NOT NULL,
+      answeredAt INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_qi_to ON quick_invites(toUser, status)`);
+
+  // ---- Конструктор чат-ботов ----
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS bots (
+      username TEXT PRIMARY KEY,
+      owner TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      configJson TEXT NOT NULL DEFAULT '{}',
+      createdAt INTEGER NOT NULL,
+      updatedAt INTEGER NOT NULL
+    )
+  `);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(owner)`);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS bot_sessions (
+      bot TEXT NOT NULL,
+      user TEXT NOT NULL,
+      ruleId TEXT NOT NULL,
+      step INTEGER NOT NULL DEFAULT 0,
+      answersJson TEXT NOT NULL DEFAULT '[]',
+      updatedAt INTEGER NOT NULL,
+      PRIMARY KEY (bot, user)
+    )
+  `);
+  // кнопки быстрых ответов под сообщением бота (JSON-список)
+  await addColumn("messages", "botButtons", "TEXT NOT NULL DEFAULT ''");
+  try {
+    const botRows = await dbAll(`SELECT username FROM bots`);
+    botRows.forEach(b => BOT_USERNAMES.add(b.username));
+  } catch {}
 }
 
 const schemaReady = initSchema()
@@ -991,6 +1039,7 @@ function userCardFromRow(u) {
     displayName: u.displayName || u.username,
     avatarUrl: u.avatarUrl || "",
     verified: !!u.verified,
+    isBot: BOT_USERNAMES.has(u.username),
     emojiStatus: cleanEmojiStatus(s.emojiStatus || ""),
     birthdayToday: isBirthdayToday(u.birthDate),
     headerTop: HEX_COLOR.test(s.headerTop || "") ? s.headerTop : "",
@@ -1286,6 +1335,9 @@ app.post("/api/auth/register", rateLimit(10, 60 * 1000), async (req, res) => {
   if (RESERVED_USERNAMES.includes(usernameRaw)) {
     return res.status(400).json({ ok: false, error: "Этот юзернейм зарезервирован системой" });
   }
+  if (usernameRaw.endsWith("_bot")) {
+    return res.status(400).json({ ok: false, error: "Юзернеймы на _bot — только для ботов из конструктора" });
+  }
   if (password.length < 6) return res.status(400).json({ ok: false, error: "Пароль минимум 6 символов" });
   if (req.body.acceptedTerms !== true) {
     return res.status(400).json({ ok: false, error: "Нужно принять Условия использования и Политику конфиденциальности" });
@@ -1407,6 +1459,7 @@ app.post("/api/2fa/disable", verifyAuth, async (req, res) => {
 app.get("/api/me", verifyAuth, (req, res) => res.json({ ok: true, profile: safeUser(req.user) }));
 
 async function wipeUserData(u) {
+  try { await bots.deleteBotsOf(u); } catch (e) { console.error("[BOTS] cleanup", e.message); }
   await dbRun(`DELETE FROM messages WHERE sender=? OR receiver=?`, [u, u]);
   await dbRun(`DELETE FROM story_views WHERE storyId IN (SELECT id FROM stories WHERE owner=?)`, [u]);
   await dbRun(`DELETE FROM story_views WHERE viewer=?`, [u]);
@@ -1628,6 +1681,9 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
   }
   if (RESERVED_USERNAMES.includes(newUsername)) {
     return res.status(400).json({ ok: false, error: "Этот юзернейм зарезервирован" });
+  }
+  if (newUsername.endsWith("_bot")) {
+    return res.status(400).json({ ok: false, error: "Юзернеймы на _bot — только для ботов из конструктора" });
   }
   // Google-аккаунт уже подтверждён через Google, поэтому пароль аккаунта не требуется.
   // Для обычных аккаунтов старая проверка пароля остаётся без изменений.
@@ -2245,7 +2301,7 @@ app.get("/api/users/:username", verifyAuth, async (req, res) => {
       avatarUrl: photoAllowed ? (row.avatarUrl || "") : "",
       birthdayToday: birthdayAllowed ? isBirthdayToday(row.birthDate) : false,
       bio: bioAllowed ? row.bio : "",
-      online: isOnline(row.username),
+      online: isOnline(row.username) || BOT_USERNAMES.has(row.username),
       ...ls,
       dmGated: dmGateOn(row) && row.username !== viewer,
       canMessage: blocked ? false : await dmAllowed(row, viewer),
@@ -4656,6 +4712,19 @@ const calls = require("./calls-server")({
   canCall: canCallUser
 });
 
+// «Быстрый контакт» — люди рядом (quick-contact-server.js)
+const quickContact = require("./quick-contact-server")({
+  app, verifyAuth, rateLimit, dbGet, dbAll, dbRun, wsSendToUser,
+  getUserCards, isBlocked, now
+});
+
+// Конструктор чат-ботов внутри приложения (bots-server.js)
+const bots = require("./bots-server")({
+  app, verifyAuth, rateLimit, dbGet, dbAll, dbRun, now,
+  broadcastMessage, wsSendToUser, isUsernameReserved,
+  BOT_USERNAMES, RESERVED_USERNAMES
+});
+
 wss.on("connection", (ws, req) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -4726,6 +4795,10 @@ wss.on("connection", (ws, req) => {
           );
           const msg = { id: result.lastID, chatType, sender: from, receiver, text, mediaType: "text", mediaUrl: "", createdAt, fileName: "", fileSize: 0, forwardedFrom: "", replyTo, replyPreview };
           await broadcastMessage(msg);
+          // если написали боту из конструктора — он отвечает
+          if (chatType === "private" && BOT_USERNAMES.has(receiver)) {
+            bots.onUserMessage(msg).catch((e) => console.error("[BOTS]", e.message));
+          }
           return;
         }
 
@@ -4858,6 +4931,7 @@ wss.on("connection", (ws, req) => {
         if (u) {
           removeOnline(u, ws);
           if (!isOnline(u)) {
+            quickContact.onUserGone(u);
             const at = now();
             try {
               await dbRun(`UPDATE users SET lastSeen=? WHERE username=?`, [at, u]);
