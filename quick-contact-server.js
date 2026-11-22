@@ -4,7 +4,7 @@
 //
 // Как это работает и почему безопасно:
 //  • Режим включается человеком САМ и работает, только пока открыт экран «Быстрый контакт».
-//    Закрыл экран или потерял сеть — через ~90 секунд человека уже не видно.
+//    Закрыл экран или потерял сеть — через ~75 секунд человека уже не видно.
 //  • Координаты хранятся только в памяти сервера (в базу не пишутся)
 //    и никому не показываются. Другие видят лишь «очень близко / рядом / поблизости».
 //  • Видят друг друга только те, у кого режим включён одновременно.
@@ -17,9 +17,10 @@ module.exports = function setupQuickContact(ctx) {
     wsSendToUser, getUserCards, isBlocked, now
   } = ctx;
 
-  const ACTIVE_MS = 90 * 1000;           // человек виден, пока экран открыт и шлёт «я здесь» (каждые ~10 с)
-  const MAX_ACCURACY_M = 400;            // GPS хуже этого — не используем
-  const MAX_RADIUS_M = 250;              // дальше этого людей не показываем
+  const ACTIVE_MS = 75 * 1000;           // человек виден, пока экран открыт и шлёт «я здесь» (каждые ~8 с)
+  const MAX_ACCURACY_M = 5000;           // GPS хуже этого — не используем (по Wi-Fi/вышкам бывает 500–2000 м)
+  const MAX_RADIUS_M = 1500;             // дальше этого людей не показываем
+  const BASE_RADIUS_M = 200;             // минимальный радиус «рядом»
   const INVITE_COOLDOWN_MS = 24 * 3600 * 1000; // после отказа — повторно не беспокоить сутки
   const MAX_INVITES_AT_ONCE = 10;
 
@@ -64,8 +65,8 @@ module.exports = function setupQuickContact(ctx) {
     for (const [u, p] of active) {
       if (u === me || p.exp <= t) continue;
       const d = distanceM(mine, p);
-      // чем хуже GPS у обоих, тем шире допуск, но не больше MAX_RADIUS_M
-      const radius = Math.min(MAX_RADIUS_M, 100 + (mine.acc + p.acc) / 2);
+      // чем хуже точность у обоих, тем шире допуск, но не больше MAX_RADIUS_M
+      const radius = Math.min(MAX_RADIUS_M, BASE_RADIUS_M + mine.acc + p.acc);
       if (d > radius) continue;
       found.push({ username: u, d });
     }
@@ -97,17 +98,30 @@ module.exports = function setupQuickContact(ctx) {
     }));
   }
 
-  // ---------- включить / обновить место ----------
-  app.post("/api/quick/ping", verifyAuth, rateLimit(40, 60 * 1000), async (req, res) => {
-    const me = req.user.username;
-    const pt = readPoint(req.body);
-    if (!pt) return res.status(400).json({ ok: false, error: "Не удалось определить место" });
-    if (pt.acc > MAX_ACCURACY_M) {
-      return res.status(400).json({ ok: false, weak: true, error: "Слабый сигнал GPS. Выйди туда, где лучше связь со спутниками" });
-    }
+  // сколько ЕЩЁ людей сейчас в режиме (только число — для подсказки «почему никого нет»)
+  function othersActive(me) {
     const t = now();
-    active.set(me, { ...pt, at: t, exp: t + ACTIVE_MS });
-    res.json({ ok: true, expiresAt: t + ACTIVE_MS, users: await nearbyFor(me) });
+    let n = 0;
+    for (const [u, p] of active) if (u !== me && p.exp > t) n++;
+    return n;
+  }
+
+  // ---------- включить / обновить место ----------
+  app.post("/api/quick/ping", verifyAuth, rateLimit(60, 60 * 1000), async (req, res) => {
+    try {
+      const me = req.user.username;
+      const pt = readPoint(req.body);
+      if (!pt) return res.status(400).json({ ok: false, error: "Не удалось определить место" });
+      if (pt.acc > MAX_ACCURACY_M) {
+        return res.status(400).json({ ok: false, weak: true, error: "Очень слабый сигнал (±" + Math.round(pt.acc) + " м). Включи GPS и выйди к окну или на улицу" });
+      }
+      const t = now();
+      active.set(me, { ...pt, at: t, exp: t + ACTIVE_MS });
+      res.json({ ok: true, expiresAt: t + ACTIVE_MS, acc: Math.round(pt.acc), others: othersActive(me), users: await nearbyFor(me) });
+    } catch (e) {
+      console.error("[QUICK] ping", e && e.message);
+      if (!res.headersSent) res.status(500).json({ ok: false, error: "Ошибка сервера, попробуй ещё раз" });
+    }
   });
 
   // ---------- выключить ----------
@@ -118,6 +132,7 @@ module.exports = function setupQuickContact(ctx) {
 
   // ---------- отправить приглашения ----------
   app.post("/api/quick/invite", verifyAuth, rateLimit(20, 60 * 1000), async (req, res) => {
+   try {
     const me = req.user.username;
     if (!active.has(me)) return res.status(400).json({ ok: false, error: "Сначала включи «Быстрый контакт»" });
 
@@ -146,6 +161,10 @@ module.exports = function setupQuickContact(ctx) {
       wsSendToUser(u, { type: "quick-invite", invite: { id: r.lastID, from: myCard, createdAt: now() } });
     }
     res.json({ ok: true, sent, skipped });
+   } catch (e) {
+    console.error("[QUICK] invite", e && e.message);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Ошибка сервера" });
+   }
   });
 
   // ---------- входящие приглашения ----------
@@ -174,6 +193,7 @@ module.exports = function setupQuickContact(ctx) {
   }
 
   app.post("/api/quick/invites/:id/accept", verifyAuth, async (req, res) => {
+   try {
     const me = req.user.username;
     const id = Number(req.params.id);
     const inv = await dbGet(`SELECT * FROM quick_invites WHERE id=? AND toUser=? AND status='pending'`, [id, me]);
@@ -183,6 +203,10 @@ module.exports = function setupQuickContact(ctx) {
     await addContactBoth(me, inv.fromUser);
     wsSendToUser(inv.fromUser, { type: "quick-accepted", by: (await getUserCards([me]))[me] });
     res.json({ ok: true, username: inv.fromUser });
+   } catch (e) {
+    console.error("[QUICK] accept", e && e.message);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Ошибка сервера" });
+   }
   });
 
   app.post("/api/quick/invites/:id/decline", verifyAuth, async (req, res) => {

@@ -7,7 +7,7 @@
   <title>Zumo — мессенджер</title>
   <meta name="robots" content="noindex" />
   <link rel="stylesheet" href="style.css?v=9" />
-  <link rel="stylesheet" href="features-v5.css?v=1" />
+  <link rel="stylesheet" href="features-v5.css?v=2" />
   <link rel="icon" href="/icon-192.png?v=4" />
   <link rel="apple-touch-icon" href="/icon-192.png?v=4" />
   <link rel="manifest" href="/manifest.json" />
@@ -41,6 +41,7 @@
     .storyviewer-viewer-reaction { font-size: 18px; margin-left: auto; }
     #storyViewersModal .card { max-height: 70vh; overflow-y: auto; }
   </style>
+  <link rel="stylesheet" href="telegram-ui.css?v=1" />
 </head>
 <body>
   <!-- DEVICE PASSCODE LOCK -->
@@ -76,7 +77,7 @@
           <button class="btn ghost small" onclick="openCreateGroupModal(true)"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="chats.channel">Создать канал</span></button>
         </div>
         <div class="sidebar-actions">
-          <button class="btn ghost small" onclick="openQuickContact()"><i class="fa-solid fa-location-dot"></i> <span>Быстрый контакт</span></button>
+          <button class="btn ghost small" onclick="openQuickContact()"><i class="fa-solid fa-location-dot"></i> <span>Люди рядом</span></button>
           <button class="btn ghost small" onclick="openBotBuilder()"><i class="fa-solid fa-robot"></i> <span>Мои боты</span></button>
         </div>
       </div>
@@ -831,6 +832,6 @@
   <script src="app.js?v=20"></script>
   <script src="e2e.js?v=4"></script>
   <script src="calls-client.js?v=4"></script>
-  <script src="features-v5.js?v=1"></script>
+  <script src="features-v5.js?v=2"></script>
 </body>
 </html>
