@@ -124,7 +124,7 @@
   </section>
 
   <!-- Условия использования / Политика конфиденциальности -->
-  <div id="legalModal" class="modal hidden" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);">
+  <div id="legalModal" class="modal hidden" style="position:fixed;top:0;right:0;bottom:0;left:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);">
     <div class="auth-card" style="max-height:82vh;overflow-y:auto;width:min(520px,92vw)">
       <div class="tabs" id="legalLangTabs" style="margin-bottom:8px">
         <button class="tab" id="legalLangRu" onclick="switchLegalLang('ru')">Русский</button>

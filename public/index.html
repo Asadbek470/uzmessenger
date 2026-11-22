@@ -10,7 +10,7 @@
       if (localStorage.getItem("token") && !/[?&](add|install)=1/.test(location.search)) location.replace("chat.html" + location.search);
     } catch (e) {}
   </script>
-  <script src="splash.js"></script>
+  <script src="splash.js?v=2"></script>
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Zumo (Зумо) — мессенджер без номера телефона</title>
   <meta name="description" content="Zumo (Зумо) — бесплатный мессенджер без номера телефона. Вход по @username, личные чаты со сквозным шифрованием, группы, каналы, сторис, аудио- и видеозвонки. Zumo messenjeri — telefon raqamisiz muloqot." />
@@ -145,7 +145,7 @@
   </section>
 
   <!-- Условия использования / Политика конфиденциальности -->
-  <div id="legalModal" class="modal hidden" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);">
+  <div id="legalModal" class="modal hidden" style="position:fixed;top:0;right:0;bottom:0;left:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);">
     <div class="auth-card" style="max-height:82vh;overflow-y:auto;width:min(520px,92vw)">
       <div class="tabs" id="legalLangTabs" style="margin-bottom:8px">
         <button class="tab" id="legalLangRu" onclick="switchLegalLang('ru')">Русский</button>
@@ -411,19 +411,19 @@ For questions related to personal data — via the "Support" section inside the 
         const r = await fetch("/api/e2e/me", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
         let salt = "";
-        try { const b = JSON.parse(d.backup || "{}"); if (b.auto && b.autoSalt) salt = b.autoSalt; } catch {}
+        try { const b = JSON.parse(d.backup || "{}"); if (b.auto && b.autoSalt) salt = b.autoSalt; } catch (_e) {}
         if (!salt) salt = toB64(crypto.getRandomValues(new Uint8Array(16)));
 
         const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
         const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: fromB64(salt), iterations: 200000, hash: "SHA-256" }, base, 256);
         localStorage.setItem("zumoE2EAutoPending", JSON.stringify({ secret: toB64(bits), salt }));
-      } catch {}
+      } catch (_e) {}
     }
 
     // ===== Несколько аккаунтов: возврат в уже вошедший аккаунт одним нажатием =====
     (function () {
       let list = [];
-      try { list = JSON.parse(localStorage.getItem("zumoAccounts") || "[]"); } catch {}
+      try { list = JSON.parse(localStorage.getItem("zumoAccounts") || "[]"); } catch (_e) {}
       if (!Array.isArray(list) || !list.length) return;
       const box = document.getElementById("savedAccounts");
       const safe = (v) => String(v || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -518,7 +518,7 @@ For questions related to personal data — via the "Support" section inside the 
             if (window.google && window.google.accounts) { clearInterval(check); initGoogle(); }
           }, 100);
         }
-      } catch {
+      } catch (_e) {
         document.getElementById("googleLoginBox").style.display = "none";
       }
     })();
@@ -535,7 +535,7 @@ For questions related to personal data — via the "Support" section inside the 
         if (!d.ok) { alert(d.error || "Не получилось войти через Google"); return; }
         localStorage.setItem("token", d.token);
         location.href = "chat.html";
-      } catch {
+      } catch (_e) {
         alert("Ошибка входа через Google");
       }
     }

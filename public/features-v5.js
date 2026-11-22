@@ -13,9 +13,9 @@
     const opts = { method: method || "GET", headers: Object.assign({}, authHeaders()) };
     if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
     let r;
-    try { r = await fetch(path, opts); } catch { return { ok: false, error: "Нет связи с сервером" }; }
+    try { r = await fetch(path, opts); } catch (_e) { return { ok: false, error: "Нет связи с сервером" }; }
     let d = {};
-    try { d = await r.json(); } catch {}
+    try { d = await r.json(); } catch (_e) {}
     if (!r.ok && d.ok !== false) d.ok = false;
     return d;
   }
@@ -696,7 +696,7 @@
           return;
         }
       }
-      if (t.closest("#zxCopy")) { try { navigator.clipboard.writeText("@" + ed.username); toast("Юзернейм скопирован"); } catch { toast("@" + ed.username); } return; }
+      if (t.closest("#zxCopy")) { try { navigator.clipboard.writeText("@" + ed.username); toast("Юзернейм скопирован"); } catch (_e) { toast("@" + ed.username); } return; }
       if (t.closest("#zxTest")) { const u = ed.username; if (isDirty() && !confirm("Есть несохранённые изменения — бот в чате ответит по старым настройкам. Всё равно открыть?")) return; bb.ov.close(); openChat(u); return; }
       if (t.closest("#zxDelBot")) {
         if (!confirm(`Удалить бота @${ed.username}? Все его чаты тоже удалятся.`)) return;
@@ -730,7 +730,7 @@
 
   /* ----- проверка бота: тот же алгоритм, что и на сервере, но по несохранённым настройкам ----- */
   const normalize = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}\s]+/gu, " ").replace(/\s+/g, " ").trim();
-  const fillT = (t) => String(t || "").replaceAll("{name}", "Ты").replaceAll("{username}", "@you").replaceAll("{bot}", bb.ed.name || bb.ed.username);
+  const fillT = (t) => String(t || "").split("{name}").join("Ты").split("{username}").join("@you").split("{bot}").join(bb.ed.name || bb.ed.username);
 
   function simStart(keep, reset) {
     if (!bb.sim || reset) bb.sim = { msgs: [], sess: null, met: false };
@@ -812,7 +812,7 @@
      ================================================================ */
   function chipsFor(m) {
     let btns = m.botButtons;
-    if (typeof btns === "string" && btns) { try { btns = JSON.parse(btns); } catch { btns = []; } }
+    if (typeof btns === "string" && btns) { try { btns = JSON.parse(btns); } catch (_e) { btns = []; } }
     return Array.isArray(btns) ? btns : [];
   }
 
@@ -888,7 +888,7 @@
             const sub = document.getElementById("chatSub");
             if (sub) sub.textContent = "бот · отвечает автоматически";
           }
-        } catch {}
+        } catch (_e) {}
         return out;
       };
       wrapped.__zx = true;

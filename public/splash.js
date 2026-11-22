@@ -1,3 +1,19 @@
+/* Диагностика: если на каком-то телефоне сломается JavaScript, внизу экрана появится
+   текст ошибки (один раз за вход). Его можно прислать для исправления. */
+(function () {
+  var shown = false;
+  function report(msg) {
+    if (shown) return; shown = true;
+    var d = document.createElement("div");
+    d.style.cssText = "position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#7a1020;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:10px 12px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.4)";
+    d.textContent = "Ошибка в приложении. Сделайте скриншот и отправьте: " + String(msg).slice(0, 240);
+    (document.body || document.documentElement).appendChild(d);
+    setTimeout(function () { d.remove(); }, 20000);
+  }
+  window.addEventListener("error", function (e) { report((e.message || "") + (e.lineno ? " (строка " + e.lineno + ")" : "")); });
+  window.addEventListener("unhandledrejection", function (e) { report(e.reason && e.reason.message ? e.reason.message : e.reason); });
+})();
+
 /* ================================================================
    Zumo — заставка при входе.
    Подключается одной строкой в самом начале <head> (chat.html, index.html).
@@ -23,12 +39,12 @@
   try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
 
   var css = [
-    "#omSplash{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;overflow:hidden;",
+    "#omSplash{position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483000;display:grid;place-items:center;overflow:hidden;",
     "background:radial-gradient(120% 90% at 50% 45%,#122150 0%,#0b132b 55%,#060b1c 100%);",
     "font-family:Onest,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#eef3ff;",
     "transition:opacity .5s ease,transform .5s ease,filter .5s ease}",
     "#omSplash.out{opacity:0;transform:scale(1.12);filter:blur(8px);pointer-events:none}",
-    "#omSplash canvas{position:absolute;inset:0;width:100%;height:100%}",
+    "#omSplash canvas{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%}",
 
     "#omSplash .stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:26px;padding:24px}",
     "#omSplash .logowrap{position:relative;width:128px;height:128px;margin-bottom:30px;animation:omTap .45s ease 1.66s both}",
@@ -47,7 +63,7 @@
     "@keyframes omBreath{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}",
 
     /* ударные волны */
-    "#omSplash .ring{position:absolute;inset:0;border-radius:36px;border:2px solid rgba(150,195,255,.9);opacity:0;",
+    "#omSplash .ring{position:absolute;top:0;right:0;bottom:0;left:0;border-radius:36px;border:2px solid rgba(150,195,255,.9);opacity:0;",
     "animation:omRing 1s cubic-bezier(.15,.7,.3,1) forwards}",
     "#omSplash .ring.r1{animation-delay:.8s}#omSplash .ring.r2{animation-delay:.95s}",
     "#omSplash .ring.r3{animation-delay:1.66s;border-color:#fff}#omSplash .ring.r4{animation-delay:1.8s}",

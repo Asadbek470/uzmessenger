@@ -216,7 +216,7 @@ body[data-wallpaper="custom"] .messages{
 .bdaybody h2{margin:6px 0 8px}
 .bdaybody p{color:var(--muted);margin:0 0 18px}
 .bdaycake{font-size:72px;animation:emojiJoy 1.6s ease-in-out infinite}
-.confetti{position:absolute;inset:0;pointer-events:none;z-index:0}
+.confetti{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;z-index:0}
 .confetti span{
   position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;opacity:.9;
   animation-name:confettiFall;animation-timing-function:linear;animation-iteration-count:infinite;
@@ -388,7 +388,7 @@ body[data-wallpaper="mint"] .messages, #messages[data-wp="mint"]{background:line
   box-shadow:0 16px 28px -14px var(--blue), inset 0 1px 0 rgba(255,255,255,.42);
 }
 .btn.primary::before{
-  content:"";position:absolute;inset:0;pointer-events:none;
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;
   background:linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 55%);
 }
 .btn.primary i{color:#fff}
@@ -609,7 +609,7 @@ body[data-wallpaper="mint"] .messages, #messages[data-wp="mint"]{background:line
 }
 /* лёгкий узор из кружков — как «эмодзи-фон» профиля в Телеграме */
 .tghead::before{
-  content:"";position:absolute;inset:0;opacity:.5;pointer-events:none;
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;opacity:.5;pointer-events:none;
   background-image:
     radial-gradient(circle, rgba(255,255,255,.28) 2.5px, transparent 3px),
     radial-gradient(circle, rgba(255,255,255,.18) 2px, transparent 2.5px);

@@ -79,7 +79,7 @@
     try {
       const raw = localStorage.getItem(storeKey());
       return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
+    } catch (_e) { return null; }
   }
   function saveLocal() {
     localStorage.setItem(storeKey(), JSON.stringify({ kid: E2E.kid, priv: E2E.privJwk, pub: E2E.pubJwk }));
@@ -91,7 +91,7 @@
   const ringJwk = {};          // kid -> закрытый ключ (JWK)
   const ringKeys = new Map();  // kid -> CryptoKey
   function loadRing() {
-    try { Object.assign(ringJwk, JSON.parse(localStorage.getItem(ringStore()) || "{}")); } catch {}
+    try { Object.assign(ringJwk, JSON.parse(localStorage.getItem(ringStore()) || "{}")); } catch (_e) {}
   }
   async function ringPriv(kid) {
     if (ringKeys.has(kid)) return ringKeys.get(kid);
@@ -108,7 +108,7 @@
     E2E.kid = await kidOf(E2E.pubJwk);
     ringJwk[E2E.kid] = privJwk;
     ringKeys.set(E2E.kid, E2E.priv);
-    try { localStorage.setItem(ringStore(), JSON.stringify(ringJwk)); } catch {}
+    try { localStorage.setItem(ringStore(), JSON.stringify(ringJwk)); } catch (_e) {}
     saveLocal();
   }
 
@@ -160,7 +160,7 @@
       if (pending) { localStorage.setItem(autoStore(), pending); localStorage.removeItem("zumoE2EAutoPending"); }
       const a = JSON.parse(localStorage.getItem(autoStore()) || "null");
       return a && a.secret && a.salt ? a : null;
-    } catch { return null; }
+    } catch (_e) { return null; }
   }
   function saveAuto(a) { localStorage.setItem(autoStore(), JSON.stringify(a)); E2E.auto = a; }
 
@@ -172,7 +172,7 @@
     if (!d.ok) throw new Error(d.error || "backup");
     E2E.serverBackup = JSON.stringify(backup);
   }
-  const backupInfo = () => { try { return JSON.parse(E2E.serverBackup || "null"); } catch { return null; } };
+  const backupInfo = () => { try { return JSON.parse(E2E.serverBackup || "null"); } catch (_e) { return null; } };
   async function openBackup(backupStr, password) {
     const b = JSON.parse(backupStr);
     const key = await wrapKeyFromPassword(password, unb64(b.salt), b.iter || PBKDF2_ITER);
@@ -268,7 +268,7 @@
       if (cur && cur.keyId !== senderKid) E2E.peerCurrent.delete(peer);
     }
     try { obj.text = await decryptText(obj.text, peer, iAmSender); }
-    catch { obj.text = FAIL_TEXT; obj.e2eFail = true; }
+    catch (_e) { obj.text = FAIL_TEXT; obj.e2eFail = true; }
   }
 
   // Сообщения из истории или из сокета
@@ -297,7 +297,7 @@
   window.e2eEncryptFor = async function (chat, text) {
     if (!subtle || !isE2EChat(chat)) return text;
     let pk;
-    try { pk = await peerCurrentKey(chat); } catch { pk = { keyId: "" }; }
+    try { pk = await peerCurrentKey(chat); } catch (_e) { pk = { keyId: "" }; }
 
     // Общение важнее шифрования: если зашифровать нечем (нет ключа у меня или у собеседника,
     // сбой сети) — сообщение уходит обычным текстом, отправка никогда не блокируется.
@@ -305,7 +305,7 @@
     try {
       const c = await encryptFor(chat, text);
       return c == null ? text : c;
-    } catch {
+    } catch (_e) {
       return text;
     }
   };
@@ -319,7 +319,7 @@
         ? `<div class="e2ehint warn" onclick="e2eShowKeyModal()">🔑 Часть сообщений зашифрована. Нажми сюда и введи пароль, чтобы их открыть</div>`
         : `<div class="e2ehint warn" onclick="e2eShowKeyModal()">🔑 Часть сообщений зашифрована на другом твоём устройстве. Нажми, чтобы узнать, как их открыть</div>`;
     }
-    let pk; try { pk = await peerCurrentKey(chat); } catch { return ""; }
+    let pk; try { pk = await peerCurrentKey(chat); } catch (_e) { return ""; }
     if (!pk.keyId) return ""; // у собеседника ещё нет ключа — просто общаемся как раньше
     return `<div class="e2ehint">🔒 Сообщения в этом чате защищены сквозным шифрованием — их видите только вы</div>`;
   };
@@ -360,7 +360,7 @@
         const b = backupInfo();
         if (b && b.auto && E2E.auto && E2E.auto.salt === b.autoSalt) {
           // обычный случай «вошёл с нового телефона»: копия открывается сама, без вопросов
-          try { await adopt(await openBackup(E2E.serverBackup, E2E.auto.secret)); E2E.state = "ready"; } catch {}
+          try { await adopt(await openBackup(E2E.serverBackup, E2E.auto.secret)); E2E.state = "ready"; } catch (_e) {}
         }
         if (E2E.state !== "ready") {
           E2E.priv = null; E2E.kid = "";
@@ -383,7 +383,7 @@
 
       if (E2E.state === "ready") {
         if (!E2E.serverBackup && E2E.auto) {
-          try { await saveAutoBackup(); } catch {}
+          try { await saveAutoBackup(); } catch (_e) {}
         }
         if (fresh) setTimeout(() => toast("🔒 Личные чаты теперь защищены шифрованием"), 1500);
         // Никаких окон с вопросами: шифрование — это бонус, оно не должно мешать общаться.
@@ -401,7 +401,7 @@
     try {
       await refreshChats();
       if (isE2EChat(currentChat)) await loadMessages();
-    } catch {}
+    } catch (_e) {}
   }
 
   // ---------------- окна ----------------
@@ -409,7 +409,7 @@
   .e2ehint{margin:8px auto 12px;max-width:340px;padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.4;
     text-align:center;color:#cfe6ff;background:rgba(42,157,244,.14);border:1px solid rgba(42,157,244,.25)}
   .e2ehint.warn{color:#ffe2b0;background:rgba(255,170,60,.12);border-color:rgba(255,170,60,.3);cursor:pointer}
-  .e2emodal{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.6)}
+  .e2emodal{position:fixed;top:0;right:0;bottom:0;left:0;z-index:300;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.6)}
   .e2emodal.hidden{display:none}
   .e2ecard{width:min(400px,100%);padding:22px;border-radius:22px;background:#122033;border:1px solid rgba(255,255,255,.12);
     color:#eaf2ff;display:flex;flex-direction:column;gap:12px;box-shadow:0 30px 60px -20px rgba(0,0,0,.8)}
@@ -450,7 +450,7 @@
       const last = Number(localStorage.getItem("zumoE2EAskedAt:" + me.username) || 0);
       if (Date.now() - last < 7 * 24 * 3600 * 1000) return;
       localStorage.setItem("zumoE2EAskedAt:" + me.username, String(Date.now()));
-    } catch {}
+    } catch (_e) {}
     // Кто входит через Google, пароля от аккаунта Zumo не имеет — ему предлагаем придумать свой
     if (E2E.google) showBackupModal(true); else showAccountPwModal();
   }
@@ -585,7 +585,7 @@
       closeModal();
       toast("Ключ восстановлен ✅");
       await afterKeyChanged();
-    } catch {
+    } catch (_e) {
       E2E.priv = null; E2E.kid = "";
       err.textContent = "Неверный пароль";
     }
@@ -598,7 +598,7 @@
       E2E.serverBackup = "";
       await publish();
       E2E.state = "ready";
-      if (E2E.auto) { try { await saveAutoBackup(); } catch {} }
+      if (E2E.auto) { try { await saveAutoBackup(); } catch (_e) {} }
       closeModal();
       toast("Создан новый ключ шифрования");
       await afterKeyChanged();

@@ -50,7 +50,7 @@
     try {
       ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (ringAudioCtx.state === "suspended") ringAudioCtx.resume().catch(() => {});
-    } catch {}
+    } catch (_e) {}
   }
   ["pointerdown", "touchstart", "keydown"].forEach((ev) =>
     document.addEventListener(ev, unlockRingAudio, { once: true, passive: true })
@@ -93,7 +93,7 @@
     ringTimer = setInterval(ringBurst, 2000);
 
     // непрерывная сильная вибрация до ответа (Android; iOS Safari её не поддерживает)
-    const vibe = () => { try { navigator.vibrate && navigator.vibrate([700, 400, 700, 400]); } catch {} };
+    const vibe = () => { try { navigator.vibrate && navigator.vibrate([700, 400, 700, 400]); } catch (_e) {} };
     vibe();
     ringVibeTimer = setInterval(vibe, 2200);
   }
@@ -101,17 +101,17 @@
   function stopRingtone() {
     clearInterval(ringTimer); ringTimer = null;
     clearInterval(ringVibeTimer); ringVibeTimer = null;
-    try { navigator.vibrate && navigator.vibrate(0); } catch {}
+    try { navigator.vibrate && navigator.vibrate(0); } catch (_e) {}
   }
 
   // ---------------- стили ----------------
   const CSS = `
   .toast{z-index:400}
-  .omcall{position:fixed;inset:0;z-index:250;background:#0b1420;display:flex;flex-direction:column;color:#fff}
+  .omcall{position:fixed;top:0;right:0;bottom:0;left:0;z-index:250;background:#0b1420;display:flex;flex-direction:column;color:#fff}
   .omcall.hidden{display:none!important}
-  #omP2P{position:absolute;inset:0}
-  #omRemoteVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1}
-  .omph{position:absolute;inset:0;display:grid;place-items:center;z-index:0}
+  #omP2P{position:absolute;top:0;right:0;bottom:0;left:0}
+  #omRemoteVideo{position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:1}
+  .omph{position:absolute;top:0;right:0;bottom:0;left:0;display:grid;place-items:center;z-index:0}
   .omph .omphava{width:140px;height:140px;border-radius:50%;overflow:hidden}
   #omLocalVideo{position:absolute;right:14px;top:calc(env(safe-area-inset-top,0px) + 76px);width:104px;height:150px;
     object-fit:cover;border-radius:16px;border:2px solid rgba(255,255,255,.4);z-index:3;background:#000;transform:scaleX(-1)}
@@ -127,12 +127,12 @@
   .omb.off{background:#fff;color:#111}
   .omb.end{background:#ff4d4d}
   .omb:active{transform:scale(.92)}
-  .omgrid{position:absolute;inset:0;padding:calc(env(safe-area-inset-top,0px) + 70px) 8px 120px;overflow:auto;z-index:2;
+  .omgrid{position:absolute;top:0;right:0;bottom:0;left:0;padding:calc(env(safe-area-inset-top,0px) + 70px) 8px 120px;overflow:auto;z-index:2;
     display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-content:center}
   .omgrid.hidden{display:none!important}
   .omtile{position:relative;border-radius:16px;overflow:hidden;aspect-ratio:3/4;background:#17212b;display:grid;place-items:center}
   .omtile .omava{width:72px;height:72px;border-radius:50%;overflow:hidden}
-  .omtile .omvid{position:absolute;inset:0;display:none}
+  .omtile .omvid{position:absolute;top:0;right:0;bottom:0;left:0;display:none}
   .omtile.hasvideo .omvid{display:block}
   .omtile .omvid video{width:100%;height:100%;object-fit:cover}
   .omtile .omnm{position:absolute;left:8px;bottom:8px;right:8px;font-size:13px;font-weight:700;
@@ -240,10 +240,10 @@
   function requestWake() {
     try {
       if (navigator.wakeLock) navigator.wakeLock.request("screen").then((l) => { wakeLock = l; }).catch(() => {});
-    } catch {}
+    } catch (_e) {}
   }
   function releaseWake() {
-    try { if (wakeLock) wakeLock.release(); } catch {}
+    try { if (wakeLock) wakeLock.release(); } catch (_e) {}
     wakeLock = null;
   }
 
@@ -257,7 +257,7 @@
         iceCache = { at: Date.now(), cfg: { iceServers: d.iceServers }, hasTurn: !!d.hasTurn, viaLk: !!d.p2pViaLk };
         return iceCache.cfg;
       }
-    } catch {}
+    } catch (_e) {}
     return { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
   }
 
@@ -322,7 +322,7 @@
 
   // ---------------- 1:1: peer connection ----------------
   function sendIce(peer, c) {
-    try { ws.send(JSON.stringify({ type: "ice", to: peer, candidate: c })); } catch {}
+    try { ws.send(JSON.stringify({ type: "ice", to: peer, candidate: c })); } catch (_e) {}
   }
   function flushLocalIce(peer) {
     signalReady = true;
@@ -331,7 +331,7 @@
   async function flushRemoteIce() {
     if (!pc || !pc.remoteDescription) return;
     const list = pendingIce.splice(0);
-    for (const c of list) { try { await pc.addIceCandidate(c); } catch {} }
+    for (const c of list) { try { await pc.addIceCandidate(c); } catch (_e) {} }
   }
 
   function armConnectGuard() {
@@ -488,7 +488,7 @@
         }
         lk1Connected();
       })
-      .on(LK.RoomEvent.TrackUnsubscribed, (track) => { try { track.detach(); } catch {} })
+      .on(LK.RoomEvent.TrackUnsubscribed, (track) => { try { track.detach(); } catch (_e) {} })
       .on(LK.RoomEvent.TrackMuted, (pub, p) => {
         if (!p.isLocal && pub.kind === "video") $("omRemoteVideo").style.visibility = "hidden";
       })
@@ -509,17 +509,17 @@
       .on(LK.RoomEvent.Disconnected, () => { if (lk1Room === room) cleanupCall(); });
 
     await room.connect(d.url, d.token);
-    if (lk1Room !== room) { try { room.disconnect(); } catch {} return; } // звонок отменили, пока подключались
+    if (lk1Room !== room) { try { room.disconnect(); } catch (_e) {} return; } // звонок отменили, пока подключались
 
     await room.localParticipant.setMicrophoneEnabled(true);
     if (callVideo) {
       try { await room.localParticipant.setCameraEnabled(true); }
-      catch {
+      catch (_e) {
         toast("Камера недоступна — продолжаем без видео");
         setBtn("omCam", true, "fa-video", "fa-video-slash");
       }
     }
-    try { await room.startAudio(); } catch {}
+    try { await room.startAudio(); } catch (_e) {}
   }
 
   // ---------------- 1:1: исходящий ----------------
@@ -628,7 +628,7 @@
     } catch (e) {
       if (!e || e.name !== "MediaCancelled") alert((lk1Mode && e && e.message) || "Не удалось принять звонок");
       if (lk1Mode && ws && ws.readyState === 1) {
-        try { ws.send(JSON.stringify({ type: "call-reject", to: from })); } catch {}
+        try { ws.send(JSON.stringify({ type: "call-reject", to: from })); } catch (_e) {}
       }
       cleanupCall();
     }
@@ -656,7 +656,7 @@
     clearTimeout(ringGuard);
     try {
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-    } catch { return; }
+    } catch (_e) { return; }
     await flushRemoteIce();
     setStatus("Соединение...");
     armConnectGuard();
@@ -665,7 +665,7 @@
   async function onIce(data) {
     if (lk1Mode || !data.candidate) return;
     if (!pc || !pc.remoteDescription) { pendingIce.push(data.candidate); return; }
-    try { await pc.addIceCandidate(data.candidate); } catch {}
+    try { await pc.addIceCandidate(data.candidate); } catch (_e) {}
   }
 
   function onCallEnd() { cleanupCall(); }
@@ -690,9 +690,9 @@
     const r1 = lk1Room;
     lk1Room = null;
     lk1Mode = false;
-    try { if (r1) r1.disconnect(); } catch {}
+    try { if (r1) r1.disconnect(); } catch (_e) {}
 
-    try { pc && pc.close(); } catch {}
+    try { pc && pc.close(); } catch (_e) {}
     pc = null;
     if (localStream) localStream.getTracks().forEach((t) => t.stop());
     localStream = null;
@@ -744,7 +744,7 @@
     const room = (callMode === "group" && lkRoom) || lk1Room;
     if (room) {
       const enabled = room.localParticipant.isCameraEnabled;
-      try { await room.localParticipant.setCameraEnabled(!enabled); } catch { return toast("Камера недоступна"); }
+      try { await room.localParticipant.setCameraEnabled(!enabled); } catch (_e) { return toast("Камера недоступна"); }
       setBtn("omCam", enabled, "fa-video", "fa-video-slash");
       return;
     }
@@ -763,7 +763,7 @@
         if (pub && pub.videoTrack) await pub.videoTrack.restartTrack({ facingMode: facing });
         else toast("Сначала включи камеру");
         if (lk1Room) $("omLocalVideo").classList.toggle("back", facing !== "user");
-      } catch { facing = facing === "user" ? "environment" : "user"; toast("Не удалось переключить камеру"); }
+      } catch (_e) { facing = facing === "user" ? "environment" : "user"; toast("Не удалось переключить камеру"); }
       return;
     }
     if (!pc || !localStream) return;
@@ -781,7 +781,7 @@
       const lv = $("omLocalVideo");
       lv.srcObject = localStream;
       lv.classList.toggle("back", facing !== "user");
-    } catch {
+    } catch (_e) {
       facing = facing === "user" ? "environment" : "user";
       toast("Не удалось переключить камеру");
     }
@@ -924,12 +924,12 @@
       await room.localParticipant.setMicrophoneEnabled(true);
       if (video) {
         try { await room.localParticipant.setCameraEnabled(true); }
-        catch {
+        catch (_e) {
           toast("Камера недоступна — только звук");
           setBtn("omCam", true, "fa-video", "fa-video-slash");
         }
       }
-      try { await room.startAudio(); } catch {}
+      try { await room.startAudio(); } catch (_e) {}
       updateGroupCount();
 
       pingTimer = setInterval(() => {
@@ -951,7 +951,7 @@
     const room = lkRoom, chat = groupChatKey;
     lkRoom = null;
     groupChatKey = null;
-    try { if (room) room.disconnect(); } catch {}
+    try { if (room) room.disconnect(); } catch (_e) {}
     tiles.clear();
     const g = $("omGrid"); if (g) g.innerHTML = "";
     const s = $("omAudioSink"); if (s) s.innerHTML = "";
@@ -993,7 +993,7 @@
       const d = await r.json();
       if (d.ok && d.active) showBanner(currentChat, d.groupName || "Группа", d.video);
       else if (bannerChat === currentChat) hideBanner();
-    } catch {}
+    } catch (_e) {}
   }
 
   // ---------------- дополнительные сообщения WebSocket ----------------
@@ -1020,7 +1020,7 @@
       try {
         const d = JSON.parse(ev.data);
         if (d && EXTRA[d.type]) EXTRA[d.type](d);
-      } catch {}
+      } catch (_e) {}
     });
     return s;
   }
@@ -1079,7 +1079,7 @@
   const qGroup = params.get("joinGroup");
   if (qAccept) autoAcceptId = qAccept;
   if (qGroup) whenReady(() => window.openChat("group:" + qGroup));
-  if (qAccept || qGroup) { try { history.replaceState(null, "", location.pathname); } catch {} }
+  if (qAccept || qGroup) { try { history.replaceState(null, "", location.pathname); } catch (_e) {} }
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (e) => {
@@ -1097,7 +1097,7 @@
       if (callMode === "p2p" && callPeer && ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: "call-end", to: callPeer }));
       }
-    } catch {}
+    } catch (_e) {}
   });
 
   buildUi();

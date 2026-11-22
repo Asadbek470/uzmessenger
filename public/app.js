@@ -28,7 +28,7 @@
 }
 .roundmsg.once.opened .roundonce b{background:rgba(150,175,255,.18);box-shadow:none}
 .onceviewer{
-  position:fixed;inset:0;z-index:400;background:rgba(3,5,12,.94);
+  position:fixed;top:0;right:0;bottom:0;left:0;z-index:400;background:rgba(3,5,12,.94);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;cursor:pointer;
 }
 .onceviewer-circle{width:min(84vw,56vh);aspect-ratio:1;border-radius:50%;overflow:hidden;box-shadow:0 0 0 3px rgba(255,255,255,.25)}
@@ -36,7 +36,7 @@
 .onceviewer-note{color:#cfd8f5;font-size:14px;display:flex;align-items:center;gap:8px}
 .onceviewer-note b{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--z-grad);color:#fff;font-size:13px}
 .roundrec{
-  position:fixed;inset:0;z-index:260;overflow:hidden;
+  position:fixed;top:0;right:0;bottom:0;left:0;z-index:260;overflow:hidden;
   display:flex;justify-content:center;
   background:rgba(7,12,28,.82);
   backdrop-filter:blur(26px) saturate(140%);-webkit-backdrop-filter:blur(26px) saturate(140%);
@@ -53,7 +53,7 @@
 }
 .roundrec-circle video.roundsrc{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .roundrec-circle canvas{width:100%;height:100%;display:block;border-radius:50%;background:#111b3a}
-.roundrec-ring{position:absolute;inset:-10px;width:calc(100% + 20px);height:calc(100% + 20px);transform:rotate(-90deg);pointer-events:none;overflow:visible}
+.roundrec-ring{position:absolute;top:-10px;right:-10px;bottom:-10px;left:-10px;width:calc(100% + 20px);height:calc(100% + 20px);transform:rotate(-90deg);pointer-events:none;overflow:visible}
 .roundrec-ring circle{fill:none;stroke-width:1.1}
 .roundrec-ring .track{stroke:rgba(150,175,255,.18)}
 .roundrec-ring .fill{stroke:var(--z-accent-hi);stroke-linecap:round;stroke-dasharray:307.9;stroke-dashoffset:307.9;transition:stroke-dashoffset .1s linear;filter:drop-shadow(0 0 3px rgba(var(--z-accent-rgb),.9))}
@@ -99,7 +99,7 @@
 @media (max-height:560px){ .roundrec-stage{gap:10px;padding-top:12px} .roundrec-hint{display:none} .roundrec-tools{min-height:0} }
 @media (prefers-reduced-motion:reduce){ .roundrec,.roundrec.recording .roundrec-dot{animation:none} }
 /* ---- модерация, рейтинг, посты ---- */
-.zmodal{position:fixed;inset:0;z-index:320;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,9,22,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.zmodal{position:fixed;top:0;right:0;bottom:0;left:0;z-index:320;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,9,22,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .zmodal-card{width:100%;max-width:480px;max-height:88vh;overflow:auto;background:var(--z-surface);border:1px solid var(--z-line);border-radius:26px 26px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));color:var(--z-text);display:flex;flex-direction:column;gap:12px}
 @media (min-width:641px){.zmodal{align-items:center}.zmodal-card{border-radius:26px}}
 .zmodal-title{font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -139,7 +139,7 @@
 .tglinkbtn{border:none;background:none;padding:0;color:var(--z-accent-hi)!important;font:inherit;font-weight:600;cursor:pointer}
 .tglinkbtn.warn{color:#ff8a94!important}
 .mutebanner{margin:0 0 10px;padding:10px 14px;border-radius:14px;background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:#ffd28a;font-size:13px;line-height:1.4}
-.banscreen{position:fixed;inset:0;z-index:2147482000;background:var(--z-ink);color:var(--z-text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center}
+.banscreen{position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147482000;background:var(--z-ink);color:var(--z-text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center}
 .banscreen i.big{font-size:54px;color:#ff6b78}
 .banscreen h2{margin:0;font-size:24px}
 .banscreen p{margin:0;max-width:340px;color:var(--z-muted);line-height:1.45}
@@ -150,7 +150,7 @@
 #screenStories.postsmode{background:var(--z-ink)}
 #screenStories.postsmode .reels-top{background:linear-gradient(var(--z-ink) 70%,transparent)}
 #screenStories.postsmode #reelsFeed{display:none}
-.postsfeed{position:absolute;inset:0;overflow-y:auto;padding:72px 12px 110px;display:flex;flex-direction:column;gap:12px}
+.postsfeed{position:absolute;top:0;right:0;bottom:0;left:0;overflow-y:auto;padding:72px 12px 110px;display:flex;flex-direction:column;gap:12px}
 .postsfeed.hidden{display:none}
 .postsfilter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:14px;background:rgba(var(--z-accent-rgb),.12);border:1px solid rgba(var(--z-accent-rgb),.35);font-size:14px;font-weight:600}
 .postsfilter button{border:none;background:none;color:var(--z-accent-hi);font:inherit;font-weight:700;cursor:pointer}
@@ -338,11 +338,11 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 function esc(s = "") {
   return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .split("&").join("&amp;")
+    .split("<").join("&lt;")
+    .split(">").join("&gt;")
+    .split('"').join("&quot;")
+    .split("'").join("&#039;");
 }
 
 function authHeaders() {
@@ -904,7 +904,7 @@ function reRenderDynamicSections() {
   for (const fnName of fns) {
     try {
       if (typeof window[fnName] === "function") window[fnName]();
-    } catch {}
+    } catch (_e) {}
   }
   // If the legal modal is currently open, keep it in sync with the UI language too.
   try {
@@ -914,7 +914,7 @@ function reRenderDynamicSections() {
       localStorage.setItem("legalLang", legalLang);
       renderLegalBody();
     }
-  } catch {}
+  } catch (_e) {}
 }
 
 function renderLanguageSection() {
@@ -1044,7 +1044,7 @@ async function setupRealPushNotifications() {
       headers: { ...authHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ subscription: sub.toJSON ? sub.toJSON() : sub })
     });
-  } catch {
+  } catch (_e) {
     // push — не обязательная функция
   }
 }
@@ -1069,7 +1069,7 @@ async function loadMe() {
       me = d.profile;
       mergeUserInfo(me.username, myCard());
       return;
-    } catch {
+    } catch (_e) {
       showBootError("Сервер сейчас недоступен (возможно, ещё запускается). Пробую ещё раз...");
       await sleep(3000);
     }
@@ -1097,10 +1097,10 @@ function hideBootError() {
 // В браузере хранится список вошедших аккаунтов (до 5). Активный — тот, чей token лежит в "token".
 function loadAccounts() {
   try { const l = JSON.parse(localStorage.getItem("zumoAccounts") || "[]"); return Array.isArray(l) ? l : []; }
-  catch { return []; }
+  catch (_e) { return []; }
 }
 function saveAccounts(list) {
-  try { localStorage.setItem("zumoAccounts", JSON.stringify(list.slice(0, 5))); } catch {}
+  try { localStorage.setItem("zumoAccounts", JSON.stringify(list.slice(0, 5))); } catch (_e) {}
 }
 function rememberCurrentAccount() {
   if (!me || !token) return;
@@ -1227,7 +1227,7 @@ function connectWS() {
   };
 
   ws.onerror = () => {
-    try { ws.close(); } catch {}
+    try { ws.close(); } catch (_e) {}
   };
 
   ws.onmessage = async (e) => {
@@ -1425,7 +1425,7 @@ function maybeNotify(msg) {
       : msg.chatType === "support" ? "Zumo"
       : (info.displayName || "@" + msg.sender);
     new Notification(title, { body: msgPreview(msg), icon: info.avatarUrl || OM_ICON });
-  } catch {}
+  } catch (_e) {}
 }
 
 function typing(on) {
@@ -1462,7 +1462,7 @@ async function getUserInfo(username, force = false) {
     const info = d.ok ? { ...d.user, fetched: true } : { username, displayName: username, avatarUrl: "" };
     mergeUserInfo(username, info);
     return userInfoCache.get(username);
-  } catch {
+  } catch (_e) {
     return userInfoCache.get(username) || { username, displayName: username, avatarUrl: "" };
   }
 }
@@ -1547,7 +1547,7 @@ function scrollBottom() {
 }
 
 // Сообщение только из 1–3 эмодзи показывается крупно и с анимацией
-const EMOJI_ONLY_RE = /^(?:\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*\s*){1,3}$/u;
+const EMOJI_ONLY_RE = /^(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u00A9\u00AE\u203C\u2049\u2122\u2139\u3030\u303D\u3297\u3299](?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u00A9\u00AE\u203C\u2049\u2122\u2139\u3030\u303D\u3297\u3299\uFE0F\u200D\u{1F3FB}-\u{1F3FF}])*\s*){1,3}$/u; // без \p{Extended_Pictographic}: его не понимает старый Safari
 const HASHTAG_RE = /(^|\s)#([\p{L}\p{N}_]{1,40})/gu;
 
 function extractTags(text) {
@@ -1596,7 +1596,7 @@ function renderFileBody(m) {
 
 function renderGiftBody(m) {
   let emoji = "🎁";
-  try { emoji = JSON.parse(m.text || "{}").emoji || "🎁"; } catch {}
+  try { emoji = JSON.parse(m.text || "{}").emoji || "🎁"; } catch (_e) {}
   return `
     <div class="giftmsg">
       <span class="gift-badge">${esc(emoji)}</span>
@@ -1692,7 +1692,7 @@ function renderMessage(m) {
   `;
 
   box.appendChild(row);
-  if (window.zumoExt && window.zumoExt.afterRender) { try { window.zumoExt.afterRender(row, m); } catch {} }
+  if (window.zumoExt && window.zumoExt.afterRender) { try { window.zumoExt.afterRender(row, m); } catch (_e) {} }
   if (m.mediaType === "audio") setupVoicePlayer(m.id);
   attachLongPress(row.querySelector(".bubble"), m.id);
   scrollBottom();
@@ -1839,7 +1839,7 @@ function seekVoice(evt, id) {
 
 function renderListBody(m) {
   let list;
-  try { list = JSON.parse(m.text); } catch { return `<div class="mtext">[список]</div>`; }
+  try { list = JSON.parse(m.text); } catch (_e) { return `<div class="mtext">[список]</div>`; }
   const items = (list.items || []).map((it, i) => `
     <li class="listitem ${it.checked ? "checked" : ""}" onclick="toggleListItem(${m.id}, ${i})">
       <i class="fa-solid ${it.checked ? "fa-square-check" : "fa-square"}"></i>
@@ -2104,7 +2104,7 @@ function closeMsgActions() {
 function copyMsgText(id) {
   const m = messageCache.get(id);
   if (!m) return;
-  navigator.clipboard?.writeText(m.text || "").then(
+  (navigator.clipboard ? navigator.clipboard.writeText(m.text || "") : Promise.reject(new Error("no clipboard"))).then(
     () => toast(t("msgact.copied")),
     () => alert(t("msgact.copyFailed"))
   );
@@ -2150,7 +2150,7 @@ function openForwardPicker(id) {
     .filter(c => c !== "global" && c !== "support" && c !== me.username)
     .map(c => {
       const btn = document.querySelector(`.chatitem[data-chat="${c}"]`);
-      const label = c.startsWith("group:") ? (btn?.querySelector(".name")?.textContent || c) : "@" + c;
+      const label = c.startsWith("group:") ? ((btn && btn.querySelector(".name") && btn.querySelector(".name").textContent) || c) : "@" + c;
       return { chat: c, label };
     });
 
@@ -2395,7 +2395,7 @@ async function openRoundRecorder() {
   const v = document.getElementById("roundLiveVideo");
   v.srcObject = roundStream;
   v.muted = true;
-  try { await v.play(); } catch {}
+  try { await v.play(); } catch (_e) {}
 
   roundDrawing = true;
   roundDrawFrame();
@@ -2440,7 +2440,7 @@ async function flipRoundCamera() {
   let newStream;
   try {
     newStream = await openCameraStream(newFacing);
-  } catch {
+  } catch (_e) {
     toast("Не удалось переключить камеру");
     return;
   }
@@ -2455,7 +2455,7 @@ async function flipRoundCamera() {
   const v = document.getElementById("roundLiveVideo");
   v.srcObject = null;
   v.srcObject = roundStream;
-  try { await v.play(); } catch {}
+  try { await v.play(); } catch (_e) {}
   // запись не прерывается — canvas продолжает рисовать уже новую камеру
 }
 
@@ -2482,7 +2482,7 @@ function startRoundRecording() {
   const mime = pickRoundMime();
   try {
     roundRecorder = mime ? new MediaRecorder(roundMixedStream, { mimeType: mime }) : new MediaRecorder(roundMixedStream);
-  } catch {
+  } catch (_e) {
     alert("Запись видео не поддерживается этим браузером");
     return;
   }
@@ -2523,12 +2523,12 @@ function toggleRoundPause() {
   if (!roundPaused) {
     roundElapsed = roundRecordedMs();
     roundPaused = true;
-    try { roundRecorder.pause(); } catch {}
+    try { roundRecorder.pause(); } catch (_e) {}
     btn.innerHTML = '<i class="fa-solid fa-play"></i>';
   } else {
     roundPaused = false;
     roundResumeAt = Date.now();
-    try { roundRecorder.resume(); } catch {}
+    try { roundRecorder.resume(); } catch (_e) {}
     btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
   }
   modal.classList.toggle("paused", roundPaused);
@@ -2583,7 +2583,7 @@ async function onRoundStop() {
       if (d.gated) return openContactRequest(chat, "");
       alert(d.error || "Ошибка отправки видеосообщения");
     }
-  } catch {
+  } catch (_e) {
     alert("Не удалось отправить видеосообщение — проверь соединение");
   }
 }
@@ -2618,7 +2618,7 @@ function closeRoundRecorder() {
 
   roundSendOnStop = false; // закрытие окна = отмена: ничего не отправляем
   if (roundRecorder && roundRecorder.state !== "inactive") {
-    try { roundRecorder.stop(); } catch {}
+    try { roundRecorder.stop(); } catch (_e) {}
   }
   roundRecorder = null;
   roundChunks = [];
@@ -2681,7 +2681,7 @@ async function openOnceRound(id) {
     ov.onclick = close;
     ov.querySelector("video").onended = close;
     document.body.appendChild(ov);
-  } catch {
+  } catch (_e) {
     alert("Не удалось открыть видеосообщение");
   } finally {
     onceOpening = false;
@@ -2700,7 +2700,7 @@ function toggleRoundPlay(wrap) {
   if (!v) return;
   if (v.paused) {
     document.querySelectorAll(".roundvid").forEach((o) => {
-      if (o !== v) { o.pause(); o.currentTime = 0; o.closest(".roundmsg")?.classList.remove("playing"); }
+      if (o !== v) { o.pause(); o.currentTime = 0; if (o.closest(".roundmsg")) o.closest(".roundmsg").classList.remove("playing"); }
     });
     v.play().catch(() => {});
     wrap.classList.add("playing");
@@ -2805,12 +2805,12 @@ function pickEmojiCategory(i) {
 }
 function insertEmoji(e) {
   const input = document.getElementById("textInput");
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? input.value.length;
+  const start = input.selectionStart != null ? input.selectionStart : input.value.length;
+  const end = input.selectionEnd != null ? input.selectionEnd : input.value.length;
   input.value = input.value.slice(0, start) + e + input.value.slice(end);
   const pos = start + e.length;
   input.focus();
-  try { input.setSelectionRange(pos, pos); } catch {}
+  try { input.setSelectionRange(pos, pos); } catch (_e) {}
 }
 
 // ================== CHAT LIST ==================
@@ -2827,7 +2827,7 @@ async function refreshChats() {
   if (chatsData.ok) {
     for (const c of chatsData.chats) {
       if (c.previewEnc) {
-        try { c.preview = await e2eDecryptText(c.previewEnc.text, c.previewEnc.sender, c.previewEnc.receiver); } catch {}
+        try { c.preview = await e2eDecryptText(c.previewEnc.text, c.previewEnc.sender, c.previewEnc.receiver); } catch (_e) {}
       }
     }
   }
@@ -3226,7 +3226,7 @@ async function revokeGroupInvite(groupId, code) {
 async function copyInvite(code) {
   const url = inviteUrl(code);
   try { await navigator.clipboard.writeText(url); toast("Ссылка скопирована ✅"); }
-  catch { prompt("Скопируй ссылку:", url); }
+  catch (_e) { prompt("Скопируй ссылку:", url); }
 }
 
 function openInviteQr(code) {
@@ -3389,7 +3389,7 @@ async function runSearch(val) {
   try {
     const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers: authHeaders() });
     d = await r.json();
-  } catch { d = { ok: false }; }
+  } catch (_e) { d = { ok: false }; }
   if (seq !== searchSeq) return; // уже ищем что-то другое
   if (!d.ok) { results.innerHTML = `<div class="searchempty">${t("common.error")}</div>`; return; }
 
@@ -3493,14 +3493,14 @@ async function inviteToMessenger() {
   if (navigator.share) {
     try {
       await navigator.share({ title: "Zumo", text });
-    } catch {}
+    } catch (_e) {}
     return;
   }
 
   try {
     await navigator.clipboard.writeText(text);
     toast("Текст приглашения скопирован — вставь его в любой чат");
-  } catch {
+  } catch (_e) {
     prompt("Скопируй текст приглашения и отправь тому, кого хочешь позвать:", text);
   }
 }
@@ -4609,7 +4609,7 @@ async function loadChatWallpaper() {
     const r = await fetch(`/api/wallpaper?chat=${encodeURIComponent(currentChat)}`, { headers: authHeaders() });
     const d = await r.json();
     if (d.ok) applyChatWallpaper(d.value);
-  } catch {}
+  } catch (_e) {}
 }
 
 function applyChatWallpaper(v) {
@@ -4916,7 +4916,7 @@ async function finishVoice(session) {
       if (d.gated) openContactRequest(session.chat, "");
       else alert(d.error || "Ошибка голосового");
     }
-  } catch {
+  } catch (_e) {
     alert("Не удалось отправить голосовое — проверь соединение");
   }
 }
@@ -5371,7 +5371,7 @@ async function submitStoryComment(id) {
     const d = await r.json();
     if (!d.ok) return alert(d.error || t("common.error"));
     await loadStoryComments(id);
-  } catch {}
+  } catch (_e) {}
   resumeStory();
 }
 
@@ -5383,7 +5383,7 @@ async function repostStory(id) {
     if (!d.ok) return alert(d.error || t("common.error"));
     toast("🔁 История репостнута в твои сторис");
     await loadStories();
-  } catch {
+  } catch (_e) {
     alert(t("common.error"));
   }
 }
@@ -5405,7 +5405,7 @@ async function reactToStory(id, emoji) {
       if (!d.ok) return alert(d.error || t("common.error"));
       currentStory.myReaction = emoji;
     }
-  } catch {
+  } catch (_e) {
     return;
   }
   renderStoryFooter(currentStory);
@@ -5485,7 +5485,7 @@ async function deleteStoryComment(storyId, commentId, fromStats) {
     const r = await fetch(`/api/stories/${storyId}/comments/${commentId}`, { method: "DELETE", headers: authHeaders() });
     const d = await r.json();
     if (!d.ok) return alert(d.error || t("common.error"));
-  } catch { return alert(t("common.error")); }
+  } catch (_e) { return alert(t("common.error")); }
   toast("Комментарий удалён");
   if (fromStats) openStoryViewersModal(storyId);
   else loadReelComments();
@@ -5523,7 +5523,7 @@ async function sendReport() {
     });
     const d = await r.json();
     if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
-  } catch { btn.disabled = false; return alert(t("common.error")); }
+  } catch (_e) { btn.disabled = false; return alert(t("common.error")); }
   closeZModal("reportModal");
   toast("Жалоба отправлена администрации ✅");
 }
@@ -5583,7 +5583,7 @@ async function sendMsgReport() {
     });
     const d = await r.json();
     if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
-  } catch { btn.disabled = false; return alert(t("common.error")); }
+  } catch (_e) { btn.disabled = false; return alert(t("common.error")); }
 
   closeZModal("msgReportModal");
   reportMsgIds = [];
@@ -5612,7 +5612,7 @@ async function rateUser(username, value) {
     if (box) box.outerHTML = ratingHtml(username, d.rating, true);
     const cached = userInfoCache.get(username);
     if (cached) cached.rating = d.rating;
-  } catch { alert(t("common.error")); }
+  } catch (_e) { alert(t("common.error")); }
 }
 
 // ================== ПОСТЫ (картинка и текст под ней) ==================
@@ -5733,7 +5733,7 @@ async function loadPosts() {
     if (!d.ok) { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; return; }
     postsData = d.posts;
     renderPosts();
-  } catch { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; }
+  } catch (_e) { feed.innerHTML = `<div class="postsempty">${t("common.error")}</div>`; }
 }
 // ---- реакции ----
 async function reactPost(id, emoji) {
@@ -5788,7 +5788,7 @@ async function loadPostComments() {
   const list = document.getElementById("postCommentsList");
   if (!id || !list) return;
   let d;
-  try { d = await (await fetch(`/api/posts/${id}/comments`, { headers: authHeaders() })).json(); } catch { d = { ok: false }; }
+  try { d = await (await fetch(`/api/posts/${id}/comments`, { headers: authHeaders() })).json(); } catch (_e) { d = { ok: false }; }
   if (postCommentsId !== id || !document.getElementById("postCommentsList")) return;
   if (!d.ok) { list.innerHTML = `<div class="zhint">${esc(d.error || t("common.error"))}</div>`; return; }
   const p = postsData.find((x) => x.id === id);
@@ -5826,14 +5826,14 @@ async function submitPostComment() {
     })).json();
     if (!d.ok) { input.value = text; return alert(d.error || t("common.error")); }
     loadPostComments();
-  } catch { input.value = text; }
+  } catch (_e) { input.value = text; }
 }
 async function deletePostComment(postId, commentId) {
   if (!confirm("Удалить этот комментарий?")) return;
   try {
     const d = await (await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: "DELETE", headers: authHeaders() })).json();
     if (!d.ok) return alert(d.error || t("common.error"));
-  } catch { return alert(t("common.error")); }
+  } catch (_e) { return alert(t("common.error")); }
   toast("Комментарий удалён");
   loadPostComments();
 }
@@ -5846,7 +5846,7 @@ async function repostPost(id) {
     if (!d.ok) return alert(d.error || t("common.error"));
     toast("Репост сделан ✅");
     loadPosts();
-  } catch { alert(t("common.error")); }
+  } catch (_e) { alert(t("common.error")); }
 }
 
 // ---- отправить пост в чат ----
@@ -5881,7 +5881,7 @@ async function sharePost(id, chat) {
       body: JSON.stringify(body)
     })).json();
     if (!d.ok) return alert(d.error || t("common.error"));
-  } catch { return alert(t("common.error")); }
+  } catch (_e) { return alert(t("common.error")); }
   closeZModal("postShareModal");
   toast("Пост отправлен ✅");
 }
@@ -5891,7 +5891,7 @@ async function deletePost(id) {
   try {
     const d = await (await fetch(`/api/posts/${id}`, { method: "DELETE", headers: authHeaders() })).json();
     if (!d.ok) return alert(d.error || t("common.error"));
-  } catch { return alert(t("common.error")); }
+  } catch (_e) { return alert(t("common.error")); }
   postsData = postsData.filter((x) => x.id !== id);
   renderPosts();
   toast("Пост удалён");
@@ -5935,7 +5935,7 @@ async function submitPost() {
     const r = await fetch("/api/posts", { method: "POST", headers: authHeaders(), body: fd });
     const d = await r.json();
     if (!d.ok) { btn.disabled = false; return alert(d.error || t("common.error")); }
-  } catch { btn.disabled = false; return alert(t("common.error")); }
+  } catch (_e) { btn.disabled = false; return alert(t("common.error")); }
   closeZModal("postModal");
   toast("Пост опубликован ✅");
   postsFilterUser = "";
@@ -6030,7 +6030,7 @@ async function loadReels() {
   try {
     const r = await fetch("/api/stories/feed", { headers: authHeaders() });
     d = await r.json();
-  } catch { d = { ok: false }; }
+  } catch (_e) { d = { ok: false }; }
   if (!d.ok) { feed.innerHTML = `<div class="reels-empty">${t("common.error")}</div>`; return; }
 
   reelsData = d.stories;
@@ -6111,7 +6111,7 @@ async function promoteStory(id) {
     const s = reelById(id);
     if (s) { s.promoted = true; refreshReelRail(id); }
     if (currentStory && currentStory.id === id) { currentStory.promoted = true; }
-  } catch { alert(t("common.error")); }
+  } catch (_e) { alert(t("common.error")); }
 }
 
 function pauseAllReels() {
@@ -6163,7 +6163,7 @@ async function rateReel(id, value) {
     s.likeCount = d.likeCount;
     s.dislikeCount = d.dislikeCount;
     refreshReelRail(id);
-  } catch {}
+  } catch (_e) {}
 }
 
 async function repostReel(id) {
@@ -6175,7 +6175,7 @@ async function repostReel(id) {
     toast("🔁 История репостнута в твои сторис");
     bumpReelCount(id, "repostCount", 1);
     loadStories();
-  } catch { alert(t("common.error")); }
+  } catch (_e) { alert(t("common.error")); }
 }
 
 function openReelComments(id) {
@@ -6231,7 +6231,7 @@ async function loadReelComments() {
       </div>`;
     }).join("");
     list.scrollTop = list.scrollHeight;
-  } catch {}
+  } catch (_e) {}
 }
 
 async function submitReelComment() {
@@ -6249,7 +6249,7 @@ async function submitReelComment() {
     const d = await r.json();
     if (!d.ok) { input.value = text; return alert(d.error || t("common.error")); }
     await loadReelComments();
-  } catch { input.value = text; }
+  } catch (_e) { input.value = text; }
 }
 
 // ---------------- АНАЛИТИКА МОИХ ИСТОРИЙ (вкладка «Профиль») ----------------
@@ -6278,7 +6278,7 @@ async function renderMyStoriesStats() {
         ${d.top ? `<br>Самая популярная${d.top.text ? ` — «${esc(d.top.text.slice(0, 40))}»` : ""}, просмотров: <b>${fmtCount(d.top.viewCount)}</b>` : ""}
       </div>
     `;
-  } catch {
+  } catch (_e) {
     box.innerHTML = `<div class="hint">${t("common.error")}</div>`;
   }
 }
@@ -6413,7 +6413,7 @@ async function startAudioCall() {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ type: "call-offer", to: callPeer, offer }));
-  } catch {
+  } catch (_e) {
     alert("Не удалось начать звонок");
     cleanupCall();
   }
@@ -6447,7 +6447,7 @@ async function acceptIncomingCall() {
 
     incomingFrom = null;
     incomingOffer = null;
-  } catch {
+  } catch (_e) {
     alert("Не удалось принять звонок");
     cleanupCall();
   }
@@ -6470,7 +6470,7 @@ async function onCallAnswer(data) {
 
 async function onIce(data) {
   if (!pc || !data.candidate) return;
-  try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch {}
+  try { await pc.addIceCandidate(new RTCIceCandidate(data.candidate)); } catch (_e) {}
 }
 
 function onCallEnd() {
@@ -6527,7 +6527,7 @@ async function toggleSpeaker() {
   btn.classList.toggle("callbtn-active", isSpeakerOn);
   btn.innerHTML = `<i class="fa-solid ${isSpeakerOn ? "fa-volume-high" : "fa-volume-low"}"></i>`;
   if (typeof audioEl.setSinkId === "function") {
-    try { await audioEl.setSinkId(isSpeakerOn ? "default" : ""); } catch {}
+    try { await audioEl.setSinkId(isSpeakerOn ? "default" : ""); } catch (_e) {}
   }
 }
 
@@ -6543,7 +6543,7 @@ function cleanupCall() {
   closeIncoming();
   stopCallTimer();
 
-  try { pc && pc.close(); } catch {}
+  try { pc && pc.close(); } catch (_e) {}
   pc = null;
 
   if (localStream) localStream.getTracks().forEach(t => t.stop());
@@ -6633,7 +6633,7 @@ function parseLoc(m) {
   try {
     const o = JSON.parse(m.text);
     if (Number.isFinite(o.lat) && Number.isFinite(o.lng)) return o;
-  } catch {}
+  } catch (_e) {}
   return null;
 }
 
@@ -6687,7 +6687,7 @@ async function refreshContactInbox() {
   try {
     const r = await fetch("/api/me/contact-requests", { headers: authHeaders() });
     d = await r.json();
-  } catch { return; }
+  } catch (_e) { return; }
   if (!d || !d.ok || d.requests.length === 0) {
     box.classList.add("hidden");
     box.innerHTML = "";

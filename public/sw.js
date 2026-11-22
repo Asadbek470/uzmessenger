@@ -9,7 +9,7 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
 async function hasVisibleWindow() {
-  const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const wins = self.clients.matchAll ? await self.clients.matchAll({ type: "window", includeUncontrolled: true }) : [];
   return wins.some((w) => w.visibilityState === "visible");
 }
 
@@ -22,7 +22,7 @@ self.addEventListener("push", (event) => {
   let d = { title: "Zumo", body: "У тебя новое уведомление", url: "/chat.html" };
   try {
     if (event.data) d = { ...d, ...event.data.json() };
-  } catch {}
+  } catch (_e) {}
 
   event.waitUntil((async () => {
     // Звонок отменён или пропущен — убираем «звонящее» уведомление
@@ -82,7 +82,7 @@ self.addEventListener("push", (event) => {
 });
 
 async function openOrFocus(url, message) {
-  const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  const wins = self.clients.matchAll ? await self.clients.matchAll({ type: "window", includeUncontrolled: true }) : [];
   for (const client of wins) {
     if (client.url.includes("chat.html") && "focus" in client) {
       await client.focus();

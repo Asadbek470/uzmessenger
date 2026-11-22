@@ -88,7 +88,7 @@ async function checkAdminSession() {
   try {
     const r = await fetch("/api/admin/users?q=", { headers: adminHeaders() });
     return r.ok;
-  } catch {
+  } catch (_e) {
     return false;
   }
 }
@@ -305,7 +305,7 @@ function showThread(title, messages) {
     else if (m.mediaType === "video") body = `<video src="${esc(m.mediaUrl)}" controls class="thread-media"></video>`;
     else if (m.mediaType === "audio") body = `<audio src="${esc(m.mediaUrl)}" controls></audio>`;
     else if (m.mediaType === "list") {
-      let list; try { list = JSON.parse(m.text); } catch { list = { title: "", items: [] }; }
+      let list; try { list = JSON.parse(m.text); } catch (_e) { list = { title: "", items: [] }; }
       body = `<b>${esc(list.title)}</b><br>` + (list.items || []).map(it => `${it.checked ? "☑" : "☐"} ${esc(it.text)}`).join("<br>");
     } else {
       // сквозное шифрование: текст зашифрован на устройствах собеседников, сервер и админка его не видят
