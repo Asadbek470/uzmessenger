@@ -83,7 +83,7 @@
     "@keyframes omSpinR{to{transform:rotate(-360deg)}}",
 
     /* плашка вылетает из вспышки с доворотом */
-    "#omSplash .badge{position:relative;width:128px;height:128px;opacity:0;",
+    "#omSplash .badge{position:relative;width:128px;height:128px;opacity:0;border-radius:23%;overflow:hidden;background:linear-gradient(135deg,#4e96ff,#2c74f0);",
     "filter:drop-shadow(0 0 34px rgba(58,134,255,.85)) drop-shadow(0 18px 40px rgba(20,60,160,.6));",
     "animation:omPop .7s cubic-bezier(.18,1.5,.32,1) .78s forwards}",
     "@keyframes omPop{0%{transform:scale(0) rotate(-200deg);opacity:0}45%{opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}",
@@ -141,7 +141,8 @@
               '<linearGradient id="omg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4e96ff"/><stop offset="1" stop-color="#2c74f0"/></linearGradient>' +
               '<filter id="omblur" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>' +
             '</defs>' +
-            '<rect width="200" height="200" rx="46" fill="url(#omg)"/>' +
+            '<rect width="200" height="200" fill="none"/>' +  // фон и скругление — у контейнера (CSS), чтобы на всех телефонах был круг-квадрат, а не квадрат
+
             '<path class="zglow" pathLength="1" fill="none" stroke="#fff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" filter="url(#omblur)" d="' + Z + '"/>' +
             '<path class="zline" pathLength="1" fill="none" stroke="#fff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" d="' + Z + '"/>' +
           '</svg>' +
