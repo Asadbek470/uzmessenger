@@ -178,7 +178,7 @@ async function openUser(username) {
   document.getElementById("userName").innerText = user.displayName || user.username;
   document.getElementById("userUsername").innerText = "@" + user.username;
   document.getElementById("userBio").innerText = user.bio || "";
-  document.getElementById("userAvatar").src = user.avatarUrl || "/icon-192.png?v=4";
+  document.getElementById("userAvatar").src = user.avatarUrl || "/icon-192.png?v=5";
   const r = user.rating || { up: 0, down: 0 };
   document.getElementById("userFlags").innerText =
     `${user.verified ? "подтверждён ✅" : "не подтверждён"} · рейтинг: 👍 ${r.up} / 👎 ${r.down}` + (user.openReports ? ` · жалоб: ${user.openReports}` : "");

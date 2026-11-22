@@ -714,7 +714,7 @@ body[data-wallpaper="forest"] .messages{ background: linear-gradient(160deg, rgb
   text-align:center;
   box-shadow:var(--shadow);
 }
-.passcode-box .logo{margin:0 auto 14px}
+.passcode-box .logo,.passcode-box img.logo{margin:0 auto 14px}
 .passcode-box h2{margin:0 0 16px;font-size:18px}
 .passcode-box input{
   width:100%;text-align:center;font-size:22px;letter-spacing:6px;
@@ -2320,3 +2320,11 @@ body #messages .mrow.mine .bubble a{color:inherit;text-decoration:underline}
 body input[type="checkbox"], body input[type="radio"], body input[type="range"]{accent-color:var(--z-accent)}
 
 :focus-visible{outline:2px solid var(--z-cyan);outline-offset:2px}
+
+/* Логотип Zumo везде один и тот же — скруглённый значок, как на заставке.
+   Раньше на экране входа стояла текстовая «Z» и квадратный значок. */
+img.logo{
+  width:52px; height:52px; border-radius:23%; display:block;
+  object-fit:cover; background:none; box-shadow:0 6px 18px rgba(44,116,240,.35);
+}
+.aboutapp-logo{border-radius:23%}

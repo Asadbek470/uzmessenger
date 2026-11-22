@@ -20,6 +20,9 @@ try {
 }
 
 const app = express();
+// За прокси (Render и т.п.) req.ip — это адрес прокси, общий для всех.
+// Без этого все пользователи делят один лимит запросов и получают 429.
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -261,8 +264,8 @@ app.get("/manifest.json", (req, res) => {
     background_color: "#0b132b",
     theme_color: "#0b132b",
     icons: [
-      { src: "/icon-192.png?v=4", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icon-512.png?v=4", sizes: "512x512", type: "image/png", purpose: "any" }
+      { src: "/icon-192.png?v=5", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png?v=5", sizes: "512x512", type: "image/png", purpose: "any" }
     ]
   });
 });
@@ -1026,7 +1029,7 @@ setInterval(() => {
 const SUPPORT_CARD = {
   username: "support",
   displayName: "Поддержка Zumo",
-  avatarUrl: "/icon-192.png?v=4",
+  avatarUrl: "/icon-192.png?v=5",
   verified: true,
   emojiStatus: "",
   birthdayToday: false
@@ -1244,7 +1247,9 @@ setInterval(cleanupStories, 60 * 1000);
 const rateBuckets = new Map();
 function rateLimit(max, windowMs) {
   return (req, res, next) => {
-    const key = req.ip + ":" + req.path;
+    // Считаем по пользователю, если он вошёл, иначе по IP — чтобы один человек не ломал всем остальным
+    const who = req.user && req.user.username ? "u:" + req.user.username : "ip:" + req.ip;
+    const key = who + ":" + req.path;
     const bucket = rateBuckets.get(key) || { count: 0, resetAt: now() + windowMs };
     if (now() > bucket.resetAt) {
       bucket.count = 0;

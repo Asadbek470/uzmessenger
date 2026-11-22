@@ -333,7 +333,7 @@ let lastSentText = "";               // чтобы подставить текс
 let activeTagFilter = null;          // фильтр по #тегу в Избранном
 let pendingTagFilter = null;
 
-const OM_ICON = "/icon-192.png?v=4";
+const OM_ICON = "/icon-192.png?v=5";
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 function esc(s = "") {
@@ -530,7 +530,7 @@ const LANG = {
   ru: {
     "nav.chats": "Чаты", "nav.stories": "Сторис", "nav.profile": "Профиль", "nav.settings": "Настройки",
     "chats.searchPlaceholder": "Поиск: люди, группы, каналы, истории",
-    "chats.group": "Создать группу", "chats.channel": "Создать канал", "chats.discover": "Популярное", "chats.invite": "Пригласить",
+    "chats.group": "Создать группу", "fab.bot": "Создать бота", "fab.group": "Создать группу", "fab.channel": "Создать канал", "fab.nearby": "Люди рядом", "settings.catFeatures": "Функционал", "chats.channel": "Создать канал", "chats.discover": "Популярное", "chats.invite": "Пригласить",
     "chats.globalChat": "Общий чат", "chats.globalChatSub": "общение со всеми",
     "chats.support": "Поддержка", "chats.supportSub": "Zumo Support",
     "profile.title": "Профиль", "profile.editProfile": "Редактировать профиль", "profile.myStories": "Мои истории",
@@ -640,7 +640,7 @@ const LANG = {
   en: {
     "nav.chats": "Chats", "nav.stories": "Stories", "nav.profile": "Profile", "nav.settings": "Settings",
     "chats.searchPlaceholder": "Search people, groups, channels, stories",
-    "chats.group": "Create group", "chats.channel": "Create channel", "chats.discover": "Discover", "chats.invite": "Invite",
+    "chats.group": "Create group", "fab.bot": "Create bot", "fab.group": "Create group", "fab.channel": "Create channel", "fab.nearby": "Nearby people", "settings.catFeatures": "Features", "chats.channel": "Create channel", "chats.discover": "Discover", "chats.invite": "Invite",
     "chats.globalChat": "Global chat", "chats.globalChatSub": "chat with everyone",
     "chats.support": "Support", "chats.supportSub": "Zumo Support",
     "profile.title": "Profile", "profile.editProfile": "Edit profile", "profile.myStories": "My stories",
@@ -750,7 +750,7 @@ const LANG = {
   uz: {
     "nav.chats": "Suhbatlar", "nav.stories": "Hikoyalar", "nav.profile": "Profil", "nav.settings": "Sozlamalar",
     "chats.searchPlaceholder": "Qidiruv: odamlar, guruhlar, kanallar, hikoyalar",
-    "chats.group": "Guruh yaratish", "chats.channel": "Kanal yaratish", "chats.discover": "Ommabop", "chats.invite": "Taklif qilish",
+    "chats.group": "Guruh yaratish", "fab.bot": "Bot yaratish", "fab.group": "Guruh yaratish", "fab.channel": "Kanal yaratish", "fab.nearby": "Yaqin odamlar", "settings.catFeatures": "Funksiyalar", "chats.channel": "Kanal yaratish", "chats.discover": "Ommabop", "chats.invite": "Taklif qilish",
     "chats.globalChat": "Umumiy chat", "chats.globalChatSub": "hamma bilan muloqot",
     "chats.support": "Yordam", "chats.supportSub": "Zumo Support",
     "profile.title": "Profil", "profile.editProfile": "Profilni tahrirlash", "profile.myStories": "Mening hikoyalarim",

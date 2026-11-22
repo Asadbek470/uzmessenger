@@ -71,6 +71,18 @@
      ================================================================ */
   const qc = { timer: null, selected: new Set(), users: [], on: false, err: "", ov: null, last: null, acc: null, others: 0, located: false, busy: false };
 
+  // Язык интерфейса берём из app.js (currentLang): ru / en / uz
+  function LX(ru, en, uz) {
+    const l = typeof currentLang !== "undefined" ? currentLang : "ru";
+    return l === "en" ? en : l === "uz" ? uz : ru;
+  }
+  function distText(d) {
+    const k = d && d.key;
+    if (k === "very-close") return LX("очень близко", "very close", "juda yaqin");
+    if (k === "close") return LX("рядом", "nearby", "yaqin");
+    return LX("поблизости", "around", "atrofda");
+  }
+
   function geo(opts) {
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
@@ -95,10 +107,13 @@
     if (sendOff) zxApi("/api/quick/off", "POST", {});
   }
 
-  const PERM_HELP = `Доступ к геолокации запрещён.<br>
-    <b>Телефон:</b> Настройки → Приложения/Браузер → Разрешения → Геолокация → Разрешить.<br>
-    <b>Компьютер:</b> нажми на значок 🔒 слева от адреса сайта → Геолокация → Разрешить.<br>
-    Потом нажми «Включить» ещё раз.`;
+  function permHelp() {
+    return LX(
+      `Доступ к геолокации запрещён.<br><b>Телефон:</b> Настройки → Приложения/Браузер → Разрешения → Геолокация → Разрешить.<br><b>Компьютер:</b> нажми на значок 🔒 слева от адреса сайта → Геолокация → Разрешить.<br>Потом нажми «Включить» ещё раз.`,
+      `Location access is blocked.<br><b>Phone:</b> Settings → Apps/Browser → Permissions → Location → Allow.<br><b>Computer:</b> click the 🔒 icon left of the address → Location → Allow.<br>Then press “Turn on” again.`,
+      `Geolokatsiyaga ruxsat berilmagan.<br><b>Telefon:</b> Sozlamalar → Ilovalar/Brauzer → Ruxsatlar → Geolokatsiya → Ruxsat berish.<br><b>Kompyuter:</b> manzil yonidagi 🔒 belgisini bosing → Geolokatsiya → Ruxsat berish.<br>So'ng «Yoqish» tugmasini yana bosing.`
+    );
+  }
 
   function qcRender() {
     const body = $("#zxQcBody"), foot = $("#zxQcFoot");
@@ -108,16 +123,16 @@
       body.innerHTML = `
         <div class="zx-hero">
           <div class="zx-radar"><span></span><span></span><span></span><i class="fa-solid fa-location-dot"></i></div>
-          <div class="zx-hero-title">Найди людей рядом</div>
-          <div class="zx-hero-text">Увидишь тех, кто тоже открыл этот экран. Они увидят тебя. Можно сразу познакомиться и начать переписку.</div>
+          <div class="zx-hero-title">${LX("Найди людей рядом", "Find people nearby", "Yaqin atrofdagi odamlarni toping")}</div>
+          <div class="zx-hero-text">${LX("Увидишь тех, кто тоже открыл этот экран. Они увидят тебя. Можно сразу познакомиться и начать переписку.", "You'll see people who also opened this screen, and they'll see you. You can say hi and start chatting right away.", "Ushbu ekranni ochgan odamlarni ko'rasiz, ular ham sizni ko'radi. Darhol tanishib, yozishishingiz mumkin.")}</div>
         </div>
         <div class="zx-points">
-          <div><i class="fa-solid fa-user"></i><span>Другие видят только твоё <b>имя и фото</b></span></div>
-          <div><i class="fa-solid fa-lock"></i><span><b>Координаты</b> никому не показываются и не сохраняются</span></div>
-          <div><i class="fa-solid fa-eye-slash"></i><span>Ты виден, <b>пока открыт этот экран</b>. Закрыл — исчез</span></div>
+          <div><i class="fa-solid fa-user"></i><span>${LX("Другие видят только твоё <b>имя и фото</b>", "Others see only your <b>name and photo</b>", "Boshqalar faqat <b>ismingiz va rasmingizni</b> ko'radi")}</span></div>
+          <div><i class="fa-solid fa-lock"></i><span>${LX("<b>Координаты</b> никому не показываются и не сохраняются", "<b>Coordinates</b> are never shown or saved", "<b>Koordinatalar</b> hech kimga ko'rsatilmaydi va saqlanmaydi")}</span></div>
+          <div><i class="fa-solid fa-eye-slash"></i><span>${LX("Ты виден, <b>пока открыт этот экран</b>. Закрыл — исчез", "You're visible <b>while this screen is open</b>. Close it and you're gone", "Siz <b>shu ekran ochiq bo'lganda</b> ko'rinasiz. Yopsangiz — yo'qolasiz")}</span></div>
         </div>
         ${qc.err ? `<div class="zx-err">${qc.err}</div>` : ""}`;
-      foot.innerHTML = `<button class="btn primary zx-wide" id="zxQcOn"><i class="fa-solid fa-location-crosshairs"></i> Включить</button>`;
+      foot.innerHTML = `<button class="btn primary zx-wide" id="zxQcOn"><i class="fa-solid fa-location-crosshairs"></i> ${LX("Включить", "Turn on", "Yoqish")}</button>`;
       $("#zxQcOn").onclick = qcStart;
       return;
     }
@@ -125,28 +140,28 @@
     const list = qc.users.map((u) => {
       const sel = qc.selected.has(u.username);
       const can = !u.isContact && !u.invited;
-      const right = u.isContact ? `<button class="zx-pill" data-open="${E(u.username)}">Открыть</button>`
-        : u.invited ? `<span class="zx-tag">ждём ответ</span>`
+      const right = u.isContact ? `<button class="zx-pill" data-open="${E(u.username)}">${LX("Открыть", "Open", "Ochish")}</button>`
+        : u.invited ? `<span class="zx-tag">${LX("ждём ответ", "waiting", "javob kutilmoqda")}</span>`
         : `<span class="zx-check ${sel ? "on" : ""}"><i class="fa-solid fa-check"></i></span>`;
       return `<div class="zx-person ${sel ? "sel" : ""}" ${can ? `data-pick="${E(u.username)}"` : ""}>
         ${avaBox(u)}
-        <div class="zx-meta"><div class="zx-name">${nameHtml(u)}</div><div class="zx-sub">${E(u.distance ? u.distance.text : "рядом")} · @${E(u.username)}</div></div>
+        <div class="zx-meta"><div class="zx-name">${nameHtml(u)}</div><div class="zx-sub">${E(distText(u.distance))} · @${E(u.username)}</div></div>
         ${right}
       </div>`;
     }).join("");
 
     let status;
-    if (!qc.located) status = `<div class="zx-spin"></div><span>Определяю твоё место…</span>`;
-    else status = `<i class="fa-solid fa-circle zx-live"></i><span>Ты в списке · точность ±${qc.acc != null ? qc.acc : "?"} м</span>`;
+    if (!qc.located) status = `<div class="zx-spin"></div><span>${LX("Определяю твоё место…", "Finding your location…", "Joylashuvingiz aniqlanmoqda…")}</span>`;
+    else status = `<i class="fa-solid fa-circle zx-live"></i><span>${LX("Ты в списке", "You're listed", "Siz ro'yxatdasiz")} · ${LX("точность", "accuracy", "aniqlik")} ±${qc.acc != null ? qc.acc : "?"} ${LX("м", "m", "m")}</span>`;
 
     let empty = "";
     if (qc.located && !qc.users.length) {
       empty = `<div class="zx-empty">
         <div class="zx-empty-ico"><i class="fa-solid fa-people-group"></i></div>
-        <div class="zx-empty-title">Пока никого рядом</div>
+        <div class="zx-empty-title">${LX("Пока никого рядом", "Nobody nearby yet", "Hozircha yaqin atrofda hech kim yo'q")}</div>
         <div class="zx-empty-text">${qc.others > 0
-          ? `Сейчас в режиме есть ещё ${qc.others} чел., но они далеко от тебя.`
-          : "Кроме тебя в режиме сейчас никого нет. Пусть человек рядом откроет «Люди рядом» и нажмёт «Включить»."}</div>
+          ? LX(`Сейчас в режиме есть ещё ${qc.others} чел., но они далеко от тебя.`, `There are ${qc.others} more people online, but they're far from you.`, `Yana ${qc.others} kishi onlayn, lekin ular sizdan uzoqda.`)
+          : LX("Кроме тебя в режиме сейчас никого нет. Пусть человек рядом откроет «Люди рядом» и нажмёт «Включить».", "No one else is online right now. Ask someone nearby to open “Nearby people” and press “Turn on”.", "Hozir siz boshqa hech kim yo'q. Yaqin atrofdagi odamdan «Yaqin odamlar»ni ochib, «Yoqish»ni bosishini so'rang.")}</div>
       </div>`;
     }
 
@@ -154,12 +169,12 @@
       <div class="zx-radarwrap"><div class="zx-radar sm"><span></span><span></span><span></span><i class="fa-solid fa-location-dot"></i></div></div>
       <div class="zx-statusbar">${status}</div>
       ${qc.err ? `<div class="zx-err">${qc.err}</div>` : ""}
-      ${qc.users.length ? `<div class="zx-section">Рядом с тобой · ${qc.users.length}</div><div class="zx-list">${list}</div><div class="zx-hint">Отметь тех, с кем хочешь переписываться — им придёт приглашение.</div>` : empty}`;
+      ${qc.users.length ? `<div class="zx-section">${LX("Рядом с тобой", "Near you", "Siz yonida")} · ${qc.users.length}</div><div class="zx-list">${list}</div><div class="zx-hint">${LX("Отметь тех, с кем хочешь переписываться — им придёт приглашение.", "Pick the people you want to chat with — they'll get an invite.", "Yozishmoqchi bo'lgan odamlarni belgilang — ularga taklif yuboriladi.")}</div>` : empty}`;
 
     const n = qc.selected.size;
     foot.innerHTML = `
-      <button class="btn ghost" id="zxQcOff">Выключить</button>
-      <button class="btn primary" id="zxQcSend" ${n ? "" : "disabled"}>Пригласить${n ? ` (${n})` : ""}</button>`;
+      <button class="btn ghost" id="zxQcOff">${LX("Выключить", "Turn off", "O'chirish")}</button>
+      <button class="btn primary" id="zxQcSend" ${n ? "" : "disabled"}>${LX("Пригласить", "Invite", "Taklif qilish")}${n ? ` (${n})` : ""}</button>`;
     $("#zxQcOff").onclick = () => { qcStop(true); qcRender(); };
     $("#zxQcSend").onclick = qcInvite;
 
@@ -184,13 +199,13 @@
         pos = await getPos();
         qc.last = { pos, at: Date.now() };
       } catch (e) {
-        if (e && e.code === 1) { qc.err = PERM_HELP; qcStop(true); qcRender(); return; }
+        if (e && e.code === 1) { qc.err = permHelp(); qcStop(true); qcRender(); return; }
         // не получилось сейчас — используем недавнее место, чтобы не пропасть из списка
         if (qc.last && Date.now() - qc.last.at < 120000) pos = qc.last.pos;
         else {
           qc.err = (e && e.code === 3)
-            ? "Не удалось поймать сигнал вовремя. Включи GPS («Точное местоположение»), подойди к окну и подожди — пробую снова."
-            : "Не получается определить место. Проверь, что на телефоне включена геолокация. Пробую снова…";
+            ? LX("Не удалось поймать сигнал вовремя. Включи GPS («Точное местоположение»), подойди к окну и подожди — пробую снова.", "Couldn't get a signal in time. Turn on GPS (precise location), go near a window and wait — trying again.", "Signal o'z vaqtida ushlanmadi. GPS ni («Aniq joylashuv») yoqing, derazaga yaqinroq turing va kuting — qayta urinilmoqda.")
+            : LX("Не получается определить место. Проверь, что на телефоне включена геолокация. Пробую снова…", "Can't determine your location. Check that location is on in your phone's settings. Trying again…", "Joylashuvni aniqlab bo'lmadi. Telefonda geolokatsiya yoqilganini tekshiring. Qayta urinilmoqda…");
         }
       }
       if (!qc.on) return;
@@ -206,7 +221,9 @@
         qc.users = r.users || [];
         for (const u of [...qc.selected]) if (!qc.users.some((x) => x.username === u)) qc.selected.delete(u);
       } else {
-        qc.err = E(r.error || "Не удалось обновить список");
+        qc.err = r.weak
+          ? LX(`Очень слабый сигнал (±${Math.round(r.acc || 0)} м). Включи GPS и выйди к окну или на улицу`, `Very weak signal (±${Math.round(r.acc || 0)} m). Turn on GPS and step near a window or outside`, `Signal juda kuchsiz (±${Math.round(r.acc || 0)} m). GPS ni yoqing va deraza yoki ko'chaga chiqing`)
+          : E(r.error || LX("Не удалось обновить список", "Couldn't refresh the list", "Ro'yxatni yangilab bo'lmadi"));
       }
       qcRender();
     } finally { qc.busy = false; }
@@ -214,8 +231,8 @@
 
   async function qcStart() {
     qc.err = "";
-    if (!navigator.geolocation) { qc.err = "Этот браузер не умеет определять место."; return qcRender(); }
-    if (!window.isSecureContext) { qc.err = "Определение места работает только на защищённом сайте (https)."; return qcRender(); }
+    if (!navigator.geolocation) { qc.err = LX("Этот браузер не умеет определять место.", "This browser can't determine location.", "Bu brauzer joylashuvni aniqlay olmaydi."); return qcRender(); }
+    if (!window.isSecureContext) { qc.err = LX("Определение места работает только на защищённом сайте (https).", "Location works only on a secure site (https).", "Joylashuv faqat xavfsiz saytda (https) ishlaydi."); return qcRender(); }
     qc.on = true; qc.located = false;
     qcRender();
     qc.timer = setInterval(qcPing, 8000);
@@ -228,10 +245,10 @@
     const btn = $("#zxQcSend");
     if (btn) btn.disabled = true;
     const r = await zxApi("/api/quick/invite", "POST", { usernames: list });
-    if (!r.ok) { toast(r.error || "Не получилось"); return qcRender(); }
+    if (!r.ok) { toast(r.error || LX("Не получилось", "Something went wrong", "Xatolik yuz berdi")); return qcRender(); }
     qc.selected.clear();
-    if (r.sent.length) toast(`Приглашение отправлено: ${r.sent.length}. Ждём ответ.`);
-    else toast("Приглашения уже отправлены или человек отошёл.");
+    if (r.sent.length) toast(LX(`Приглашение отправлено: ${r.sent.length}. Ждём ответ.`, `Invite sent: ${r.sent.length}. Waiting for a reply.`, `Taklif yuborildi: ${r.sent.length}. Javob kutilmoqda.`));
+    else toast(LX("Приглашения уже отправлены или человек отошёл.", "Invites already sent, or the person has moved away.", "Takliflar allaqachon yuborilgan yoki odam uzoqlashgan."));
     qcPing();
   }
 
@@ -239,7 +256,7 @@
     qcStop(false);
     qc.ov = overlay(`
       <div class="zx-top">
-        <div class="zx-title">Люди рядом</div>
+        <div class="zx-title">${LX("Люди рядом", "Nearby people", "Yaqin odamlar")}</div>
         <button class="zx-x" id="zxQcClose"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="zx-body" id="zxQcBody"></div>
@@ -254,13 +271,13 @@
     const from = inv.from || {};
     if (document.querySelector(`.zx-banner[data-inv="${inv.id}"]`)) return;
     const b = banner(
-      `${avaBox(from)}<div class="zx-text"><b>${E(from.displayName || from.username)}</b> (@${E(from.username)}) рядом и хочет связаться</div>`,
+      `${avaBox(from)}<div class="zx-text"><b>${E(from.displayName || from.username)}</b> (@${E(from.username)}) ${LX("рядом и хочет связаться", "is nearby and wants to connect", "yaqin atrofda va bog'lanmoqchi")}</div>`,
       [
-        { label: "Принять", primary: true, run: async () => {
+        { label: LX("Принять", "Accept", "Qabul qilish"), primary: true, run: async () => {
           const r = await zxApi(`/api/quick/invites/${inv.id}/accept`, "POST", {});
-          if (r.ok) { toast("Контакт добавлен"); openChat(r.username); } else toast(r.error || "Не получилось");
+          if (r.ok) { toast(LX("Контакт добавлен", "Contact added", "Kontakt qo'shildi")); openChat(r.username); } else toast(r.error || LX("Не получилось", "Something went wrong", "Xatolik yuz berdi"));
         } },
-        { label: "Нет", run: () => zxApi(`/api/quick/invites/${inv.id}/decline`, "POST", {}) }
+        { label: LX("Нет", "No", "Yo'q"), run: () => zxApi(`/api/quick/invites/${inv.id}/decline`, "POST", {}) }
       ]
     );
     b.dataset.inv = inv.id;
@@ -822,8 +839,8 @@
       if (data.type === "quick-invite") { showInvite(data.invite); return true; }
       if (data.type === "quick-accepted") {
         const by = data.by || {};
-        banner(`${avaBox(by)}<div class="zx-text"><b>${E(by.displayName || by.username)}</b> принял(а) приглашение. Можно писать!</div>`,
-          [{ label: "Написать", primary: true, run: () => openChat(by.username) }], 12000);
+        banner(`${avaBox(by)}<div class="zx-text"><b>${E(by.displayName || by.username)}</b> ${LX("принял(а) приглашение. Можно писать!", "accepted your invite. You can chat now!", "taklifni qabul qildi. Endi yozishishingiz mumkin!")}</div>`,
+          [{ label: LX("Написать", "Message", "Yozish"), primary: true, run: () => openChat(by.username) }], 12000);
         return true;
       }
       return false;
@@ -890,6 +907,73 @@
     }
   }
   wrapGlobals();
+
+  /* ================================================================
+     КРУГЛАЯ КНОПКА В ПРАВОМ НИЖНЕМ УГЛУ → МЕНЮ ДЕЙСТВИЙ
+     Создать бота · Создать группу · Создать канал · Люди рядом
+     ================================================================ */
+  function openBotCreate() {
+    bb.ov = overlay(`<div></div>`, () => { bb.ov = null; bb.ed = null; });
+    bbCreate();
+  }
+
+  function fabItems() {
+    return [
+      { id: "bot", icon: "fa-robot", label: t("fab.bot"), run: openBotCreate },
+      { id: "group", icon: "fa-users", label: t("fab.group"), run: () => openCreateGroupModal(false) },
+      { id: "channel", icon: "fa-bullhorn", label: t("fab.channel"), run: () => openCreateGroupModal(true) },
+      { id: "nearby", icon: "fa-location-dot", label: t("fab.nearby"), run: () => window.openQuickContact() }
+    ];
+  }
+
+  window.zxAction = function (id) {
+    const it = fabItems().find((x) => x.id === id);
+    if (it) it.run();
+  };
+
+  let fab = null;
+  function renderFabMenu() {
+    const menu = fab.querySelector(".zx-fabmenu");
+    menu.innerHTML = fabItems().map((it) =>
+      `<button type="button" data-fab="${it.id}"><i class="fa-solid ${it.icon}"></i><span>${E(it.label)}</span></button>`
+    ).join("");
+    menu.querySelectorAll("[data-fab]").forEach((b) => {
+      b.onclick = (e) => { e.stopPropagation(); fab.classList.remove("open"); window.zxAction(b.dataset.fab); };
+    });
+  }
+
+  // кнопка видна только на списке чатов и не поверх открытого окна
+  function syncFab() {
+    if (!fab) return;
+    const cs = document.getElementById("screenChats");
+    const ch = document.getElementById("screenChat");
+    const show = !!cs && !cs.classList.contains("hidden") && (!ch || ch.classList.contains("hidden"))
+      && !document.querySelector(".zx-overlay");
+    fab.classList.toggle("hidden", !show);
+    if (!show) fab.classList.remove("open");
+  }
+
+  function buildFab() {
+    fab = document.createElement("div");
+    fab.className = "zx-fabwrap hidden";
+    fab.innerHTML = `<div class="zx-fabmenu"></div><button type="button" class="zx-fab" id="zxFab" aria-label="Создать"><i class="fa-solid fa-pen"></i></button>`;
+    document.body.appendChild(fab);
+    fab.querySelector("#zxFab").onclick = (e) => {
+      e.stopPropagation();
+      if (!fab.classList.contains("open")) renderFabMenu();
+      fab.classList.toggle("open");
+    };
+    document.addEventListener("click", (e) => { if (!fab.contains(e.target)) fab.classList.remove("open"); });
+
+    const obs = new MutationObserver(syncFab);
+    obs.observe(document.body, { childList: true });
+    ["screenChats", "screenChat"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    });
+    syncFab();
+  }
+  buildFab();
 
   // приглашения, пришедшие, пока приложение было закрыто
   setTimeout(async () => {

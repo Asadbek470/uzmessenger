@@ -194,3 +194,40 @@
 .zx-simbar input{flex:1;border-radius:999px !important;padding:11px 16px !important}
 .zx-simbar button{width:44px;height:44px;border-radius:50%;border:none;background:rgb(var(--zx-acc-rgb));color:#fff;font-size:16px;cursor:pointer;flex:none}
 .zx-botstart.sim{margin:auto}
+
+/* ================================================================
+   КРУГЛАЯ КНОПКА «создать» в правом нижнем углу списка чатов
+   ================================================================ */
+.zx-fabwrap{
+  position:fixed; right:16px; z-index:900;
+  bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+  display:flex; flex-direction:column; align-items:flex-end; gap:10px;
+}
+.zx-fabwrap.hidden{display:none}
+.zx-fab{
+  width:56px; height:56px; border-radius:50%; border:0; cursor:pointer;
+  background:var(--tg-accent, #3a86ff); color:#fff; font-size:20px;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);
+  display:grid; place-items:center;
+}
+.zx-fab:active{transform:scale(.95)}
+.zx-fabmenu{
+  display:none; flex-direction:column; gap:2px; min-width:230px; padding:6px;
+  border-radius:18px; background:var(--tg-card, #1c2330); color:var(--tg-label, #eef3ff);
+  box-shadow:0 12px 36px rgba(0,0,0,.45);
+  animation:zxFabIn .16s ease-out;
+}
+.zx-fabwrap.open .zx-fabmenu{display:flex}
+.zx-fabmenu button{
+  display:flex; align-items:center; gap:14px; width:100%;
+  padding:12px 14px; border:0; border-radius:12px; cursor:pointer;
+  background:none; color:inherit; font:inherit; font-size:15px; text-align:left;
+}
+.zx-fabmenu button:hover,.zx-fabmenu button:active{background:rgba(127,127,127,.14)}
+.zx-fabmenu button i{width:20px; text-align:center; color:var(--tg-accent, #3a86ff)}
+@keyframes zxFabIn{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+
+/* пункты «Функционал» в настройках */
+.zx-feat-list{display:flex; flex-direction:column; gap:8px}
+.zx-feat-list .btn{justify-content:flex-start; gap:12px}
+.zx-feat-list .btn i{width:20px; text-align:center}

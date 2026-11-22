@@ -6,10 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Zumo — мессенджер</title>
   <meta name="robots" content="noindex" />
-  <link rel="stylesheet" href="style.css?v=9" />
-  <link rel="stylesheet" href="features-v5.css?v=2" />
-  <link rel="icon" href="/icon-192.png?v=4" />
-  <link rel="apple-touch-icon" href="/icon-192.png?v=4" />
+  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="features-v5.css?v=3" />
+  <link rel="icon" href="/icon-192.png?v=5" />
+  <link rel="apple-touch-icon" href="/icon-192.png?v=5" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0b132b" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
@@ -47,7 +47,7 @@
   <!-- DEVICE PASSCODE LOCK -->
   <div id="passcodeOverlay" class="passcode-overlay hidden">
     <div class="passcode-box">
-      <div class="logo">Z</div>
+      <img class="logo" src="/icon-192.png?v=5" alt="Zumo">
       <h2 data-i18n="passcode.enter">Введи код-пароль</h2>
       <input id="passcodeInput" type="password" inputmode="numeric" maxlength="8" autofocus onkeydown="passcodeKeydown(event)">
       <div id="passcodeError" class="passcode-error"></div>
@@ -72,14 +72,6 @@
           <div id="storiesList" class="stories-list"></div>
         </div>
 
-        <div class="sidebar-actions">
-          <button class="btn ghost small" onclick="openCreateGroupModal(false)"><i class="fa-solid fa-users"></i> <span data-i18n="chats.group">Создать группу</span></button>
-          <button class="btn ghost small" onclick="openCreateGroupModal(true)"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="chats.channel">Создать канал</span></button>
-        </div>
-        <div class="sidebar-actions">
-          <button class="btn ghost small" onclick="openQuickContact()"><i class="fa-solid fa-location-dot"></i> <span>Люди рядом</span></button>
-          <button class="btn ghost small" onclick="openBotBuilder()"><i class="fa-solid fa-robot"></i> <span>Мои боты</span></button>
-        </div>
       </div>
 
       <div id="contactInbox" class="contactinbox hidden"></div>
@@ -96,7 +88,7 @@
         </button>
 
         <button class="chatitem" data-chat="support" onclick="openChat('support')">
-          <div class="avatar circle"><img src="/icon-192.png?v=4" alt="Zumo" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%"></div>
+          <div class="avatar circle"><img src="/icon-192.png?v=5" alt="Zumo" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%"></div>
           <div class="meta">
             <div class="name" data-i18n="chats.support">Поддержка</div>
             <div class="preview" data-i18n="chats.supportSub">Zumo Support</div>
@@ -150,6 +142,23 @@
       <div class="screen-header"><h2 class="screentitle" data-i18n="settings.title">Настройки</h2></div>
 
       <div class="settingsscroll">
+
+        <!-- ===== КАТЕГОРИЯ: Функционал (те же 4 действия, что у круглой кнопки) ===== -->
+        <div class="settingscategory" data-cat="features">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">🧩</span>
+            <span class="cathead-label" data-i18n="settings.catFeatures">Функционал</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock zx-feat-list">
+              <button type="button" class="btn ghost full" onclick="zxAction('bot')"><i class="fa-solid fa-robot"></i> <span data-i18n="fab.bot">Создать бота</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('group')"><i class="fa-solid fa-users"></i> <span data-i18n="fab.group">Создать группу</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('channel')"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="fab.channel">Создать канал</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('nearby')"><i class="fa-solid fa-location-dot"></i> <span data-i18n="fab.nearby">Люди рядом</span></button>
+            </div>
+          </div>
+        </div>
 
         <!-- ===== КАТЕГОРИЯ: Профиль ===== -->
         <div class="settingscategory open" data-cat="profile">
@@ -332,7 +341,7 @@
           <div class="categorybody">
             <div class="settingsblock">
               <div class="aboutapp">
-                <img src="/icon-192.png?v=4" alt="Zumo" class="aboutapp-logo">
+                <img src="/icon-192.png?v=5" alt="Zumo" class="aboutapp-logo">
                 <div class="aboutapp-name">Zumo</div>
                 <div class="aboutapp-tag" data-i18n="about.tagline">Мессенджер без номера телефона</div>
               </div>
@@ -829,9 +838,9 @@
     </div>
   </div>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
   <script src="e2e.js?v=4"></script>
   <script src="calls-client.js?v=4"></script>
-  <script src="features-v5.js?v=2"></script>
+  <script src="features-v5.js?v=3"></script>
 </body>
 </html>
