@@ -1,0 +1,2330 @@
+:root{
+  --bg:#0b1420;
+  --panel:#0f1d2e;
+  --panel2:#0c1726;
+  --line:rgba(255,255,255,.08);
+  --text:#eaf2ff;
+  --muted:#96a9c7;
+  --blue:var(--z-accent);
+  --bubbleMe:#2b5278;
+  --bubbleOther:#182533;
+  --danger:#ff4d4d;
+  --shadow: 0 12px 40px rgba(0,0,0,.35);
+  --r:16px;
+
+  /* Liquid Glass tokens */
+  --glass-bg: rgba(20,32,50,.52);
+  --glass-bg-strong: rgba(20,32,50,.72);
+  --glass-border: rgba(255,255,255,.14);
+  --glass-highlight: rgba(255,255,255,.22);
+  --glass-blur: 22px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+
+/* Slowly drifting colour blobs behind everything — the "liquid" the glass
+   surfaces blur and refract. Pure CSS, no JS/canvas needed. */
+body::before, body::after{
+  content:"";
+  position:fixed;
+  z-index:-1;
+  width:60vmax; height:60vmax;
+  border-radius:50%;
+  filter: blur(90px);
+  opacity:.55;
+  pointer-events:none;
+}
+body::before{
+  top:-20vmax; left:-15vmax;
+  background: radial-gradient(circle, rgba(var(--z-accent-rgb),.55), transparent 65%);
+  animation: driftA 26s ease-in-out infinite alternate;
+}
+body::after{
+  bottom:-25vmax; right:-15vmax;
+  background: radial-gradient(circle, rgba(140,80,220,.4), transparent 65%);
+  animation: driftB 30s ease-in-out infinite alternate;
+}
+@keyframes driftA{
+  from{ transform: translate(0,0) scale(1); }
+  to{ transform: translate(8vmax, 6vmax) scale(1.15); }
+}
+@keyframes driftB{
+  from{ transform: translate(0,0) scale(1); }
+  to{ transform: translate(-6vmax, -8vmax) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce){
+  body::before, body::after{ animation: none; }
+}
+
+body{
+  margin:0;
+  background: var(--bg);
+  color:var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* ---------- AUTH ---------- */
+body.auth{display:flex;align-items:center;justify-content:center;padding:16px}
+.auth-card{
+  width:min(460px, 92vw);
+  background: rgba(15,29,46,.92);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:22px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+.brand{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+.logo{
+  width:52px;height:52px;border-radius:16px;
+  display:grid;place-items:center;
+  background:var(--z-grad);color:var(--z-on-accent);
+  font-weight:800;
+}
+.brand h1{margin:0;font-size:20px}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.tabs{display:flex;gap:8px;margin:12px 0 16px}
+.tab{
+  flex:1;
+  padding:10px 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--line);
+  color:var(--text);
+  cursor:pointer;
+}
+.tab.active{background:rgba(var(--z-accent-rgb),.22); border-color: rgba(var(--z-accent-rgb),.35)}
+.form label{display:block;margin:10px 0 6px;color:var(--muted);font-size:13px}
+.form input{
+  width:100%;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  color:var(--text);
+  outline:none;
+}
+.hint{margin-top:10px;color:var(--muted);font-size:12px}
+
+/* ---------- APP LAYOUT (bottom-tab navigation, no side panel) ---------- */
+.appshell{
+  height:100vh;
+  height:100vh;height:100dvh;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+}
+.screen{
+  flex:1;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+}
+.screen.hidden{display:none}
+.screen-header{padding:14px 12px 10px}
+.screentitle{margin:6px 4px 4px;font-size:20px;font-weight:800}
+.sectiontitle{margin:22px 4px 10px;font-size:15px;font-weight:800;color:var(--muted)}
+
+/* On anything wider than a phone, the app becomes a centered "device
+   frame" with real edges — a full-bleed mobile layout stretched across a
+   desktop monitor is exactly what looked "raw" before. */
+@media (min-width:641px){
+  body{ display:flex; align-items:center; justify-content:center; padding:24px }
+  .appshell{
+    width:min(480px, 92vw);
+    height:min(880px, 92vh);
+    border-radius:32px;
+    overflow:hidden;
+    border:1px solid var(--glass-border);
+    box-shadow: 0 30px 90px rgba(0,0,0,.55), inset 0 1px 0 var(--glass-highlight);
+  }
+  .bottomnav{ border-radius:0 0 32px 32px }
+}
+@media (min-width:1100px){
+  .appshell{ width:min(560px, 40vw) }
+}
+
+.search{
+  display:flex;align-items:center;gap:10px;
+  background: rgba(0,0,0,.18);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:10px 12px;
+}
+.search i{color:var(--muted)}
+.search input{
+  border:none;outline:none;background:transparent;
+  color:var(--text);width:100%;
+}
+.stories{
+  margin-top:12px;
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.story-add{
+  width:36px;height:36px;border-radius:14px;
+  border:1px solid rgba(var(--z-accent-rgb),.35);
+  background:rgba(var(--z-accent-rgb),.18);
+  color:var(--text);
+  cursor:pointer;
+}
+.stories-list{
+  display:flex; gap:10px; overflow:auto; padding-bottom:6px;
+  scrollbar-width:none;
+}
+.stories-list::-webkit-scrollbar{display:none}
+.storychip{
+  min-width:70px;
+  border:none;
+  background:transparent;
+  color:var(--text);
+  cursor:pointer;
+  padding:0;
+}
+.storyava{
+  width:46px;height:46px;border-radius:50%;
+  border:2px solid rgba(var(--z-accent-rgb),.75);
+  overflow:hidden;
+  display:grid;place-items:center;
+  background: rgba(255,255,255,.06);
+  margin:0 auto;
+}
+.storyava img{width:100%;height:100%;object-fit:cover}
+.storyname{
+  margin-top:6px;
+  font-size:12px;
+  color:var(--muted);
+  text-align:center;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.sidebar-actions{display:flex;gap:8px;margin-top:12px}
+.btn.small{padding:8px 10px;font-size:12px;flex:1}
+
+/* chat list */
+.chatlist{padding:8px; overflow:auto; flex:1}
+.chatitem{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 10px;
+  border-radius:16px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text);
+  cursor:pointer;
+  position:relative;
+  transition: background .15s ease, transform .15s ease;
+}
+.chatitem:hover{background:rgba(255,255,255,.06)}
+.chatitem.active{background:rgba(var(--z-accent-rgb),.16); border-color: rgba(var(--z-accent-rgb),.3); box-shadow: inset 0 1px 0 rgba(255,255,255,.1)}
+.chatitem:active{transform:scale(.985)}
+.avatar{
+  width:44px;height:44px;border-radius:50%;
+  background:rgba(255,255,255,.06);
+  display:grid;place-items:center;
+  overflow:hidden;
+  flex:0 0 auto;
+}
+.avatar.circle{background:rgba(var(--z-accent-rgb),.14)}
+.avatar.circle.group{background:rgba(255,138,61,.16)}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.meta{flex:1;text-align:left;min-width:0}
+.meta .name{font-weight:700;font-size:14px;display:flex;align-items:center;gap:4px}
+.meta .preview{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{
+  width:9px;height:9px;border-radius:50%;
+  background:rgba(255,255,255,.12);
+}
+.dot.online{background:#29d17d}
+.dot.offline{background:rgba(255,255,255,.12)}
+
+.verified-badge{color:var(--blue);font-size:.85em}
+
+/* bottom tab bar — the ONLY navigation chrome; no side panel anywhere */
+.bottomnav{
+  display:flex;
+  border-top:1px solid var(--glass-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index:30;
+}
+.bottomnav.hidden{display:none}
+.navbtn{
+  flex:1;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 4px 8px;
+  border:none;background:transparent;color:var(--muted);
+  cursor:pointer;font-size:11px;
+}
+.navbtn i{font-size:19px}
+.navbtn.active{color:var(--blue)}
+
+/* PROFILE TAB (own profile) */
+.profiletab{
+  padding:20px 18px 28px;
+  overflow:auto;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+}
+.profiletab .avatar.big{width:96px;height:96px;border-radius:28px;margin-bottom:14px;font-size:32px}
+.profiletab .pname{font-weight:900;font-size:20px;display:flex;align-items:center;gap:6px}
+.profiletab .puser{color:var(--muted);margin-top:2px}
+.profiletab .pbio{margin-top:10px;color:rgba(255,255,255,.85);max-width:340px}
+.profiletab .btn{margin-top:16px}
+
+.gifts-row{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px;min-height:0}
+.gift-badge{font-size:20px}
+
+.stories-grid{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(3, 1fr);
+  gap:8px;
+}
+.storythumb{
+  aspect-ratio:9/14;
+  border-radius:14px;overflow:hidden;position:relative;
+  border:1px solid var(--line);background:rgba(0,0,0,.25);
+  cursor:pointer;padding:0;
+}
+.storythumb-del{
+  position:absolute;top:4px;right:4px;
+  width:26px;height:26px;border-radius:50%;
+  background:rgba(0,0,0,.55);border:none;color:#fff;
+  display:grid;place-items:center;font-size:11px;cursor:pointer;
+}
+.storythumb img, .storythumb video{width:100%;height:100%;object-fit:cover;display:block}
+.storythumb.expired{opacity:.45}
+.storythumb-badge{
+  position:absolute;bottom:4px;left:4px;right:4px;
+  background:rgba(0,0,0,.55);color:#fff;font-size:10px;
+  padding:2px 4px;border-radius:6px;text-align:center;
+}
+.storythumb-text{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  padding:8px;font-size:12px;color:#fff;text-align:center;
+  background:linear-gradient(160deg, rgba(var(--z-accent-rgb),.45), rgba(120,60,200,.4));
+}
+
+/* gift picker (inside the "view other person's profile" modal) */
+.giftpicker{padding:0 14px 14px}
+.gift-emoji-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 14px}
+.gift-emoji-btn{
+  width:44px;height:44px;font-size:20px;border-radius:14px;
+  border:1px solid var(--line);background:rgba(0,0,0,.18);cursor:pointer;
+}
+.gift-emoji-btn:hover{background:rgba(var(--z-accent-rgb),.18)}
+
+/* ---------- MAIN (chat conversation screen) ---------- */
+.chatscreen{
+  position:absolute; top:0;right:0;bottom:0;left:0; z-index:25;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+}
+.main{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  background:
+    radial-gradient(900px 700px at 70% 20%, rgba(var(--z-accent-rgb),.10), transparent 60%),
+    rgba(12,23,38,.6);
+}
+
+/* wallpaper presets applied to the messages pane */
+body[data-wallpaper="night"] .messages{ background: radial-gradient(700px 500px at 20% 0%, rgba(90,60,180,.18), transparent 60%), #0a0f1a; }
+body[data-wallpaper="ocean"] .messages{ background: linear-gradient(160deg, rgba(24,80,120,.35), rgba(10,30,45,.6)); }
+body[data-wallpaper="sunset"] .messages{ background: linear-gradient(160deg, rgba(255,138,61,.18), rgba(60,20,40,.55)); }
+body[data-wallpaper="forest"] .messages{ background: linear-gradient(160deg, rgba(40,120,80,.22), rgba(10,30,20,.55)); }
+
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:12px 14px;
+  border-bottom:1px solid var(--glass-border);
+  background: rgba(255,255,255,.03);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+}
+.iconbtn{
+  width:42px;height:42px;border-radius:14px;
+  border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  color:var(--text);
+  cursor:pointer;
+  display:grid;place-items:center;
+  transition: transform .15s ease, background .15s ease;
+}
+.iconbtn:hover{background:rgba(255,255,255,.05)}
+.iconbtn:active{transform: scale(.97)}
+.iconbtn.mobile{display:none}
+.iconbtn.danger{background:rgba(255,77,77,.18); border-color:rgba(255,77,77,.35); color:#ff8a8a}
+.iconbtn.danger:hover{background:rgba(255,77,77,.3)}
+.sectiontitle.small{font-size:13px;margin:14px 0 8px}
+.actions{display:flex;gap:10px}
+
+.title .h{font-weight:800;display:flex;align-items:center;gap:6px}
+.sline{display:flex;gap:10px;align-items:center}
+.title .s{color:var(--muted);font-size:12px}
+.typing{color:rgba(var(--z-accent-rgb),.9);font-size:12px;animation:pulse 1s infinite}
+.hidden{display:none!important}
+
+@keyframes pulse{
+  0%,100%{opacity:.4}
+  50%{opacity:1}
+}
+
+.banner{
+  margin:10px 14px 0;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(var(--z-accent-rgb),.22);
+  background:rgba(var(--z-accent-rgb),.10);
+  color:var(--text);
+}
+
+/* messages */
+.messages{
+  flex:1;
+  padding:16px 14px;
+  overflow:auto;
+}
+.mrow{display:flex;margin:8px 0}
+.mrow.mine{justify-content:flex-end}
+.bubble{
+  max-width:min(560px, 86%);
+  border-radius:18px;
+  padding:10px 10px;
+  border:1px solid var(--glass-border);
+  background: rgba(24,37,51,.6);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: 0 10px 26px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.mrow.mine .bubble{background: rgba(43,82,120,.62)}
+.btop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.who{font-size:12px;color:rgba(255,255,255,.75)}
+.who.clickable{cursor:pointer}
+.who.clickable:hover{text-decoration:underline;color:var(--blue)}
+.memberrow.clickable{cursor:pointer;transition:background .15s ease}
+.memberrow.clickable:hover{background:rgba(255,255,255,.04)}
+.trash{
+  border:none;background:transparent;color:rgba(255,255,255,.65);
+  cursor:pointer;
+}
+.trash:hover{color:var(--danger)}
+.mtext{white-space:pre-wrap;word-break:break-word}
+
+.mimg, .mvid{
+  width:100%;
+  border-radius:14px;
+  display:block;
+}
+.maud{width:100%}
+
+/* custom voice message player (replaces tiny native <audio controls>) */
+.voicecard{
+  display:flex; align-items:center; gap:10px;
+  min-width:220px; max-width:320px; padding:4px 2px;
+}
+.voicecard audio{display:none}
+.voiceplay{
+  width:40px;height:40px;border-radius:50%;flex:0 0 auto;
+  border:none; background:var(--blue); color:#fff;
+  display:grid;place-items:center;cursor:pointer;font-size:15px;
+}
+.voicemain{flex:1;min-width:0}
+.voicetrack{
+  height:6px;border-radius:4px;background:rgba(255,255,255,.15);
+  cursor:pointer;position:relative;margin-bottom:6px;
+}
+.voiceprogress{
+  position:absolute;left:0;top:0;bottom:0;width:0%;
+  background:var(--blue);border-radius:4px;
+}
+.voicetime{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* shopping / to-do list bubble */
+.listcard{min-width:220px}
+.listtitle{font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.listitems{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.listitem{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 2px;border-radius:8px}
+.listitem:hover{background:rgba(255,255,255,.04)}
+.listitem i{color:var(--blue)}
+.listitem.checked span{text-decoration:line-through;color:var(--muted)}
+.listitem.checked i{color:#29d17d}
+
+.pop{animation:pop .18s ease}
+@keyframes pop{
+  from{transform:translateY(4px);opacity:.7}
+  to{transform:translateY(0);opacity:1}
+}
+
+/* composer */
+.composer{
+  padding:10px 12px;
+  border-top:1px solid var(--glass-border);
+  background: rgba(255,255,255,.03);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.text{
+  flex:1;
+  padding:12px 12px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  color:var(--text);
+  outline:none;
+}
+.iconbtn.send{
+  background:rgba(var(--z-accent-rgb),.18);
+  border-color: rgba(var(--z-accent-rgb),.25);
+}
+#voiceBtn.recording{
+  background: rgba(255,77,77,.18);
+  border-color: rgba(255,77,77,.35);
+}
+
+.attachwrap{position:relative}
+.attachmenu{
+  position:absolute;
+  bottom:52px;
+  left:0;
+  background:rgba(15,29,46,.97);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+  min-width:220px;
+  box-shadow:var(--shadow);
+  z-index:30;
+}
+.attachmenu button{
+  display:flex;align-items:center;gap:10px;
+  background:transparent;border:none;color:var(--text);
+  padding:10px 12px;border-radius:10px;cursor:pointer;text-align:left;font-size:14px;
+}
+.attachmenu button:hover{background:rgba(255,255,255,.06)}
+
+.listRowInput{
+  width:100%;padding:10px 12px;border-radius:12px;
+  border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);
+  outline:none;margin-bottom:6px;
+}
+
+/* buttons */
+.btn{
+  border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color:var(--text);
+  padding:12px 14px;
+  border-radius:16px;
+  cursor:pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  transition: transform .12s ease, background .15s ease;
+}
+.btn:active{transform:scale(.97)}
+.btn.full{width:100%}
+.btn.primary{
+  background:linear-gradient(160deg, rgba(var(--z-accent-rgb),.4), rgba(var(--z-accent-rgb),.18));
+  border-color: rgba(var(--z-accent-rgb),.5);
+}
+.btn.ghost{background:rgba(255,255,255,.04)}
+.btn.danger{
+  background:rgba(255,77,77,.22);
+  border-color: rgba(255,77,77,.35);
+}
+.btn.small-link{
+  background:transparent;border:none;color:var(--danger);
+  text-decoration:underline;padding:4px 0;font-size:13px;
+  width:auto;display:inline-block;border-radius:0;
+}
+
+/* modal */
+.modal{
+  position:fixed;top:0;right:0;bottom:0;left:0;
+  background:rgba(0,0,0,.55);
+  display:grid;
+  place-items:center;
+  padding:16px;
+  z-index:50;
+}
+.card{
+  width:min(520px, 94vw);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  border:1px solid var(--glass-border);
+  border-radius:24px;
+  box-shadow: var(--shadow), inset 0 1px 0 var(--glass-highlight);
+  overflow:hidden;
+  animation: modalIn .18s ease;
+}
+.card.cardwide{width:min(640px, 94vw); max-height:88vh; display:flex; flex-direction:column}
+@keyframes modalIn{
+  from{transform:translateY(8px);opacity:.7}
+  to{transform:translateY(0);opacity:1}
+}
+.cardtop{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 14px;
+  border-bottom:1px solid var(--line);
+}
+.cardtitle{font-weight:800}
+.settingsscroll{overflow:auto;padding:4px 0}
+.settingsblock{padding:14px;border-bottom:1px solid var(--line)}
+.settingsblock:last-child{border-bottom:none}
+.blocktitle{font-weight:800;margin-bottom:10px;color:rgba(255,255,255,.9)}
+.formgrid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:10px;
+  padding:14px;
+}
+.settingsblock .formgrid{padding:0}
+.formgrid label{color:var(--muted);font-size:13px}
+.checkrow{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer}
+.checkrow input{width:auto}
+.formgrid input, .formgrid select{
+  width:100%;
+  padding:12px 12px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  color:var(--text);
+  outline:none;
+}
+.formgrid select{appearance:none; cursor:pointer}
+.profile{display:flex;gap:12px; padding:14px}
+.avatar.big{width:72px;height:72px;border-radius:20px}
+.profiletext .pname{font-weight:900;font-size:18px;display:flex;align-items:center;gap:6px}
+.profiletext .puser{color:var(--muted);margin-top:2px}
+.profiletext .pbio{margin-top:8px;color:rgba(255,255,255,.88)}
+.profiletext .pbirth{margin-top:8px;color:rgba(var(--z-accent-rgb),.9)}
+.row{display:flex;gap:10px;padding:0 14px 14px}
+.settingsblock .row{padding:0}
+
+.swatchrow{display:flex;gap:10px;flex-wrap:wrap}
+.wallswatch{
+  width:52px;height:38px;border-radius:10px;border:2px solid var(--line);cursor:pointer;
+  background:linear-gradient(160deg, rgba(var(--z-accent-rgb),.25), rgba(12,23,38,.9));
+}
+.wallswatch.wp-night{background:linear-gradient(160deg, rgba(90,60,180,.35), #0a0f1a)}
+.wallswatch.wp-ocean{background:linear-gradient(160deg, rgba(24,80,120,.6), rgba(10,30,45,.9))}
+.wallswatch.wp-sunset{background:linear-gradient(160deg, rgba(255,138,61,.5), rgba(60,20,40,.9))}
+.wallswatch.wp-forest{background:linear-gradient(160deg, rgba(40,120,80,.5), rgba(10,30,20,.9))}
+.wallswatch.active{border-color:var(--blue)}
+.colorswatch{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.colorswatch.active{border-color:#fff}
+
+.totpqr{margin:10px 0;display:flex;justify-content:center;background:#fff;border-radius:12px;padding:10px;width:180px}
+.totpsecret{
+  font-family:monospace;letter-spacing:1px;background:rgba(0,0,0,.25);
+  padding:8px 10px;border-radius:10px;margin-bottom:10px;word-break:break-all;
+}
+
+.memberrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.memberrow:last-child{border-bottom:none}
+
+/* call */
+.callcard{width:min(400px, 94vw); position:relative; overflow:hidden}
+.callbg{
+  position:absolute; top:0;right:0;bottom:0;left:0;
+  background: radial-gradient(400px 300px at 50% 0%, rgba(var(--z-accent-rgb),.22), transparent 70%);
+  z-index:0;
+}
+.callbody{padding:32px 20px 26px; position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; text-align:center}
+.callbody-incoming{padding-top:36px}
+.callstatus{color:var(--muted); margin:2px 0 4px}
+.calltitle{font-weight:800; font-size:20px; margin-bottom:2px}
+.call-sub{color:var(--muted); font-size:13px; margin-bottom:6px}
+
+.call-avatar-ring{
+  width:132px;height:132px;border-radius:50%;
+  display:grid;place-items:center;
+  margin-bottom:18px;
+  background: conic-gradient(from 0deg, rgba(var(--z-accent-rgb),.6), rgba(var(--z-accent-rgb),0) 70%);
+  animation: ringspin 2.2s linear infinite;
+}
+.call-avatar-ring.connected{ animation:none; background:rgba(41,209,125,.35) }
+@keyframes ringspin{ to{ transform:rotate(360deg) } }
+.call-avatar{
+  width:112px;height:112px;border-radius:50%;
+  background:rgba(var(--z-accent-rgb),.18);
+  display:grid;place-items:center;
+  overflow:hidden;
+  font-size:36px;font-weight:800;
+  border:3px solid rgba(15,29,46,.94);
+}
+.call-avatar img{width:100%;height:100%;object-fit:cover}
+
+.call-timer{
+  font-variant-numeric: tabular-nums;
+  font-size:15px; color:rgba(41,209,125,.95); font-weight:700; margin-bottom:14px;
+}
+
+.call-actions-row{gap:22px; justify-content:center; padding:10px 0 0}
+.callbtn{
+  width:58px;height:58px;border-radius:50%;
+  border:none; display:grid; place-items:center; font-size:20px;
+  cursor:pointer; color:#fff;
+  transition: transform .12s ease;
+}
+.callbtn:active{transform:scale(.94)}
+.callbtn-accept{background:#29d17d}
+.callbtn-reject{background:#ff4d4d}
+.callbtn-ghost{background:rgba(255,255,255,.12); color:var(--text)}
+.callbtn-ghost.callbtn-active{background:rgba(var(--z-accent-rgb),.4)}
+
+/* passcode overlay */
+.passcode-overlay{
+  position:fixed;top:0;right:0;bottom:0;left:0;z-index:100;
+  background:var(--bg);
+  display:grid;place-items:center;
+  padding:16px;
+}
+.passcode-box{
+  width:min(360px, 90vw);
+  background:rgba(15,29,46,.94);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:26px;
+  text-align:center;
+  box-shadow:var(--shadow);
+}
+.passcode-box .logo,.passcode-box img.logo{margin:0 auto 14px}
+.passcode-box h2{margin:0 0 16px;font-size:18px}
+.passcode-box input{
+  width:100%;text-align:center;font-size:22px;letter-spacing:6px;
+  padding:12px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(0,0,0,.18);color:var(--text);outline:none;margin-bottom:10px;
+}
+.passcode-error{color:var(--danger);font-size:13px;min-height:18px;margin-bottom:8px}
+
+/* toast notifications (replace jarring alert() for success confirmations) */
+.toast{
+  position:fixed; left:50%; bottom:24px; transform:translate(-50%, 20px);
+  background:rgba(20,34,52,.97); color:var(--text);
+  border:1px solid var(--line); border-radius:14px;
+  padding:12px 18px; font-size:14px; box-shadow:var(--shadow);
+  opacity:0; pointer-events:none; z-index:200;
+  transition: opacity .25s ease, transform .25s ease;
+  max-width:min(360px, 90vw); text-align:center;
+}
+.toast.show{opacity:1; transform:translate(-50%, 0)}
+
+/* full-screen story viewer */
+.storyviewer{background:rgba(0,0,0,.85); padding:0}
+.storyviewer-inner{
+  width:min(420px, 100vw); height:100vh;height:100dvh; max-height:100vh;
+  background:#000; position:relative; display:flex; flex-direction:column;
+  animation: modalIn .18s ease;
+}
+.storyviewer-progress{height:3px;background:rgba(255,255,255,.25);margin:10px 12px 0;border-radius:3px;overflow:hidden}
+.storyviewer-progress-fill{height:100%;width:0%;background:#fff}
+.storyviewer-head{display:flex;align-items:center;gap:10px;padding:12px}
+.storyviewer-head .avatar{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.15)}
+.storyviewer-head .name{font-weight:700;color:#fff;font-size:14px}
+.storyviewer-head .iconbtn{margin-left:auto;background:rgba(255,255,255,.12);border-color:transparent}
+.storyviewer-media{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.storyviewer-image, .storyviewer-video{max-width:100%;max-height:100%;object-fit:contain}
+.storyviewer-textcard{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  padding:32px;text-align:center;font-size:22px;font-weight:700;color:#fff;
+  background:linear-gradient(160deg, rgba(var(--z-accent-rgb),.55), rgba(120,60,200,.5));
+}
+.storyviewer-caption{color:#fff;padding:10px 16px 20px;font-size:14px;text-align:center;min-height:14px}
+
+.storyviewer-footer{padding:0 12px 14px;display:flex;flex-direction:column;gap:10px}
+.storyviewer-viewsbtn{
+  display:flex;align-items:center;gap:8px;width:100%;padding:12px 14px;
+  border-radius:14px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);
+  color:#fff;font-size:14px;cursor:pointer;
+}
+.storyviewer-viewslabel{margin-left:auto;color:rgba(255,255,255,.65);font-size:13px}
+.storyviewer-reactcount{color:rgba(255,255,255,.75);font-size:13px}
+.storyviewer-reactbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.storyviewer-reactbtn{
+  width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);font-size:18px;cursor:pointer;display:grid;place-items:center;
+  color:#fff;transition:transform .12s ease, background .12s ease;
+}
+.storyviewer-reactbtn:active{transform:scale(.9)}
+.storyviewer-reactbtn.active{background:rgba(var(--z-accent-rgb),.35);border-color:rgba(var(--z-accent-rgb),.55)}
+.storyviewer-commentrow{display:flex;gap:8px;align-items:center}
+.storyviewer-commentrow input{
+  flex:1;padding:11px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.08);color:#fff;outline:none;font-size:14px;
+}
+.storyviewer-commentrow input::placeholder{color:rgba(255,255,255,.5)}
+.storyviewer-commentrow .iconbtn{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.18);color:#fff}
+.storyviewer-comments{
+  display:flex;flex-direction:column;gap:6px;max-height:110px;overflow-y:auto;
+  padding-right:2px;
+}
+.storyviewer-comment{font-size:13px;color:#fff;line-height:1.4}
+.storyviewer-comment-name{font-weight:700;color:rgba(255,255,255,.9);margin-right:4px}
+.storyviewer-comment-text{color:rgba(255,255,255,.85)}
+
+/* ---------- ADMIN PANEL ---------- */
+.adminbody{min-height:100vh}
+.admin-login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px}
+.admin-container{max-width:920px;margin:24px auto;padding:0 16px}
+.admin-container h1{font-size:20px}
+.admin-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.admin-topbar h1{margin:0}
+.admin-tabs{display:flex;gap:8px;margin-bottom:16px}
+.admintab{
+  padding:10px 16px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;
+}
+.admintab.active{background:rgba(var(--z-accent-rgb),.22);border-color:rgba(var(--z-accent-rgb),.35)}
+
+.admin-search{display:flex;gap:10px;margin-bottom:16px}
+.admin-search input{flex:1;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text)}
+.admin-search button, .admin-actions button, .ver-actions button{
+  padding:10px 14px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(0,0,0,.18);color:var(--text);cursor:pointer;
+}
+.user-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.admin-actions button.danger, .ver-actions button.danger{background:rgba(255,77,77,.22);border-color:rgba(255,77,77,.35)}
+.admin-actions button.success, .ver-actions button.success{background:rgba(41,209,125,.2);border-color:rgba(41,209,125,.35)}
+.user-card{margin-top:0;padding:16px;border:1px solid var(--line);border-radius:16px;background:rgba(15,29,46,.9)}
+.user-info{display:flex;gap:14px;align-items:center}
+.user-info img{width:64px;height:64px;border-radius:16px;object-fit:cover}
+
+.admin-overview{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.overview-col h3{font-size:14px;color:var(--muted);margin:0 0 8px}
+.partner-list{display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+
+.thread-viewer{margin-top:18px;border:1px solid var(--line);border-radius:16px;background:rgba(15,29,46,.9);overflow:hidden}
+.thread-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+.thread-head h3{margin:0;font-size:15px}
+.thread-messages{max-height:420px;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.support-reply-row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.support-reply-row input{flex:1;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text)}
+.support-reply-row button{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:rgba(var(--z-accent-rgb),.22);color:var(--text);cursor:pointer}
+.thread-msg{border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:8px}
+.thread-msg:last-child{border-bottom:none}
+.thread-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:13px}
+.thread-meta .iconbtn.small{width:28px;height:28px;margin-left:auto}
+.thread-body{font-size:14px;word-break:break-word}
+.thread-media{max-width:220px;border-radius:10px;display:block;margin-top:4px}
+
+.admin-section-title{margin-top:28px;font-size:16px}
+.ver-list{display:flex;flex-direction:column;gap:10px}
+.ver-item{padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(15,29,46,.9)}
+.ver-item a{color:var(--blue);word-break:break-all}
+.ver-actions{display:flex;gap:8px;margin-top:8px}
+
+/* responsive */
+@media (max-width:640px){
+  .iconbtn.mobile{display:grid}
+  .sidebar{
+    position:absolute;
+    z-index:20;
+    height:100%;
+    transition: transform .22s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,.5);
+  }
+  .sidebar.mobile-hidden{transform:translateX(-110%)}
+
+  /* bigger, easier touch targets */
+  .iconbtn{width:46px;height:46px}
+  .chatitem{padding:12px 10px}
+  .avatar{width:48px;height:48px}
+  .meta .name{font-size:15px}
+  .meta .preview{font-size:13px}
+
+  .side-top{padding:14px 12px 8px}
+  .sidebar-actions .btn.small{padding:11px 10px;font-size:13px;border-radius:14px}
+
+  .topbar{padding:10px 12px}
+  .title .h{font-size:15px}
+  .composer{padding:8px 10px;gap:8px}
+  .text{padding:11px 12px}
+
+  /* modals should never fight the on-screen keyboard / overflow the screen */
+  .modal{align-items:flex-end; padding:0}
+  .card{
+    width:100%; max-width:100%; border-radius:20px 20px 0 0;
+    max-height:92vh; animation: sheetIn .22s ease;
+  }
+  .card.cardwide{max-height:88vh}
+  .settingsscroll{max-height:calc(92vh - 60px)}
+
+  .bubble{max-width:88%}
+
+  .attachmenu{left:0; right:auto; bottom:56px}
+
+  .call-avatar-ring{width:110px;height:110px}
+  .call-avatar{width:92px;height:92px;font-size:30px}
+
+  /* the full-screen story viewer should stay centered/full-bleed, not become a bottom sheet like other modals */
+  .modal.storyviewer{align-items:center; padding:0}
+}
+
+@keyframes sheetIn{
+  from{transform:translateY(24px);opacity:.6}
+  to{transform:translateY(0);opacity:1}
+}
+
+@media (max-width:480px){
+  .admin-overview{grid-template-columns:1fr}
+  .call-actions-row{gap:16px}
+  .callbtn{width:52px;height:52px;font-size:18px}
+}
+/* ===== One Messenger — профиль в стиле Telegram (встроенный, не зависит от features.css) ===== */
+:root{
+  --blue:var(--z-accent);
+  --tg-bg:#0e1621;
+  --tg-card:#17212b;
+  --tg-sep:rgba(255,255,255,.07);
+  --tg-label:#7f92a8;
+  --tg-link:var(--z-accent-hi);
+}
+
+/* сброс стандартных серых кнопок браузера внутри профиля */
+#screenProfile button, #profileModal button{
+  font:inherit;color:inherit;border:0;background:none;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+
+#screenProfile, #profileModal .tgcard-modal{background:var(--tg-bg)}
+.tgscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:28px;background:var(--tg-bg)}
+
+/* ---------- Шапка ---------- */
+.tghead{
+  position:relative;padding:10px 16px 20px;text-align:center;overflow:hidden;
+  background:linear-gradient(160deg,var(--z-accent-lo) 0%,var(--z-accent) 55%,var(--z-accent) 100%);
+  border-radius:0 0 28px 28px;
+}
+.tghead::before{
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;opacity:.5;pointer-events:none;
+  background-image:
+    radial-gradient(circle,rgba(255,255,255,.28) 2.5px,transparent 3px),
+    radial-gradient(circle,rgba(255,255,255,.18) 2px,transparent 2.5px);
+  background-size:62px 62px;background-position:0 0,31px 31px;
+}
+.tghead > *{position:relative;z-index:1}
+.tgheadbar{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.tgheadtitle{font-weight:700;font-size:18px;color:#fff}
+#screenProfile .tgheadbtn, #profileModal .tgheadbtn{
+  width:38px;height:38px;border-radius:50%;
+  display:grid;place-items:center;font-size:15px;color:#fff;
+  background:rgba(255,255,255,.22);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.tgheadbtn:active{transform:scale(.9)}
+
+.tghead .avatar.big{
+  width:104px;height:104px;margin:6px auto 12px;border-radius:50%;overflow:hidden;
+  border:3px solid rgba(255,255,255,.4);
+  box-shadow:0 14px 28px -12px rgba(0,0,0,.6);
+  display:block;background:rgba(255,255,255,.15);
+}
+.tghead .avatar.big img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
+.tghead .avatar.big .letterava{font-size:42px}
+
+.tgname{
+  display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;
+  font-size:23px;font-weight:700;color:#fff;
+}
+.tgname .uname, .tgname .verified-badge{color:#fff}
+.tgname .verified-badge{font-size:.8em}
+.tgstatus{margin-top:3px;color:rgba(255,255,255,.85);font-size:14px}
+
+/* ---------- Кнопки действий (История / Изменить / Избранное / Пригласить) ---------- */
+.tgactions{
+  display:flex;gap:8px;margin-top:18px;
+  overflow-x:auto;scrollbar-width:none;
+}
+.tgactions::-webkit-scrollbar{display:none}
+#screenProfile .tgact, #profileModal .tgact{
+  flex:1 0 76px;min-width:76px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:12px 6px 10px;border-radius:16px;
+  font-size:11.5px;font-weight:600;color:#fff;
+  background:rgba(255,255,255,.2);
+  border:1px solid rgba(255,255,255,.22);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.tgact:active{transform:scale(.94)}
+.tgact i{font-size:19px}
+.tgact span{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- Карточки «подпись + значение» ---------- */
+.tginfo{padding:0}
+.tgcard{
+  margin:12px 12px 0;padding:2px 16px;
+  background:var(--tg-card);border-radius:16px;
+}
+.tgcardtitle{padding:14px 0 10px;font-weight:700;font-size:15px;color:var(--tg-link)}
+.tgrow{padding:12px 0;border-bottom:1px solid var(--tg-sep)}
+.tgrow:last-child{border-bottom:0}
+.tglabel{font-size:12.5px;color:var(--tg-label);margin-bottom:3px}
+.tgvalue{font-size:16px;line-height:1.35;word-break:break-word;color:#fff}
+.tglink{color:var(--tg-link)}
+.tgverified{color:var(--blue);display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- Подарки ---------- */
+.giftcard .gifts-row{
+  display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;
+  font-size:30px;padding-bottom:14px;min-height:28px;
+}
+.giftcard .gifts-row:empty::after{content:"Пока нет подарков";color:var(--tg-label);font-size:14px}
+
+/* ---------- Истории ---------- */
+.tgcard .stories-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding-bottom:14px;
+}
+.tgcard .stories-grid > *{
+  position:relative;overflow:hidden;border-radius:12px;aspect-ratio:9/14;background:#0b141d;
+}
+.tgcard .stories-grid img, .tgcard .stories-grid video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.stories-grid .hint{grid-column:1/-1;aspect-ratio:auto;text-align:center;margin:8px 0;color:var(--tg-label)}
+
+/* ---------- Круглые аватарки и буква вместо фото ---------- */
+.avatar, .avatar img{border-radius:50%}
+.letterava{
+  width:100%;height:100%;display:grid;place-items:center;
+  color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.25);
+}
+/* ================================================================
+   One Messenger — стиль Telegram для списка чатов и переписки.
+   Вставить в САМЫЙ КОНЕЦ style.css (после profile-telegram.css).
+   ================================================================ */
+
+:root{
+  --tg-bg:#0e1621;
+  --tg-card:#17212b;
+  --tg-sep:rgba(255,255,255,.07);
+  --tg-label:#7f92a8;
+  --tg-link:var(--z-accent-hi);
+  --tg-in:#182533;
+  --tg-out:#2b5278;
+}
+
+/* ---------- Общий фон: плоский, без «жидкого стекла» ---------- */
+body::before, body::after{display:none}
+.screen, .chatscreen{
+  background:var(--tg-bg);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+
+/* ================= СПИСОК ЧАТОВ ================= */
+#screenChats .screen-header{
+  padding:10px 12px 8px;background:var(--tg-card);
+}
+#screenChats .search{
+  background:var(--tg-bg);border:none;border-radius:22px;padding:10px 14px;
+}
+
+/* сторис */
+#screenChats .stories{margin-top:10px;gap:12px}
+#screenChats .story-add{
+  width:52px;height:52px;border-radius:50%;flex:0 0 auto;
+  display:grid;place-items:center;font-size:18px;color:#fff;cursor:pointer;
+  border:2px dashed rgba(98,182,255,.7);background:rgba(var(--z-accent-rgb),.15);
+}
+#screenChats .storyava{
+  width:56px;height:56px;padding:2px;
+  border:2px solid transparent;
+  background:linear-gradient(var(--tg-card),var(--tg-card)) padding-box,
+             linear-gradient(135deg,var(--z-accent-lo),var(--z-accent),#43e08a) border-box;
+}
+#screenChats .storyava img{border-radius:50%}
+#screenChats .storyname{font-size:12px;color:var(--tg-label)}
+
+/* быстрые действия — компактные «таблетки» вместо больших плиток */
+#screenChats .sidebar-actions{
+  display:flex;gap:8px;margin-top:10px;
+  overflow-x:auto;scrollbar-width:none;padding-bottom:2px;
+}
+#screenChats .sidebar-actions::-webkit-scrollbar{display:none}
+#screenChats .sidebar-actions .btn.small{
+  flex:0 0 auto;flex-direction:row;gap:7px;
+  min-height:34px;padding:0 14px;border-radius:999px;
+  font-size:13px;font-weight:600;white-space:nowrap;
+  background:rgba(255,255,255,.07);border:none;box-shadow:none;
+  backdrop-filter:none;color:var(--text);
+}
+#screenChats .sidebar-actions .btn.small i{
+  width:auto;height:auto;border-radius:0;background:none!important;
+  box-shadow:none;font-size:13px;color:var(--tg-link);
+}
+
+/* строки чатов */
+#screenChats .chatlist{padding:0 0 10px;background:var(--tg-bg)}
+#screenChats .chatitem{
+  border:none;border-radius:0;padding:9px 14px;gap:12px;
+  background:transparent;box-shadow:none;position:relative;
+}
+#screenChats .chatitem::after{
+  content:"";position:absolute;left:80px;right:0;bottom:0;height:1px;background:var(--tg-sep);
+}
+#screenChats .chatitem:hover{background:rgba(255,255,255,.04)}
+#screenChats .chatitem.active{background:rgba(var(--z-accent-rgb),.16);border:none;box-shadow:none}
+#screenChats .chatitem .avatar{width:54px;height:54px;border-radius:50%}
+#screenChats .chatitem .avatar.circle{
+  background:linear-gradient(135deg,#3fb0ff,#2f6bff);color:#fff;font-size:20px;
+}
+#screenChats .chatitem .avatar.circle.group{background:linear-gradient(135deg,#ffb23f,#ff6a1a)}
+#screenChats .chatitem .avatar img{border-radius:50%}
+#screenChats .chatitem .meta .name{font-size:16px;font-weight:700}
+#screenChats .chatitem .meta .preview{font-size:14px;color:var(--tg-label);margin-top:3px}
+/* индикатор «в сети» — точка на аватарке, как в Telegram */
+#screenChats .chatitem .dot{
+  position:absolute;left:56px;bottom:12px;width:14px;height:14px;
+  border:3px solid var(--tg-bg);background:#43e08a;
+}
+#screenChats .chatitem .dot.offline{display:none}
+#searchResults .chatitem::after{display:none}
+
+/* ================= ШАПКА ЧАТА ================= */
+#screenChat .topbar{
+  padding:8px 10px;gap:8px;
+  background:var(--tg-card);border-bottom:1px solid var(--tg-sep);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+#screenChat .topbar .iconbtn{
+  width:40px;height:40px;border:none;box-shadow:none;background:transparent;
+  backdrop-filter:none;color:var(--text);font-size:18px;
+}
+#screenChat .topbar .iconbtn:active{background:rgba(255,255,255,.1)}
+#screenChat #callBtn{background:transparent;box-shadow:none;color:var(--tg-link)}
+.chatava{
+  width:42px;height:42px;min-width:42px;border-radius:50%;overflow:hidden;
+  flex:0 0 auto;cursor:pointer;
+}
+.chatava > *{width:100%;height:100%;border-radius:50%}
+.chatava .letterava{font-size:17px}
+#screenChat .topbar .title{flex:1;min-width:0}
+#screenChat .title .h{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screenChat .title .s{font-size:13px;color:var(--tg-label)}
+
+/* ================= СООБЩЕНИЯ ================= */
+#messages{padding:10px 10px 6px}
+#messages .mrow{margin:3px 0}
+#messages .mrow.other{gap:6px;align-items:flex-end}
+
+#messages .bubble{
+  max-width:min(560px,82%);
+  padding:6px 10px 5px;
+  background:var(--tg-in);border:none;
+  border-radius:16px 16px 16px 5px;
+  box-shadow:0 1px 1px rgba(0,0,0,.25);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+#messages .mrow.mine .bubble{
+  background:var(--tg-out);border:none;
+  border-radius:16px 16px 5px 16px;
+  box-shadow:0 1px 1px rgba(0,0,0,.25);
+}
+#messages .mtext{font-size:16px;line-height:1.3;color:#fff}
+#messages .who{font-size:13.5px;font-weight:700;color:var(--tg-link)}
+#messages .mrow.mine .who{display:none}
+
+/* время — маленькое, справа снизу */
+#messages .mtime{
+  font-size:11px;color:rgba(255,255,255,.55);
+  text-align:right;margin-top:2px;
+}
+#messages .mrow.mine .mtime{color:rgba(190,220,255,.8)}
+
+/* кнопки ☆ / 🗑: мелкие, полупрозрачные, а не серые кнопки браузера */
+#messages .btop{margin:0 0 2px;gap:6px;min-height:0}
+#messages .btop:empty{display:none}
+#messages .mactions{display:flex;gap:0;margin-left:auto}
+#messages .mact, #messages .trash{
+  -webkit-appearance:none;appearance:none;
+  width:24px;height:24px;padding:0;border:0;border-radius:50%;
+  display:grid;place-items:center;font-size:12px;cursor:pointer;
+  background:transparent;color:rgba(255,255,255,.4);
+  box-shadow:none;
+}
+#messages .mact:active, #messages .trash:active{background:rgba(255,255,255,.12)}
+#messages .mact:hover{color:#ffc53d;background:transparent}
+#messages .trash:hover{color:var(--danger)}
+
+/* аватарка отправителя рядом с сообщением */
+#messages .mava{width:32px;height:32px;border-radius:50%;flex:0 0 auto;overflow:hidden}
+
+/* крупные эмодзи без «пузыря» */
+#messages .bubble:has(.bigemoji){background:transparent;box-shadow:none}
+
+/* фото и видео — с аккуратными углами */
+#messages .mimg, #messages .mvid{border-radius:12px}
+
+/* ================= ПОЛЕ ВВОДА ================= */
+#screenChat .composer{
+  padding:6px 8px;gap:4px;
+  background:var(--tg-card);border-top:1px solid var(--tg-sep);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+#screenChat .composer .iconbtn{
+  width:42px;height:42px;border:none;box-shadow:none;border-radius:50%;
+  background:transparent;color:var(--tg-label);font-size:20px;
+  backdrop-filter:none;flex:0 0 auto;
+}
+#screenChat .composer .iconbtn:active{background:rgba(255,255,255,.1)}
+#screenChat .composer .text{
+  flex:1 1 0;min-width:0;
+  padding:11px 14px;border:none;border-radius:22px;
+  background:var(--tg-bg);font-size:16px;
+}
+#screenChat .composer .iconbtn.send{
+  color:#fff;font-size:17px;
+  background:linear-gradient(135deg,var(--blue),var(--z-accent-lo));
+  box-shadow:0 6px 14px -6px var(--blue);
+}
+#voiceBtn.recording{background:#ff4d4d!important;color:#fff!important}
+
+/* меню скрепки */
+.attachmenu{background:var(--tg-card);border-radius:16px;border:1px solid var(--tg-sep)}
+
+/* ================= НИЖНЕЕ МЕНЮ ================= */
+.bottomnav{
+  background:var(--tg-card);border-top:1px solid var(--tg-sep);
+  box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.bottomnav .navbtn{color:var(--tg-label);font-weight:600;font-size:11px;gap:3px;padding:8px 4px 6px}
+.bottomnav .navbtn i{
+  width:auto;height:auto;border-radius:0;background:none;box-shadow:none;font-size:22px;
+}
+.bottomnav .navbtn.active{color:var(--blue)}
+.bottomnav .navbtn.active i{background:none;box-shadow:none;color:var(--blue)}
+
+/* ---------- Окно чужого профиля ---------- */
+.tgcard-modal{max-height:92vh;overflow-y:auto;padding-bottom:16px;border-radius:24px}
+.tgcard-modal .tghead{border-radius:24px 24px 28px 28px}
+/* ================================================================
+   Исправление: карта геолокации в сообщении.
+   Вставить в САМЫЙ КОНЕЦ style.css.
+   ================================================================ */
+
+.loccard{width:260px;max-width:100%}
+
+/* окно карты: фиксированный размер и обрезка всего лишнего */
+.locmap{
+  position:relative!important;
+  width:260px!important;max-width:100%!important;
+  height:160px!important;
+  overflow:hidden!important;
+  border-radius:14px;
+  background:linear-gradient(135deg,#dfe8d5,#c9dbe8);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);
+}
+
+/* мозаика из плиток внутри окна */
+.locmosaic{position:absolute;width:768px;height:768px}
+.locmosaic img{
+  position:absolute;
+  width:256px;height:256px;
+  max-width:none!important;max-height:none!important;
+  display:block;border-radius:0;
+}
+
+/* красная метка по центру окна */
+.locpin{position:absolute;left:130px;top:80px;width:0;height:0;z-index:2}
+.locpin span{
+  position:absolute;left:-14px;top:-36px;width:28px;height:28px;
+  border-radius:50% 50% 50% 0;background:#ff3b47;transform:rotate(-45deg);
+  box-shadow:0 8px 14px rgba(0,0,0,.45);
+}
+.locpin span::after{
+  content:"";position:absolute;left:9px;top:9px;
+  width:10px;height:10px;border-radius:50%;background:#fff;
+}
+
+.loctitle{font-weight:700;margin-top:8px}
+.loccoords{font-size:12px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.mrow.mine .loccoords{color:rgba(255,255,255,.82)}
+
+/* кнопки «Открыть» / «Маршрут» под картой */
+.locbtns{display:flex;gap:6px;margin-top:8px}
+.locbtn{
+  flex:1;min-height:36px;display:grid;place-items:center;
+  border-radius:12px;text-decoration:none;color:inherit;
+  font-size:12.5px;font-weight:700;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+}
+.locbtn:active{transform:scale(.96)}
+/* ================================================================
+   One Messenger — единый дизайн экрана «Настройки».
+   Вставить в САМЫЙ КОНЕЦ style.css (после остальных вставленных блоков).
+   Только CSS — HTML и JS не меняются.
+   ================================================================ */
+
+:root{
+  --tg-card:#17212b;
+  --tg-sep:rgba(255,255,255,.08);
+  --tg-label:#7f92a8;
+  --tg-link:var(--z-accent-hi);
+}
+
+/* ---------- Общий фон экрана ---------- */
+#screenSettings{background:#0d1826}
+#screenSettings .screen-header{padding:16px 16px 6px}
+#screenSettings .screentitle{margin:0;font-size:22px}
+.settingsscroll{padding:6px 0 34px}
+
+/* ---------- Карточки блоков — как в профиле ---------- */
+.settingsblock{
+  margin:14px 14px 0;padding:4px 16px 14px;
+  background:var(--tg-card);
+  border:1px solid var(--tg-sep);
+  border-radius:20px;
+  box-shadow:0 14px 28px -22px rgba(0,0,0,.9);
+}
+.blocktitle{
+  padding:16px 0 12px;
+  font-size:15px;font-weight:800;color:#fff;
+  display:flex;align-items:center;gap:8px;
+}
+/* маленькие иконки-эмодзи перед заголовками — по содержимому блока, без правок HTML */
+.settingsblock:has(#setDisplayName) .blocktitle::before{content:"👤"}
+.settingsblock:has(#wallpaperSection) .blocktitle::before{content:"🎨"}
+.settingsblock:has(#emojiStatusSection) .blocktitle::before{content:"🙂"}
+.settingsblock:has(#languageSection) .blocktitle::before{content:"🌐"}
+.settingsblock:has(#privacySection) .blocktitle::before{content:"🔒"}
+.settingsblock:has(#friendsSection) .blocktitle::before{content:"👥"}
+.settingsblock:has(#passcodeSection) .blocktitle::before{content:"🔢"}
+.settingsblock:has(#twoFASection) .blocktitle::before{content:"🛡️"}
+.settingsblock:has(#verificationSection) .blocktitle::before{content:"✅"}
+.settingsblock:has(#sessionsSection) .blocktitle::before{content:"💻"}
+.blocktitle::before{font-size:15px;line-height:1}
+
+.settingsblock .formgrid{padding:0 0 2px;gap:12px}
+
+/* ---------- Поля ввода и подписи ---------- */
+.formgrid label{
+  font-size:12.5px;color:var(--tg-label);margin:2px 0 -4px;font-weight:600;
+}
+.formgrid input:not([type=checkbox]),
+.formgrid textarea{
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--tg-sep);
+  border-radius:14px;
+  padding:12px 14px;
+  color:#fff;
+  transition:border-color .15s ease, background .15s ease;
+}
+.formgrid input:not([type=checkbox]):focus,
+.formgrid textarea:focus,
+.requestarea:focus{
+  outline:none;border-color:rgba(98,182,255,.6);
+  background:rgba(98,182,255,.06);
+}
+.formgrid input::placeholder,
+.requestarea::placeholder{color:rgba(127,146,168,.75)}
+
+/* ---------- Выпадающие списки (приватность) — своя стрелка вместо системной ---------- */
+.formgrid select{
+  appearance:none;-webkit-appearance:none;
+  background-color:rgba(255,255,255,.05);
+  border:1px solid var(--tg-sep);
+  border-radius:14px;
+  padding:12px 38px 12px 14px;
+  color:#fff;font:inherit;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cpath fill='%237f92a8' d='M5.5 7.5l4.5 4.5 4.5-4.5' stroke='%237f92a8' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  transition:border-color .15s ease;
+}
+.formgrid select:focus{outline:none;border-color:rgba(98,182,255,.6)}
+.formgrid select option{background:#17212b;color:#fff}
+
+/* ---------- Ряд «Аватар: ссылка + кнопка из галереи» ---------- */
+.settingsblock .row{gap:8px}
+.settingsblock .row input{flex:1;min-width:0}
+.settingsblock .row .btn{flex:0 0 auto;white-space:nowrap}
+
+/* ---------- Чекбоксы — свой переключатель вместо системного квадрата ---------- */
+.checkrow{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 2px;cursor:pointer;font-size:14px;line-height:1.4;
+}
+.checkrow input[type=checkbox]{
+  appearance:none;-webkit-appearance:none;
+  width:42px;height:26px;min-width:42px;border-radius:999px;
+  background:rgba(255,255,255,.14);
+  border:1px solid var(--tg-sep);
+  position:relative;cursor:pointer;
+  transition:background .18s ease;
+}
+.checkrow input[type=checkbox]::after{
+  content:"";position:absolute;top:2px;left:2px;
+  width:20px;height:20px;border-radius:50%;background:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.35);
+  transition:transform .18s ease;
+}
+.checkrow input[type=checkbox]:checked{
+  background:linear-gradient(135deg,var(--blue),var(--z-accent-lo));
+  border-color:transparent;
+}
+.checkrow input[type=checkbox]:checked::after{transform:translateX(16px)}
+
+/* ---------- Свотчи (обои / акцентный цвет / эмодзи-статус) ---------- */
+#wallpaperSection .formgrid > label,
+#emojiStatusSection .formgrid > label{margin-bottom:2px}
+.swatchrow, .statusgrid{margin-top:2px}
+
+/* ---------- Языковые кнопки как сегментированный переключатель ---------- */
+#languageSection{display:flex;gap:6px;padding:2px 0 6px;flex-wrap:wrap}
+#languageSection button{
+  flex:1;min-width:84px;min-height:42px;padding:0 12px;
+  border-radius:13px;font-weight:700;font-size:13.5px;
+  border:1px solid var(--tg-sep);background:rgba(255,255,255,.05);color:var(--text);
+  transition:background .15s ease, color .15s ease, border-color .15s ease;
+}
+#languageSection button.active{
+  color:#fff;border-color:transparent;
+  background:linear-gradient(135deg,var(--blue),var(--z-accent-lo));
+  box-shadow:0 8px 16px -8px var(--blue);
+}
+
+/* ---------- Список друзей ---------- */
+#friendsSection .memberrow{
+  padding:10px 0;border-bottom:1px solid var(--tg-sep);
+}
+#friendsSection .memberrow:last-child{border-bottom:none}
+#friendsSection .memberrow .avatar{width:42px;height:42px;border-radius:50%}
+#friendsSection .memberrow .iconbtn,
+#friendsSection .memberrow button{
+  margin-left:auto;flex:0 0 auto;
+}
+
+/* ---------- Код-пароль / 2FA / верификация — статусные строки ---------- */
+.settingsblock > .formgrid > div:not([class]),
+#passcodeSection .hint,
+#twoFASection .hint,
+#verificationSection .hint{
+  font-size:13.5px;color:var(--tg-label);line-height:1.5;
+}
+#twoFASection .row{margin-top:2px}
+
+/* значок «официально подтверждён» — как в профиле */
+#verificationSection:has(.pofficial) .checkrow{
+  padding-top:2px;
+}
+
+/* ---------- Кнопки действий: ровные ряды ---------- */
+.settingsblock .btn.full{width:100%}
+.settingsblock .row .btn{min-width:0}
+
+/* ---------- Сессии устройств ---------- */
+#sessionsSection .memberrow,
+#sessionsSection > div{
+  padding:10px 0;border-bottom:1px solid var(--tg-sep);
+  font-size:13.5px;
+}
+#sessionsSection > div:last-child{border-bottom:none}
+
+/* ---------- Блок «Аккаунт» — опасная зона визуально отделена ---------- */
+.settingsblock:last-of-type{
+  border-color:rgba(255,84,104,.22);
+}
+#deleteAccountSection{margin-top:4px}
+
+/* ---------- Мелкие подсказки ---------- */
+.formgrid + .hint, .settingsblock .hint{
+  font-size:12.5px;color:var(--tg-label);margin-top:-4px;line-height:1.5;
+}
+
+@media (max-width:640px){
+  .settingsblock{margin:12px 10px 0;padding:2px 14px 12px}
+  .blocktitle{font-size:14.5px}
+}
+/* ================================================================
+   Исправление: рамки у эмодзи-статуса + красивая рамка для подарков.
+   Вставить в САМЫЙ КОНЕЦ style.css.
+   ================================================================ */
+
+/* ---------- Сетка эмодзи-статуса в настройках — убрали тяжёлые рамки ---------- */
+.statusgrid{
+  display:grid;grid-template-columns:repeat(auto-fill, minmax(44px,1fr));
+  gap:4px;
+}
+.statusbtn{
+  height:44px;border-radius:14px;
+  border:none;background:transparent;
+  font-size:23px;color:var(--muted);
+  display:grid;place-items:center;
+  transition:background .15s ease, transform .12s ease;
+}
+.statusbtn:hover{background:rgba(255,255,255,.07);transform:scale(1.08)}
+.statusbtn:active{transform:scale(.92)}
+.statusbtn.active{
+  background:rgba(var(--z-accent-rgb),.22);
+  box-shadow:inset 0 0 0 2px rgba(98,182,255,.75);
+}
+
+/* ---------- Подарки: круглая карточка с золотистым сиянием ---------- */
+.gifts-row{
+  display:flex;flex-wrap:wrap;gap:12px;justify-content:center;
+  padding:6px 0;
+}
+.gift-badge{
+  position:relative;
+  width:56px;height:56px;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:26px;
+  background:radial-gradient(circle at 30% 25%, rgba(255,214,140,.9), rgba(184,110,30,.55) 70%);
+  box-shadow:
+    0 0 0 2px rgba(255,214,140,.55),
+    0 0 18px 2px rgba(255,190,90,.45),
+    inset 0 2px 4px rgba(255,255,255,.5),
+    inset 0 -3px 6px rgba(120,60,10,.35);
+  animation:giftFloat 3s ease-in-out infinite;
+}
+.gift-badge::after{
+  content:"✦";position:absolute;top:-2px;right:-2px;
+  font-size:11px;color:#fff8dc;
+  text-shadow:0 0 6px rgba(255,214,140,.9);
+  animation:giftSparkle 1.8s ease-in-out infinite;
+}
+@keyframes giftFloat{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-4px)}
+}
+@keyframes giftSparkle{
+  0%,100%{opacity:.4;transform:scale(.8)}
+  50%{opacity:1;transform:scale(1.15)}
+}
+@media (prefers-reduced-motion: reduce){
+  .gift-badge, .gift-badge::after{animation:none}
+}
+
+/* ---------- Подарки в модалке выбора — та же карточка, компактнее ---------- */
+.gift-emoji-btn{
+  width:52px;height:52px;border-radius:50%;
+  border:none;font-size:23px;
+  background:radial-gradient(circle at 30% 25%, rgba(255,214,140,.85), rgba(184,110,30,.5) 70%);
+  box-shadow:0 0 0 2px rgba(255,214,140,.4), inset 0 2px 4px rgba(255,255,255,.45);
+  transition:transform .12s ease, box-shadow .15s ease;
+}
+.gift-emoji-btn:hover{box-shadow:0 0 0 2px rgba(255,214,140,.7), 0 0 14px rgba(255,190,90,.5), inset 0 2px 4px rgba(255,255,255,.45)}
+.gift-emoji-btn:active{transform:scale(.9)}
+/* ================================================================
+   Иконки для новых блоков настроек (чёрный список, юзернейм)
+   + стиль подарка, когда он приходит как сообщение в чат.
+   Вставить в САМЫЙ КОНЕЦ style.css.
+   ================================================================ */
+
+.settingsblock:has(#blacklistSection) .blocktitle::before{content:"🚫"}
+.settingsblock:has(#usernameSection) .blocktitle::before{content:"🏷️"}
+
+/* ---------- Подарок как сообщение в чате ---------- */
+.giftmsg{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:10px 18px;min-width:96px;
+}
+.giftmsg .gift-badge{width:64px;height:64px;font-size:30px}
+.giftmsg-label{font-size:12.5px;color:var(--muted);font-weight:600}
+/* ================================================================
+   Иконки для новых блоков настроек (чёрный список, юзернейм)
+   + стиль подарка, когда он приходит как сообщение в чат.
+   Вставить в САМЫЙ КОНЕЦ style.css.
+   ================================================================ */
+
+.settingsblock:has(#blacklistSection) .blocktitle::before{content:"🚫"}
+.settingsblock:has(#usernameSection) .blocktitle::before{content:"🏷️"}
+.settingsblock:has(#googleSection) .blocktitle::before{content:"🔗"}
+
+/* ---------- Подарок как сообщение в чате ---------- */
+.giftmsg{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:10px 18px;min-width:96px;
+}
+.giftmsg .gift-badge{width:64px;height:64px;font-size:30px}
+.giftmsg-label{font-size:12.5px;color:var(--muted);font-weight:600}
+/* ================================================================
+   One Messenger — галочки «прочитано», ответы, редактирование,
+   пересылка и меню действий по долгому нажатию на сообщение.
+   Вставить в САМЫЙ КОНЕЦ style.css. Только CSS — HTML/JS уже готовы.
+   ================================================================ */
+
+/* ---------- Галочки отправлено/прочитано ---------- */
+.ticks{
+  display:inline-flex;margin-left:4px;position:relative;
+  width:16px;height:12px;vertical-align:middle;
+}
+.ticks i{
+  font-size:11px;color:rgba(255,255,255,.55);
+  position:absolute;top:0;
+}
+.ticks i:first-child{left:0}
+.ticks i:last-child{left:5px;opacity:0}
+.ticks.read i{color:var(--z-accent-hi)}
+.ticks.read i:last-child{opacity:1}
+
+.editedmark{
+  font-size:10.5px;color:rgba(255,255,255,.45);margin-right:5px;font-style:italic;
+}
+
+/* ---------- Цитата ответа внутри пузыря ---------- */
+.replyquote{
+  display:flex;gap:8px;align-items:stretch;
+  margin:2px 0 6px;padding:2px 0;
+  cursor:pointer;
+}
+.replyquote-line{width:3px;border-radius:3px;background:var(--blue,var(--z-accent));flex:0 0 auto}
+.replyquote-body{min-width:0}
+.replyquote-who{font-size:12.5px;font-weight:700;color:var(--blue,var(--z-accent))}
+.replyquote-text{font-size:12.5px;color:rgba(255,255,255,.65);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+
+/* ---------- Панель "Ответ / Редактирование" над полем ввода ---------- */
+.replybar{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;
+  background:rgba(255,255,255,.04);
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.replybar-line{width:3px;align-self:stretch;border-radius:3px;background:var(--blue,var(--z-accent))}
+.replybar-body{flex:1;min-width:0}
+.replybar-title{font-size:12.5px;font-weight:700;color:var(--blue,var(--z-accent))}
+.replybar-text{font-size:13px;color:rgba(255,255,255,.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- Меню действий по долгому нажатию ---------- */
+.sheet{
+  width:min(320px, 88vw);
+  padding:8px;
+  border-radius:18px;
+}
+.msgactions{display:flex;flex-direction:column;gap:2px}
+.msgaction{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:12px;
+  background:transparent;border:none;color:var(--text,#eaf2ff);
+  font-size:14.5px;text-align:left;
+  transition:background .12s ease;
+}
+.msgaction i{width:18px;text-align:center;color:var(--blue,var(--z-accent))}
+.msgaction:hover{background:rgba(255,255,255,.06)}
+.msgaction.danger{color:#ff5c5c}
+.msgaction.danger i{color:#ff5c5c}
+
+/* пузырь получает лёгкую подсветку, пока меню открыто по долгому нажатию */
+.bubble{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+.bubble .mtext, .bubble a{ -webkit-user-select:text; user-select:text; }
+/* ================================================================
+   One Messenger — видеосообщения-кружочки (как в Telegram)
+   + кнопки "скачать"/"переслать" на медиа-сообщениях.
+   Вставить в САМЫЙ КОНЕЦ style.css. Только CSS.
+   ================================================================ */
+
+/* ---------- Кружочек в ленте чата ---------- */
+.roundmsg{
+  position:relative;
+  width:200px;height:200px;
+  border-radius:50%;
+  overflow:hidden;
+  cursor:pointer;
+  background:#000;
+  box-shadow:0 10px 26px -14px rgba(0,0,0,.7);
+}
+.roundvid{
+  width:100%;height:100%;
+  object-fit:cover;
+  display:block;
+  pointer-events:none;
+}
+.roundplay{
+  position:absolute;top:0;right:0;bottom:0;left:0;
+  display:grid;place-items:center;
+  background:rgba(0,0,0,.28);
+  color:#fff;font-size:34px;
+  transition:opacity .15s ease;
+}
+.roundmsg.playing .roundplay{opacity:0;pointer-events:none}
+
+@media (max-width:480px){
+  .roundmsg{width:160px;height:160px}
+}
+
+/* ---------- Модалка записи кружочка ---------- */
+.roundcard{
+  width:min(360px, 92vw);
+  padding:20px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  position:relative;
+}
+.roundclose{position:absolute;top:10px;right:10px}
+
+.roundstage{
+  position:relative;
+  width:260px;height:260px;
+  border-radius:50%;
+  overflow:hidden;
+  background:#000;
+  box-shadow:0 0 0 4px rgba(255,255,255,.06), 0 16px 40px -18px rgba(0,0,0,.85);
+}
+.roundstage video{
+  width:100%;height:100%;object-fit:cover;display:block;
+  transform:scaleX(-1); /* зеркалим фронталку, как во всех камерах */
+}
+.roundtimer{
+  position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.55);color:#fff;
+  padding:4px 12px;border-radius:999px;
+  font-size:13px;font-weight:700;letter-spacing:.5px;
+}
+
+.roundcontrols{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%}
+
+.roundrecbtn{
+  width:66px;height:66px;border-radius:50%;
+  background:#ff4d4d;border:4px solid rgba(255,255,255,.85);
+  box-shadow:0 8px 20px -6px rgba(255,77,77,.6);
+  transition:transform .12s ease;
+}
+.roundrecbtn:active{transform:scale(.92)}
+.roundrecbtn.stop{border-radius:16px;width:30px;height:30px;margin:18px}
+
+.roundpreview-actions{display:flex;gap:10px;width:100%}
+.roundpreview-actions .btn{flex:1}
+/* ================================================================
+   One Messenger — видеосообщения-кружочки (как в Telegram)
+   + кнопки "скачать"/"переслать" на медиа-сообщениях.
+   Вставить в САМЫЙ КОНЕЦ style.css. Только CSS.
+   ================================================================ */
+
+/* ---------- Кружочек в ленте чата ---------- */
+.roundmsg{
+  position:relative;
+  width:200px;height:200px;
+  border-radius:50%;
+  overflow:hidden;
+  cursor:pointer;
+  background:#000;
+  box-shadow:0 10px 26px -14px rgba(0,0,0,.7);
+}
+.roundvid{
+  width:100%;height:100%;
+  object-fit:cover;
+  display:block;
+  pointer-events:none;
+}
+.roundplay{
+  position:absolute;top:0;right:0;bottom:0;left:0;
+  display:grid;place-items:center;
+  background:rgba(0,0,0,.28);
+  color:#fff;font-size:34px;
+  transition:opacity .15s ease;
+}
+.roundmsg.playing .roundplay{opacity:0;pointer-events:none}
+
+@media (max-width:480px){
+  .roundmsg{width:160px;height:160px}
+}
+
+/* ---------- Модалка записи кружочка ---------- */
+.roundcard{
+  width:min(360px, 92vw);
+  padding:20px;
+  display:flex;flex-direction:column;align-items:center;gap:18px;
+  position:relative;
+}
+.roundclose{position:absolute;top:10px;right:10px}
+
+.roundstage{
+  position:relative;
+  width:260px;height:260px;
+  border-radius:50%;
+  overflow:hidden;
+  background:#000;
+  box-shadow:0 0 0 4px rgba(255,255,255,.06), 0 16px 40px -18px rgba(0,0,0,.85);
+}
+/* исходное видео с камеры — не показываем напрямую, оно только источник кадров для canvas */
+.roundstage video.roundsrc{
+  position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;
+}
+/* после остановки записи — предпросмотр уже готового (круглого) файла */
+.roundstage video.roundpreviewvid{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.roundstage canvas{
+  width:100%;height:100%;display:block;
+}
+.roundtimer{
+  position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.55);color:#fff;
+  padding:4px 12px;border-radius:999px;
+  font-size:13px;font-weight:700;letter-spacing:.5px;
+}
+.roundflipbtn{
+  position:absolute;bottom:12px;right:12px;
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.25);
+  display:grid;place-items:center;font-size:15px;
+}
+.roundflipbtn:active{transform:scale(.92)}
+
+.roundcontrols{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%}
+
+.roundrecbtn{
+  width:66px;height:66px;border-radius:50%;
+  background:#ff4d4d;border:4px solid rgba(255,255,255,.85);
+  box-shadow:0 8px 20px -6px rgba(255,77,77,.6);
+  transition:transform .12s ease;
+}
+.roundrecbtn:active{transform:scale(.92)}
+.roundrecbtn.stop{border-radius:16px;width:30px;height:30px;margin:18px}
+
+.roundpreview-actions{display:flex;gap:10px;width:100%}
+.roundpreview-actions .btn{flex:1}
+/* ================================================================
+   One Messenger — категории в Настройках (аккордеон) +
+   кастомная шапка профиля (градиент + узор).
+   Вставить в САМЫЙ КОНЕЦ style.css, ПОСЛЕ settings-telegram.css
+   и profile-telegram.css. Только CSS.
+   ================================================================ */
+
+/* ---------- Категории настроек ---------- */
+.settingscategory{
+  margin:14px 14px 0;
+}
+.settingscategory:first-child{margin-top:6px}
+
+.categoryhead{
+  width:100%;
+  display:flex;align-items:center;gap:10px;
+  padding:14px 16px;
+  background:var(--tg-card);
+  border:1px solid var(--tg-sep);
+  border-radius:18px;
+  font:inherit;color:#fff;font-weight:800;font-size:15px;
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:border-radius .15s ease, background .15s ease;
+}
+.categoryhead:active{background:rgba(255,255,255,.04)}
+.cathead-icon{font-size:17px;line-height:1}
+.cathead-label{flex:1;text-align:left}
+.cathead-chevron{
+  font-size:13px;color:var(--tg-label);
+  transition:transform .22s ease;
+}
+.settingscategory.open .categoryhead{
+  border-radius:18px 18px 0 0;
+}
+.settingscategory.open .cathead-chevron{transform:rotate(180deg)}
+
+.categorybody{
+  max-height:0;
+  overflow:hidden;
+  background:rgba(255,255,255,.015);
+  border:1px solid var(--tg-sep);
+  border-top:0;
+  border-radius:0 0 18px 18px;
+  transition:max-height .32s ease;
+}
+.settingscategory.open .categorybody{max-height:4000px}
+
+/* когда категория закрыта — прячем нижнюю скруглённую рамку-«пустышку» */
+.settingscategory:not(.open) .categorybody{border-color:transparent}
+
+/* блоки внутри категории — без внешнего margin, категория уже задаёт отступы */
+.categorybody .settingsblock{margin:10px 10px 10px}
+.categorybody .settingsblock:first-child{margin-top:12px}
+.categorybody .settingsblock:last-child{margin-bottom:12px}
+
+@media (max-width:640px){
+  .settingscategory{margin:12px 10px 0}
+  .categoryhead{padding:12px 14px;font-size:14.5px}
+}
+
+/* ================================================================
+   Кастомная шапка профиля: градиент верх→низ + узор вместо точек.
+   Управляется CSS-переменными --hd-top/--hd-bottom/--hd-pattern-*,
+   которые ставит JS (applyProfileHeader). Если переменные не заданы —
+   остаётся исходный сине-фиолетовый градиент и точки.
+   ================================================================ */
+.tghead{
+  background:linear-gradient(160deg, var(--hd-top, var(--z-accent-lo)) 0%, var(--hd-bottom, var(--z-accent)) 100%);
+}
+.tghead::before{
+  background-image:var(--hd-pattern-img,
+    radial-gradient(circle,rgba(255,255,255,.28) 2.5px,transparent 3px),
+    radial-gradient(circle,rgba(255,255,255,.18) 2px,transparent 2.5px));
+  background-size:var(--hd-pattern-size, 62px 62px);
+  background-position:var(--hd-pattern-pos, 0 0, 31px 31px);
+}
+
+/* ---------- Превью шапки в настройках ---------- */
+.hdpreview{
+  height:96px;border-radius:16px;position:relative;overflow:hidden;
+  margin:2px 0 4px;
+  background:linear-gradient(160deg, var(--hd-top, var(--z-accent-lo)) 0%, var(--hd-bottom, var(--z-accent)) 100%);
+}
+.hdpreview::before{
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;opacity:.5;
+  background-image:var(--hd-pattern-img,
+    radial-gradient(circle,rgba(255,255,255,.28) 2.5px,transparent 3px),
+    radial-gradient(circle,rgba(255,255,255,.18) 2px,transparent 2.5px));
+  background-size:var(--hd-pattern-size, 62px 62px);
+  background-position:var(--hd-pattern-pos, 0 0, 31px 31px);
+}
+
+/* ================== ВКЛАДКА «СТОРИС» — лента как Shorts / Reels ================== */
+#screenStories{position:relative;background:#000}
+.reels-top{
+  position:absolute;top:0;left:0;right:0;z-index:5;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px;pointer-events:none;
+  background:linear-gradient(180deg, rgba(0,0,0,.55), transparent);
+}
+.reels-title{color:#fff;font-size:20px;font-weight:800;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.reels-add{
+  pointer-events:auto;width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(255,255,255,.18);color:#fff;font-size:16px;display:grid;place-items:center;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.reels-feed{
+  flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  scroll-snap-type:y mandatory;scrollbar-width:none;
+  display:flex;flex-direction:column;
+}
+.reels-feed::-webkit-scrollbar{display:none}
+.reels-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  color:rgba(255,255,255,.7);font-size:15px;text-align:center;padding:24px;
+}
+.reels-empty i{font-size:42px;opacity:.6}
+
+.reel{
+  position:relative;flex:0 0 100%;height:100%;min-height:100%;
+  scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden;background:#000;
+}
+.reel-media{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.reel-media img,.reel-media video{width:100%;height:100%;object-fit:contain;display:block}
+.reel-text{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  padding:60px 76px 110px 28px;text-align:center;color:#fff;font-size:24px;font-weight:800;line-height:1.3;
+  background:linear-gradient(160deg, var(--z-accent-hi), var(--z-accent) 45%, #0b132b 130%);
+  overflow-wrap:anywhere;
+}
+.reel-playicon{
+  position:absolute;top:50%;left:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:50%;
+  background:rgba(0,0,0,.45);color:#fff;font-size:26px;display:grid;place-items:center;
+  opacity:0;transform:scale(.8);transition:opacity .15s ease, transform .15s ease;pointer-events:none;
+}
+.reel.paused .reel-playicon{opacity:1;transform:scale(1)}
+
+.reel-info{
+  position:absolute;left:0;right:0;bottom:0;padding:48px 76px 16px 14px;
+  background:linear-gradient(0deg, rgba(0,0,0,.72), transparent);
+  color:#fff;pointer-events:none;
+}
+.reel-author{
+  pointer-events:auto;display:inline-flex;align-items:center;gap:10px;
+  border:none;background:none;color:#fff;cursor:pointer;padding:0;max-width:100%;
+}
+.reel-author .avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;flex:none;border:2px solid rgba(255,255,255,.85)}
+.reel-authorname{font-weight:700;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reel-authorname .uname{color:#fff}
+.reel-repost{margin-top:8px;font-size:12px;color:rgba(255,255,255,.8)}
+.reel-caption{
+  margin-top:8px;font-size:14px;line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.6);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;
+}
+
+.reel-rail{
+  position:absolute;right:8px;bottom:18px;z-index:3;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+.reel-act{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  border:none;background:none;color:#fff;cursor:pointer;padding:0;min-width:52px;
+  font-size:12px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.7);
+}
+.reel-act i{
+  width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:19px;
+  background:rgba(255,255,255,.16);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:transform .12s ease, background .15s ease;
+}
+button.reel-act:active i{transform:scale(.88)}
+.reel-act.on-like i{background:var(--blue);color:#fff}
+.reel-act.on-dislike i{background:#ff4d4d;color:#fff}
+.reel-views{cursor:default}
+.reel-views i{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;height:28px}
+
+/* лист комментариев */
+.reelcomments-card{display:flex;flex-direction:column;max-height:76vh}
+.reelcomments-count{color:var(--muted);font-weight:600;margin-left:4px}
+.reelcomments-list{flex:1;min-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:6px 0 12px}
+.reelcomment{display:flex;gap:10px;align-items:flex-start}
+.reelcomment .avatar{width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none}
+.reelcomment-body{min-width:0;flex:1}
+.reelcomment-head{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.reelcomment-time{color:var(--muted);font-weight:500;font-size:11px}
+.reelcomment-text{font-size:14px;line-height:1.4;margin-top:2px;overflow-wrap:anywhere}
+.reelcomments-inputrow{display:flex;gap:8px;align-items:center;padding-top:10px;border-top:1px solid var(--line)}
+.reelcomments-inputrow input{
+  flex:1;min-width:0;padding:11px 14px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(0,0,0,.18);color:var(--text);outline:none;font-size:14px;
+}
+
+/* статистика истории (видит автор) */
+.statsummary{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
+.statsummary div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 2px;border-radius:12px;background:rgba(255,255,255,.05)}
+.statsummary b{font-size:17px}
+.statsummary span{font-size:10px;color:var(--muted)}
+.statsection{margin-top:14px}
+.statsection-title{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:4px}
+.statsection-title b{color:var(--text);margin-left:4px}
+.statsection-title i{margin-right:4px}
+.storyviewer-viewsbtn{flex-wrap:wrap;row-gap:6px}
+.storyviewer-viewsbtn > span{display:inline-flex;align-items:center;gap:5px}
+
+/* аналитика в профиле */
+.storystats{padding:0 14px 14px}
+.storystats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.storystat{
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 4px;
+  border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+}
+.storystat i{color:var(--blue);font-size:15px}
+.storystat b{font-size:19px}
+.storystat span{font-size:11px;color:var(--muted)}
+.storystats-note{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.5}
+.storystats-note b{color:var(--text)}
+.storythumb-stats{
+  position:absolute;left:0;right:0;bottom:0;padding:14px 6px 5px;font-size:11px;font-weight:700;color:#fff;
+  background:linear-gradient(0deg, rgba(0,0,0,.7), transparent);text-align:left;pointer-events:none;
+}
+#storyViewersList{padding:0 14px 14px}
+.reelcomments-list{padding:6px 14px 12px}
+.reelcomments-inputrow{padding:10px 14px 14px}
+.reel-promo{
+  display:flex;width:max-content;align-items:center;gap:6px;margin:0 0 10px;padding:4px 10px;border-radius:999px;
+  font-size:12px;font-weight:700;color:#fff;background:linear-gradient(90deg,#ff8a3d,#ff4d6d);
+}
+
+/* ================== ГРУППЫ: шапка, управление, приглашения ================== */
+.grphead{display:flex;gap:12px;align-items:center}
+.grphead .avatar{width:56px;height:56px;border-radius:50%;overflow:hidden;flex:none;display:grid;place-items:center}
+.grphead .avatar .headicon{width:100%;height:100%;display:grid;place-items:center;border-radius:50%;font-size:20px}
+.grphead-meta{min-width:0;flex:1}
+.grphead-sub{font-size:13px;color:var(--muted);font-weight:600}
+.grphead-meta .hint{margin-top:4px;overflow-wrap:anywhere}
+.grpsection{border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.03);margin-top:10px}
+.grpsection summary{cursor:pointer;padding:12px 14px;font-weight:700;font-size:14px;list-style:none}
+.grpsection summary::-webkit-details-marker{display:none}
+.grpsection summary i{color:var(--blue);margin-right:6px}
+.grpsection-body{display:flex;flex-direction:column;gap:8px;padding:0 14px 14px}
+.grpsection-body .row{display:flex;gap:8px}
+.grpsection-body .row > *{flex:1;min-width:0}
+.grpinvite{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
+.grpinvite.dead{opacity:.5}
+.grpinvite-meta{flex:1;min-width:0}
+.grpinvite-link{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.invitejoin{display:flex;flex-direction:column;align-items:center;gap:8px;padding:6px 16px 18px;text-align:center}
+.invitejoin .avatar{width:84px;height:84px;border-radius:50%;overflow:hidden;display:grid;place-items:center}
+.invitejoin .avatar .headicon{width:100%;height:100%;display:grid;place-items:center;border-radius:50%;font-size:30px}
+.invitejoin-name{font-size:19px;font-weight:800;overflow-wrap:anywhere}
+.invitejoin-sub{font-size:13px;color:var(--muted)}
+.invitejoin .hint{overflow-wrap:anywhere}
+.inviteqr{background:#fff;padding:12px;border-radius:14px}
+.inviteqr img,.inviteqr canvas{display:block}
+#groupInfoModal .card{max-height:88vh;overflow-y:auto}
+#groupInfoModal .formgrid > *{min-width:0}
+#groupInfoModal .grpsection{overflow:hidden}
+.inviteqr{color:#111;font-size:13px}
+
+/* ================== НАСТРОЙКИ → О приложении ================== */
+.aboutapp{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 16px;text-align:center}
+.aboutapp-logo{width:72px;height:72px;border-radius:20px;display:block}
+.aboutapp-name{font-size:20px;font-weight:800}
+.aboutapp-tag{font-size:13px;color:var(--muted)}
+.aboutapp-copy{text-align:center;font-size:11px;color:var(--muted);opacity:.7;margin-top:14px;padding-top:12px;border-top:1px solid var(--z-line,rgba(255,255,255,.06))}
+.aboutrow{
+  display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;width:100%;text-align:left;
+  padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+  color:var(--text);cursor:pointer;font:inherit;
+}
+.aboutrow-label{grid-column:1 / -1;font-size:12px;color:var(--muted)}
+.aboutrow-value{font-size:15px;font-weight:700}
+.aboutrow-sub{font-size:14px;color:var(--blue);font-weight:600}
+
+/* ===== ZUMO THEME START ===== */
+/* ================================================================
+   Zumo — оформление: глубокий сине-чёрный + яркий индиго
+   Этот блок стоит в самом конце style.css и перекрывает старые цвета.
+
+   Фон — глубокий сине-чёрный (#0B132B). Один акцентный цвет (по умолчанию индиго #3A86FF)
+   красит всё «своё»: мои сообщения, активную вкладку, кнопки, значки. Нижнее меню — плавающая «док-панель».
+   ================================================================ */
+
+:root{
+  /* Палитра: глубокий сине-чёрный + яркий индиго. Акцент меняется в «Оформлении» (app.js → setAccent) */
+  --z-accent:#3a86ff;
+  --z-accent-rgb:58,134,255;
+  --z-accent-hi:#5e9cff;
+  --z-accent-lo:#2f6fe6;
+  --z-on-accent:#ffffff;
+  --z-ink:#0b132b;
+  --z-surface:#111b3a;
+  --z-raised:#18254c;
+  --z-line:rgba(160,185,255,.14);
+  --z-text:#eef3ff;
+  --z-muted:#8d9bc4;
+  --z-cyan:var(--z-accent-hi);
+  --z-blue:var(--z-accent);
+  --z-violet:var(--z-accent-lo);
+  --z-grad:linear-gradient(135deg,var(--z-accent-hi) 0%,var(--z-accent) 50%,var(--z-accent-lo) 100%);
+  --z-glow:0 10px 28px -12px rgba(var(--z-accent-rgb),.8);
+  --blue:var(--z-accent);
+
+  /* старые переменные приложения переводим на новую палитру */
+  --bg:var(--z-ink);
+  --panel:var(--z-surface);
+  --panel2:var(--z-surface);
+  --line:var(--z-line);
+  --text:var(--z-text);
+  --muted:var(--z-muted);
+  --tg-bg:var(--z-ink);
+  --tg-card:var(--z-surface);
+  --tg-sep:var(--z-line);
+  --tg-label:var(--z-muted);
+  --tg-link:var(--z-accent-hi);
+  --tg-in:var(--z-raised);
+  --tg-out:var(--z-accent);
+  --glass-border:var(--z-line);
+}
+
+html body{
+  font-family:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  background:
+    radial-gradient(900px 620px at 8% -8%, rgba(var(--z-accent-rgb),.16), transparent 62%),
+    radial-gradient(900px 700px at 105% 108%, rgba(var(--z-accent-rgb),.20), transparent 60%),
+    var(--z-ink);
+  background-attachment:fixed;
+  letter-spacing:-.005em;
+}
+body button, body input, body select, body textarea{font-family:inherit}
+
+/* рамка приложения на компьютере */
+@media (min-width:641px){
+  body .appshell{
+    border:1px solid var(--z-line);
+    box-shadow:0 40px 120px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.03) inset, 0 0 90px -30px rgba(var(--z-accent-rgb),.35);
+  }
+}
+body .appshell{background:var(--z-ink)}
+
+/* ---------------- экраны ---------------- */
+body .screen, body .chatscreen{
+  background:
+    radial-gradient(520px 320px at 0% 0%, rgba(var(--z-accent-rgb),.07), transparent 70%),
+    radial-gradient(520px 380px at 100% 100%, rgba(var(--z-accent-rgb),.09), transparent 70%),
+    var(--z-ink);
+}
+body #screenStories{background:#000}
+body .screentitle{font-size:26px;font-weight:800;letter-spacing:-.02em}
+
+/* ---------------- список чатов ---------------- */
+body #screenChats .screen-header{
+  background:transparent;padding:14px 14px 10px;
+}
+body #screenChats .search{
+  background:var(--z-surface);border:1px solid var(--z-line);border-radius:18px;padding:12px 16px;
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+body #screenChats .search:focus-within{
+  border-color:rgba(var(--z-accent-rgb),.55);
+  box-shadow:0 0 0 4px rgba(var(--z-accent-rgb),.10), 0 12px 30px -18px rgba(var(--z-accent-rgb),.8);
+}
+body #screenChats .search i{color:var(--z-muted)}
+body #screenChats .search input{font-size:15px}
+
+body #screenChats .story-add{
+  border:1.5px dashed rgba(var(--z-accent-rgb),.6);background:rgba(var(--z-accent-rgb),.08);color:var(--z-cyan);
+}
+body #screenChats .storyava{
+  background:linear-gradient(var(--z-ink),var(--z-ink)) padding-box, var(--z-grad) border-box;
+}
+body .storyname{color:var(--z-muted);font-size:12px}
+
+/* «Создать группу» / «Создать канал» */
+body #screenChats .sidebar-actions{gap:10px;margin-top:12px}
+body #screenChats .sidebar-actions .btn.small{
+  flex:1 1 0;justify-content:center;min-height:42px;border-radius:14px;font-size:14px;font-weight:600;
+  color:var(--z-text);
+  background:linear-gradient(var(--z-surface),var(--z-surface)) padding-box,
+             linear-gradient(135deg,rgba(var(--z-accent-rgb),.55),rgba(var(--z-accent-rgb),.55)) border-box;
+  border:1px solid transparent;
+}
+body #screenChats .sidebar-actions .btn.small i{color:var(--z-cyan);font-size:14px}
+body #screenChats .sidebar-actions .btn.small:active{transform:scale(.98)}
+
+body #screenChats .chatlist{background:transparent;padding:4px 8px 96px}
+body #screenChats .chatitem{
+  border-radius:18px;padding:10px 12px;margin:2px 0;
+  transition:background .15s ease;
+}
+body #screenChats .chatitem::after{display:none}
+body #screenChats .chatitem:hover{background:rgba(150,175,255,.06)}
+body #screenChats .chatitem.active{
+  background:linear-gradient(90deg,rgba(var(--z-accent-rgb),.20),rgba(var(--z-accent-rgb),.08));
+  box-shadow:inset 3px 0 0 var(--z-cyan);
+}
+body #screenChats .chatitem .avatar.circle{background:var(--z-grad)}
+body #screenChats .chatitem .avatar.circle.saved, body #screenChats .chatitem .avatar.circle.group{background:var(--z-grad)}
+body #screenChats .chatitem .avatar.circle{color:var(--z-on-accent)}
+body #screenChats .chatitem .meta .name{font-size:16px;font-weight:700;letter-spacing:-.01em}
+body #screenChats .chatitem .meta .preview{color:var(--z-muted)}
+body #screenChats .chatitem .dot{left:52px;bottom:12px;border-color:var(--z-ink);background:#3de8a0;box-shadow:0 0 10px rgba(61,232,160,.8)}
+
+/* ---------------- чат ---------------- */
+body #screenChat .topbar{
+  background:rgba(17,27,58,.86);border-bottom:1px solid var(--z-line);
+  backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);
+  padding:10px 10px;
+}
+body #screenChat .title .h{font-size:17px;letter-spacing:-.01em}
+body #screenChat .title .s{color:var(--z-muted)}
+body #screenChat #callBtn, body #screenChat #omVideoBtn{color:var(--z-cyan)}
+
+body #messages{padding:12px 12px 8px}
+body #messages .bubble{
+  background:var(--z-raised);border:1px solid var(--z-line);
+  border-radius:20px 20px 20px 6px;padding:8px 12px 6px;box-shadow:none;
+}
+body #messages .mrow.mine .bubble{
+  background:var(--z-grad);border:none;border-radius:20px 20px 6px 20px;
+  box-shadow:0 10px 26px -14px rgba(var(--z-accent-rgb),.9);
+}
+/* кружочки и большие эмодзи — без «пузыря», как в Telegram */
+body #messages .bubble.bare, body #messages .mrow.mine .bubble.bare{
+  background:transparent;border:none;box-shadow:none;padding:0;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+}
+body #messages .mrow.mine .bubble.bare{align-items:flex-end}
+body #messages .bubble.bare .mtime, body #messages .mrow.mine .bubble.bare .mtime{
+  float:none;margin:0;padding:3px 9px;border-radius:999px;
+  background:rgba(150,175,255,.10);color:var(--z-muted);
+}
+body #messages .btop:empty{display:none}
+body #messages .bubble.bare-round{position:relative;display:block}
+body #messages .bubble.bare-round .mtime, body #messages .mrow.mine .bubble.bare-round .mtime{
+  position:absolute;right:0;bottom:0;background:rgba(17,27,58,.9);border:1px solid var(--z-line);color:var(--z-text);
+}
+body #messages .mtext{line-height:1.38}
+body #messages .mrow.mine .bubble{color:var(--z-on-accent)}
+body #messages .mrow.mine .mtext, body #messages .mrow.mine .ticks, body #messages .mrow.mine .editedmark{color:var(--z-on-accent)}
+body #messages .mrow.mine .bubble.bare .mtext{color:var(--z-text)}
+body #messages .mrow.mine .mtime{color:var(--z-on-accent);opacity:.8}
+body #messages .who{color:var(--z-cyan)}
+body #messages .mimg, body #messages .mvid{border-radius:16px}
+
+body #screenChat .composer{
+  background:transparent;border-top:none;padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px));gap:6px;
+}
+body #screenChat .composer .text{
+  background:var(--z-surface);border:1px solid var(--z-line);border-radius:24px;padding:12px 16px;
+}
+body #screenChat .composer .text:focus{border-color:rgba(var(--z-accent-rgb),.5);outline:none}
+body #screenChat .composer .iconbtn{color:var(--z-muted)}
+body #screenChat .composer .iconbtn.send{background:var(--z-grad);box-shadow:var(--z-glow);color:var(--z-on-accent)}
+body .attachmenu{background:var(--z-surface);border:1px solid var(--z-line);border-radius:20px}
+
+/* голосовые */
+body .voicecard{min-width:210px;padding:4px 2px 2px}
+body .voiceplay{width:42px;height:42px;background:var(--z-grad);color:#fff}
+body .voicetrack{height:4px;background:rgba(150,175,255,.24)}
+body .voiceprogress{background:var(--z-cyan)}
+body .voicetime{color:var(--z-muted)}
+body .mrow.mine .voiceplay{background:var(--z-on-accent);color:var(--z-accent)}
+body .mrow.mine .voicetrack{background:rgba(255,255,255,.34)}
+body .mrow.mine .voiceprogress{background:var(--z-on-accent)}
+body .mrow.mine .voicetime{color:var(--z-on-accent);opacity:.88}
+
+/* кружочки */
+body .roundmsg{box-shadow:0 0 0 2px rgba(150,175,255,.22), 0 16px 34px -18px rgba(0,0,0,.9)}
+/* ---------------- нижнее меню: плавающая док-панель ---------------- */
+body .bottomnav{
+  position:absolute;left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  padding:6px;gap:4px;border-radius:26px!important;
+  background:rgba(17,27,58,.88);border:1px solid var(--z-line);
+  backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+  box-shadow:0 20px 50px -18px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06);
+}
+body .bottomnav .navbtn{
+  flex:1;border-radius:20px;padding:9px 4px 8px;gap:4px;color:var(--z-muted);font-size:11px;font-weight:600;
+  transition:background .2s ease, color .2s ease;
+}
+body .bottomnav .navbtn i{font-size:19px}
+body .bottomnav .navbtn.active{background:var(--z-grad);color:var(--z-on-accent);box-shadow:var(--z-glow)}
+body .bottomnav .navbtn.active i{color:var(--z-on-accent)}
+/* экраны со списками заканчиваются выше дока, чтобы последний пункт не прятался под ним */
+body #screenSettings, body #screenProfile .tgscroll{padding-bottom:96px}
+body #screenStories .reel-info{padding-bottom:104px}
+body #screenStories .reel-rail{bottom:104px}
+
+/* ---------------- кнопки, карточки, окна ---------------- */
+body .btn.primary{
+  background:var(--z-grad);border:none;color:var(--z-on-accent);font-weight:700;box-shadow:var(--z-glow);
+}
+body .btn.ghost{background:rgba(150,175,255,.07);border:1px solid var(--z-line);color:var(--z-text)}
+body .btn{border-radius:16px}
+body .modal{background:rgba(5,9,22,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+body .modal .card{
+  background:var(--z-surface);border:1px solid var(--z-line);border-radius:26px;
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.95);
+}
+body .formgrid input, body .formgrid select{
+  background:rgba(11,19,43,.6);border:1px solid var(--z-line);border-radius:14px;
+}
+body .formgrid input:focus, body .formgrid select:focus{border-color:rgba(var(--z-accent-rgb),.55);outline:none}
+body .tgcard{background:var(--z-surface);border:1px solid var(--z-line);border-radius:22px}
+body .settingscategory{border-radius:20px}
+body .toast{background:rgba(17,27,58,.96);border:1px solid var(--z-line);border-radius:16px}
+body .verified-badge{color:var(--z-cyan)}
+
+/* значок чата в шапке переписки (Общий чат, Избранное, группа) — такой же кружок, как в списке чатов */
+.headicon{width:100%;height:100%;display:grid;place-items:center;border-radius:50%;background:var(--z-grad);color:var(--z-on-accent);font-size:17px}
+body .chatava{overflow:hidden}
+/* шапка профиля: если человек не выбрал свои цвета — берём акцентный */
+body .tghead{background:linear-gradient(160deg, var(--hd-top, var(--z-accent-lo)) 0%, var(--hd-bottom, var(--z-accent-hi)) 100%)}
+body .colorswatch.active{outline:2px solid var(--z-text);outline-offset:2px}
+body ::selection{background:rgba(var(--z-accent-rgb),.45)}
+body a{color:var(--z-accent-hi)}
+body #messages .mrow.mine .bubble a{color:inherit;text-decoration:underline}
+body input[type="checkbox"], body input[type="radio"], body input[type="range"]{accent-color:var(--z-accent)}
+
+:focus-visible{outline:2px solid var(--z-cyan);outline-offset:2px}
+
+/* Логотип Zumo везде один и тот же — скруглённый значок, как на заставке.
+   Раньше на экране входа стояла текстовая «Z» и квадратный значок. */
+img.logo{
+  width:52px; height:52px; border-radius:23%; display:block;
+  object-fit:cover; background:none; box-shadow:0 6px 18px rgba(44,116,240,.35);
+}
+.aboutapp-logo{border-radius:23%}

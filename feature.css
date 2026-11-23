@@ -1,0 +1,764 @@
+/* ================================================================
+   One Messenger — стили новых функций.
+   Подключается в chat.html ПОСЛЕ style.css (старый style.css не меняется).
+   ================================================================ */
+
+/* ---------- Аватар-буква (если нет фото) ---------- */
+.letterava{
+  width:100%;height:100%;
+  display:grid;place-items:center;
+  color:#fff;font-weight:800;font-size:1.05em;
+  text-shadow:0 1px 2px rgba(0,0,0,.25);
+}
+.avatar.big .letterava{font-size:30px}
+.avatar.circle.saved{background:linear-gradient(135deg,#2a9df4,#6a5cff);color:#fff}
+.call-avatar .letterava{font-size:36px}
+
+/* ---------- Имя: эмодзи-статус, 🎂 ---------- */
+.uname{font-weight:inherit}
+.emojistatus{margin-left:4px;font-size:.95em;line-height:1}
+.bdaymark{margin-left:3px;font-size:.9em}
+.who .uname{font-weight:700}
+
+/* ---------- Сообщения с аватаркой ---------- */
+.mrow.other{align-items:flex-end;gap:8px}
+.mava{
+  width:32px;height:32px;border-radius:50%;
+  flex:0 0 auto;overflow:hidden;cursor:pointer;
+  background:rgba(255,255,255,.08);
+  display:grid;place-items:center;
+  font-size:13px;
+}
+.mava img{width:100%;height:100%;object-fit:cover}
+.btop{min-height:0}
+.btop:empty{display:none}
+.mactions{display:flex;gap:2px;margin-left:auto}
+.mact{
+  border:none;background:transparent;color:rgba(255,255,255,.45);
+  cursor:pointer;padding:2px 4px;font-size:12px;border-radius:6px;
+}
+.mact:hover{color:#ffc53d;background:rgba(255,255,255,.06)}
+.mact.trash:hover{color:var(--danger)}
+.mtime{font-size:10.5px;color:rgba(255,255,255,.5);text-align:right;margin-top:4px;font-variant-numeric:tabular-nums}
+.fwd{font-size:12px;color:var(--blue);margin-bottom:6px;cursor:pointer}
+.mrow.hidden{display:none}
+
+/* ---------- Крупные анимированные эмодзи ---------- */
+.mtext.bigemoji{
+  font-size:46px;line-height:1.15;
+  display:inline-block;
+  animation:emojiJoy 1.4s ease-in-out 2;
+  transform-origin:50% 80%;
+}
+.bubble:has(.bigemoji){background:transparent;border-color:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+@keyframes emojiJoy{
+  0%,100%{transform:scale(1) rotate(0)}
+  20%{transform:scale(1.25) rotate(-8deg)}
+  40%{transform:scale(.95) rotate(6deg)}
+  60%{transform:scale(1.12) rotate(-4deg)}
+  80%{transform:scale(1) rotate(2deg)}
+}
+
+/* ---------- Файлы (Word, Excel, PowerPoint, PDF...) ---------- */
+.filecard{
+  display:flex;align-items:center;gap:10px;
+  min-width:220px;max-width:320px;
+  padding:6px 4px;border-radius:12px;
+  color:var(--text);text-decoration:none;
+}
+.filecard:hover{background:rgba(255,255,255,.05)}
+.fileicon{
+  width:44px;height:44px;border-radius:12px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:20px;color:#fff;
+  background:#607d8b;
+}
+.fileicon.ft-word{background:#2b579a}
+.fileicon.ft-excel{background:#217346}
+.fileicon.ft-ppt{background:#d24726}
+.fileicon.ft-pdf{background:#e53935}
+.fileicon.ft-zip{background:#8d6e63}
+.fileicon.ft-txt{background:#546e7a}
+.fileicon.ft-audio{background:#8e24aa}
+.fileicon.ft-video{background:#3949ab}
+.fileicon.ft-image{background:#00897b}
+.fileicon.ft-app{background:#455a64}
+.fileinfo{flex:1;min-width:0}
+.filename{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.filesize{font-size:12px;color:var(--muted);margin-top:2px}
+.filedl{color:var(--blue)}
+
+/* ---------- #теги и Избранное ---------- */
+.hashtag{color:var(--blue);cursor:pointer;font-weight:600}
+.hashtag:hover{text-decoration:underline}
+.favtagbar{
+  display:flex;gap:6px;overflow-x:auto;
+  padding:8px 14px 0;scrollbar-width:none;
+}
+.favtagbar::-webkit-scrollbar{display:none}
+.tagchip{
+  flex:0 0 auto;border:1px solid var(--glass-border);
+  background:rgba(255,255,255,.05);color:var(--text);
+  padding:6px 12px;border-radius:999px;cursor:pointer;font-size:13px;
+}
+.tagchip span{color:var(--muted);font-size:11px;margin-left:2px}
+.tagchip.active{background:rgba(42,157,244,.25);border-color:rgba(42,157,244,.5)}
+.emptyhint{
+  margin:40px auto;max-width:300px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5;
+}
+.emptyhint i{font-size:34px;color:var(--blue);display:block;margin-bottom:12px}
+
+/* ---------- Панель эмодзи ---------- */
+.emojipanel{
+  border-top:1px solid var(--glass-border);
+  background:rgba(12,23,38,.85);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  max-height:260px;display:flex;flex-direction:column;
+}
+.emojitabs{display:flex;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.emojitab{
+  border:none;background:transparent;font-size:20px;padding:4px 8px;border-radius:10px;cursor:pointer;
+}
+.emojitab.active{background:rgba(42,157,244,.22)}
+.emojigrid{
+  display:grid;grid-template-columns:repeat(auto-fill, minmax(40px,1fr));
+  gap:2px;padding:8px;overflow-y:auto;
+}
+.emojibtn{
+  border:none;background:transparent;font-size:24px;
+  height:40px;border-radius:10px;cursor:pointer;
+  transition:transform .12s ease;
+}
+.emojibtn:hover{background:rgba(255,255,255,.08);transform:scale(1.15)}
+
+/* ---------- Обои: новые варианты (для всех чатов и для одного чата) ---------- */
+body[data-wallpaper="aurora"] .messages, #messages[data-wp="aurora"]{
+  background:radial-gradient(600px 400px at 20% 10%, rgba(41,209,125,.25), transparent 60%),
+             radial-gradient(600px 400px at 80% 30%, rgba(106,92,255,.28), transparent 60%), #07121c;
+}
+body[data-wallpaper="rose"] .messages, #messages[data-wp="rose"]{
+  background:linear-gradient(160deg, rgba(255,77,157,.22), rgba(60,15,40,.65));
+}
+body[data-wallpaper="graphite"] .messages, #messages[data-wp="graphite"]{
+  background:linear-gradient(160deg, #22262c, #111418);
+}
+body[data-wallpaper="lavender"] .messages, #messages[data-wp="lavender"]{
+  background:linear-gradient(160deg, rgba(160,107,255,.28), rgba(30,20,60,.7));
+}
+body[data-wallpaper="mint"] .messages, #messages[data-wp="mint"]{
+  background:linear-gradient(160deg, rgba(0,194,199,.25), rgba(8,40,40,.7));
+}
+/* старые варианты — для обоев конкретного чата */
+#messages[data-wp="default"]{background:transparent}
+#messages[data-wp="night"]{background:radial-gradient(700px 500px at 20% 0%, rgba(90,60,180,.18), transparent 60%), #0a0f1a}
+#messages[data-wp="ocean"]{background:linear-gradient(160deg, rgba(24,80,120,.35), rgba(10,30,45,.6))}
+#messages[data-wp="sunset"]{background:linear-gradient(160deg, rgba(255,138,61,.18), rgba(60,20,40,.55))}
+#messages[data-wp="forest"]{background:linear-gradient(160deg, rgba(40,120,80,.22), rgba(10,30,20,.55))}
+
+/* своё фото на все чаты */
+body[data-wallpaper="custom"] .messages{
+  background-image:linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.28)), var(--custom-wp);
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+}
+
+.wallswatch.wp-aurora{background:linear-gradient(135deg, #29d17d, #6a5cff)}
+.wallswatch.wp-rose{background:linear-gradient(160deg, rgba(255,77,157,.6), rgba(60,15,40,.95))}
+.wallswatch.wp-graphite{background:linear-gradient(160deg, #3a3f47, #111418)}
+.wallswatch.wp-lavender{background:linear-gradient(160deg, rgba(160,107,255,.7), rgba(30,20,60,.95))}
+.wallswatch.wp-mint{background:linear-gradient(160deg, rgba(0,194,199,.65), rgba(8,40,40,.95))}
+.wallswatch.wallupload{
+  display:grid;place-items:center;color:var(--text);
+  background:rgba(255,255,255,.06);background-size:cover;background-position:center;
+  border-style:dashed;
+}
+
+.colorswatch{display:inline-grid;place-items:center}
+
+/* ---------- Эмодзи-статус ---------- */
+.statusgrid{display:grid;grid-template-columns:repeat(auto-fill, minmax(42px,1fr));gap:6px}
+.statusbtn{
+  height:42px;border-radius:12px;border:2px solid transparent;
+  background:rgba(255,255,255,.05);font-size:22px;cursor:pointer;color:var(--muted);
+}
+.statusbtn.active{border-color:var(--blue);background:rgba(42,157,244,.18)}
+
+/* ---------- Профиль: «был(а) в сети», официальный ---------- */
+.plastseen{margin-top:4px;color:var(--muted);font-size:13px}
+.pofficial{
+  margin-top:8px;display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;border-radius:10px;font-size:13px;
+  background:rgba(42,157,244,.14);color:var(--blue);border:1px solid rgba(42,157,244,.3);
+}
+#profileActions{flex-wrap:wrap}
+
+/* ---------- Официальный аккаунт: плашка в чате и заявка ---------- */
+.gatenotice{
+  display:flex;align-items:center;gap:10px;
+  margin:10px 14px 0;padding:10px 12px;border-radius:14px;
+  background:rgba(42,157,244,.12);border:1px solid rgba(42,157,244,.3);font-size:13px;
+}
+.gatenotice .gatetext{flex:1}
+.gatenotice .btn.small{flex:0 0 auto}
+.requestarea{
+  width:100%;padding:12px;border-radius:16px;border:1px solid var(--line);
+  background:rgba(0,0,0,.18);color:var(--text);outline:none;resize:vertical;font:inherit;
+}
+
+/* ---------- Дни рождения ---------- */
+.bdaybanner{margin:0 12px 6px;display:flex;flex-direction:column;gap:6px}
+.bdayline{font-weight:800}
+.bdayrow{display:flex;align-items:center;gap:10px}
+.bdayrow .avatar{width:36px;height:36px}
+.bdayrow .btn.small{flex:0 0 auto}
+
+.bdaycard{position:relative;overflow:hidden;text-align:center}
+.bdaybody{position:relative;z-index:1;padding:30px 22px 24px}
+.bdaybody h2{margin:6px 0 8px}
+.bdaybody p{color:var(--muted);margin:0 0 18px}
+.bdaycake{font-size:72px;animation:emojiJoy 1.6s ease-in-out infinite}
+.confetti{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;z-index:0}
+.confetti span{
+  position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;opacity:.9;
+  animation-name:confettiFall;animation-timing-function:linear;animation-iteration-count:infinite;
+}
+@keyframes confettiFall{
+  from{transform:translateY(-20px) rotate(0)}
+  to{transform:translateY(520px) rotate(540deg)}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .mtext.bigemoji, .bdaycake, .confetti span{animation:none}
+}
+
+@media (max-width:640px){
+  .emojipanel{max-height:230px}
+  .mava{width:30px;height:30px}
+}
+
+
+/* ================================================================
+   ДИЗАЙН v2 — круглые аватарки, насыщенные цвета, красивая шапка профиля
+   ================================================================ */
+
+/* ---------- Все аватарки — круги (как в Телеграме) ---------- */
+.avatar, .avatar.big, .profiletab .avatar.big, .profile .avatar.big, .mava, .letterava{border-radius:50%}
+.avatar img, .mava img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
+.letterava{letter-spacing:0}
+
+/* ---------- Сообщения: насыщенные цвета ---------- */
+.bubble{background:rgba(31,49,72,.94);border-color:rgba(255,255,255,.1)}
+.mrow.mine .bubble{
+  background:linear-gradient(135deg, var(--blue) 0%, #5b6dff 100%);
+  border-color:rgba(255,255,255,.24);color:#fff;
+  box-shadow:0 12px 26px -12px var(--blue), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.mrow .bubble:has(.bigemoji), .mrow.mine .bubble:has(.bigemoji){
+  background:transparent!important;border-color:transparent!important;box-shadow:none!important;
+}
+.mrow.mine .mtime, .mrow.mine .filesize, .mrow.mine .voicetime{color:rgba(255,255,255,.82)}
+.mrow.mine .who{color:#fff}
+.mrow.mine .hashtag{color:#fff;text-decoration:underline}
+.mrow.mine .fwd{color:#e2f1ff}
+.mrow.mine .filedl, .mrow.mine .listitem i{color:#fff}
+.mrow.mine .mact{color:rgba(255,255,255,.72)}
+.mrow.mine .voiceplay{background:#fff;color:var(--blue)}
+.mrow.mine .voicetrack{background:rgba(255,255,255,.32)}
+.mrow.mine .voiceprogress{background:#fff}
+.mrow.mine .listitem.checked i{color:#b9ffd6}
+.mrow.mine .listitem.checked span{color:rgba(255,255,255,.72)}
+
+/* ---------- Настройки: карточки ---------- */
+.settingsscroll{padding:8px 0 30px}
+.settingsblock, .settingsblock:last-child{
+  margin:12px 14px 0;padding:16px;
+  border:1px solid var(--glass-border);border-radius:22px;
+  background:rgba(255,255,255,.045);
+}
+.blocktitle{font-size:16px}
+
+/* ---------- Палитры ---------- */
+.wallswatch{width:56px;height:44px;border-radius:14px;border-width:3px}
+.wallswatch.active{border-color:#fff;box-shadow:0 0 0 2px var(--blue)}
+.colorswatch{width:36px;height:36px;border-width:3px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.colorswatch.active{border-color:#fff;box-shadow:0 0 0 2px var(--blue)}
+/* ---------- Обои: насыщеннее ---------- */
+body:not([data-wallpaper]) .messages, body[data-wallpaper="default"] .messages{
+  background:radial-gradient(620px 420px at 85% 0%, rgba(42,157,244,.22), transparent 62%),
+             radial-gradient(520px 380px at 0% 100%, rgba(139,92,255,.16), transparent 62%);
+}
+body[data-wallpaper="night"] .messages, #messages[data-wp="night"]{background:radial-gradient(700px 500px at 20% 0%, rgba(124,77,255,.42), transparent 60%), #090e1b}
+body[data-wallpaper="ocean"] .messages, #messages[data-wp="ocean"]{background:linear-gradient(160deg, rgba(0,132,255,.5), rgba(3,25,60,.88))}
+body[data-wallpaper="sunset"] .messages, #messages[data-wp="sunset"]{background:linear-gradient(160deg, rgba(255,110,40,.5), rgba(90,20,70,.85))}
+body[data-wallpaper="forest"] .messages, #messages[data-wp="forest"]{background:linear-gradient(160deg, rgba(0,190,100,.42), rgba(5,35,25,.88))}
+body[data-wallpaper="aurora"] .messages, #messages[data-wp="aurora"]{
+  background:radial-gradient(600px 400px at 20% 10%, rgba(0,230,130,.34), transparent 60%),
+             radial-gradient(600px 400px at 80% 30%, rgba(120,90,255,.4), transparent 60%), #06111b;
+}
+body[data-wallpaper="rose"] .messages, #messages[data-wp="rose"]{background:linear-gradient(160deg, rgba(255,45,140,.42), rgba(70,10,45,.85))}
+body[data-wallpaper="lavender"] .messages, #messages[data-wp="lavender"]{background:linear-gradient(160deg, rgba(160,100,255,.45), rgba(30,15,70,.88))}
+body[data-wallpaper="mint"] .messages, #messages[data-wp="mint"]{background:linear-gradient(160deg, rgba(0,205,210,.4), rgba(6,45,48,.88))}
+.wallswatch.wp-night{background:linear-gradient(160deg,#7c4dff,#090e1b)}
+.wallswatch.wp-ocean{background:linear-gradient(160deg,#0084ff,#031940)}
+.wallswatch.wp-sunset{background:linear-gradient(160deg,#ff6e28,#5a1446)}
+.wallswatch.wp-forest{background:linear-gradient(160deg,#00be64,#052319)}
+.wallswatch.wp-aurora{background:linear-gradient(135deg,#00e682,#785aff)}
+.wallswatch.wp-rose{background:linear-gradient(160deg,#ff2d8c,#460a2d)}
+.wallswatch.wp-lavender{background:linear-gradient(160deg,#a064ff,#1e0f46)}
+.wallswatch.wp-mint{background:linear-gradient(160deg,#00cdd2,#062d30)}
+
+/* ---------- Геолокация ---------- */
+.loccard{width:260px;max-width:100%}
+.locmap{
+  position:relative;width:260px;max-width:100%;height:160px;border-radius:16px;overflow:hidden;
+  background:linear-gradient(135deg,#dfe8d5,#c9dbe8);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);
+}
+.locmosaic{position:absolute;width:768px;height:768px}
+.locpin{position:absolute;left:130px;top:80px;width:0;height:0}
+.locpin span{
+  position:absolute;left:-14px;top:-36px;width:28px;height:28px;
+  border-radius:50% 50% 50% 0;background:#ff3b47;transform:rotate(-45deg);
+  box-shadow:0 8px 14px rgba(0,0,0,.45);
+}
+.locpin span::after{content:"";position:absolute;left:9px;top:9px;width:10px;height:10px;border-radius:50%;background:#fff}
+.loctitle{font-weight:800;margin-top:10px}
+.loccoords{font-size:12px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.mrow.mine .loccoords{color:rgba(255,255,255,.82)}
+.locbtns{display:flex;gap:6px;margin-top:10px}
+.locbtn{
+  flex:1;text-align:center;padding:9px 6px;border-radius:12px;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+  color:inherit;text-decoration:none;font-size:12.5px;font-weight:700;
+}
+.locbtn:hover{background:rgba(255,255,255,.25)}
+
+/* ---------- Входящие заявки владельцу официального аккаунта ---------- */
+.contactinbox{
+  margin:0 12px 8px;padding:14px;border-radius:22px;
+  background:linear-gradient(135deg, rgba(42,157,244,.32), rgba(139,92,255,.28));
+  border:1px solid rgba(96,176,255,.45);
+  display:flex;flex-direction:column;gap:10px;
+}
+.inboxtitle{font-weight:800}
+.inboxitem{padding:12px;border-radius:18px;background:rgba(6,14,26,.6);border:1px solid var(--line)}
+.inboxhead{display:flex;align-items:center;gap:10px}
+.inboxhead .avatar{width:40px;height:40px}
+.inboxtext{margin:10px 0;white-space:pre-wrap;word-break:break-word;font-size:14px}
+.inboxbtns{display:flex;gap:8px}
+.inboxbtns .btn{flex:1}
+
+/* пустая подпись внутри сетки историй не должна сжиматься в узкий столбец */
+.stories-grid .hint{grid-column:1 / -1;text-align:center;margin:8px 0}
+
+
+/* ================================================================
+   ДИЗАЙН v3 — КНОПКИ
+   Единая система: основная (с градиентом и свечением), «стеклянная»,
+   красная, маленькая и круглые кнопки-иконки. У каждой есть нажатие,
+   наведение и рамка фокуса для клавиатуры.
+   ================================================================ */
+
+.btn, .iconbtn, .navbtn, .tagchip, .emojitab, .statusbtn, .story-add{
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ---------- Обычные кнопки ---------- */
+.btn{
+  position:relative;
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  min-height:48px;padding:0 20px;border-radius:16px;
+  font:inherit;font-size:15px;font-weight:700;line-height:1.1;letter-spacing:.1px;
+  color:var(--text);cursor:pointer;overflow:hidden;
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.05));
+  box-shadow:0 10px 20px -12px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.18);
+  transition:transform .15s ease, box-shadow .2s ease, filter .2s ease;
+}
+.btn i{font-size:1.05em}
+.btn:hover{filter:brightness(1.14);transform:translateY(-1px)}
+.btn:active{transform:translateY(0) scale(.97);filter:brightness(.95)}
+.btn:disabled{opacity:.5;cursor:default;transform:none;filter:none}
+.btn.full{width:100%}
+
+.btn.ghost i{color:#5db4ff}
+
+.btn.primary{
+  color:#fff;border-color:rgba(255,255,255,.3);
+  background:linear-gradient(135deg, var(--blue) 0%, #5b6dff 100%);
+  box-shadow:0 16px 28px -14px var(--blue), inset 0 1px 0 rgba(255,255,255,.42);
+}
+.btn.primary::before{
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 55%);
+}
+.btn.primary i{color:#fff}
+
+.btn.danger{
+  color:#fff;border-color:rgba(255,255,255,.26);
+  background:linear-gradient(135deg, #ff5468 0%, #d81e3c 100%);
+  box-shadow:0 16px 28px -14px #ff3b55, inset 0 1px 0 rgba(255,255,255,.36);
+}
+
+.btn.small{
+  min-height:38px;padding:0 15px;border-radius:13px;font-size:13px;flex:0 0 auto;
+}
+.btn.small-link{
+  min-height:0;padding:4px 0;border:none;background:transparent;box-shadow:none;
+  color:#ff6b7c;font-size:13px;font-weight:600;text-decoration:underline;border-radius:0;overflow:visible;
+}
+.btn.small-link:hover{filter:none;transform:none;color:#ff8f9c}
+.row .btn, .settingsblock .row .btn{flex:0 0 auto}
+.row{gap:10px}
+
+/* ---------- Быстрые действия на экране чатов (Группа, Канал, ...) ---------- */
+.sidebar-actions{display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-top:12px}
+.sidebar-actions .btn.small{
+  flex-direction:column;gap:7px;min-height:82px;padding:11px 2px 9px;
+  border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0;white-space:nowrap;
+}
+.sidebar-actions .btn.small i{
+  width:40px;height:40px;border-radius:50%;
+  display:grid;place-items:center;font-size:16px;color:#fff;
+  box-shadow:0 10px 16px -8px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.sidebar-actions .btn.small:nth-child(1) i{background:linear-gradient(135deg,#3fb0ff,#2f6bff)}
+.sidebar-actions .btn.small:nth-child(2) i{background:linear-gradient(135deg,#ffb23f,#ff6a1a)}
+.sidebar-actions .btn.small:nth-child(3) i{background:linear-gradient(135deg,#b878ff,#7b3fe4)}
+.sidebar-actions .btn.small:nth-child(4) i{background:linear-gradient(135deg,#43e08a,#12a150)}
+
+/* ---------- Круглые кнопки-иконки ---------- */
+.iconbtn{
+  width:44px;height:44px;border-radius:50%;padding:0;
+  display:inline-grid;place-items:center;font-size:17px;color:var(--text);cursor:pointer;
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg, rgba(255,255,255,.15), rgba(255,255,255,.05));
+  box-shadow:0 10px 18px -12px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.2);
+  transition:transform .15s ease, filter .2s ease, box-shadow .2s ease;
+}
+.iconbtn:hover{filter:brightness(1.18);transform:translateY(-1px)}
+.iconbtn:active{transform:scale(.9);filter:brightness(.95)}
+.iconbtn.danger{
+  color:#fff;border-color:rgba(255,255,255,.22);
+  background:linear-gradient(135deg,#ff5468,#d81e3c);
+}
+.iconbtn.send{
+  color:#fff;border-color:rgba(255,255,255,.3);
+  background:linear-gradient(135deg, var(--blue), #5b6dff);
+  box-shadow:0 12px 22px -10px var(--blue), inset 0 1px 0 rgba(255,255,255,.42);
+}
+#callBtn{
+  color:#fff;border-color:rgba(255,255,255,.3);
+  background:linear-gradient(135deg,#3fdc84,#12a150);
+  box-shadow:0 12px 22px -10px #22c55e, inset 0 1px 0 rgba(255,255,255,.42);
+}
+#voiceBtn.recording{
+  color:#fff;background:linear-gradient(135deg,#ff5468,#d81e3c);
+  border-color:rgba(255,255,255,.3);animation:recPulse 1s ease-in-out infinite;
+}
+@keyframes recPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(255,84,104,.55)}
+  50%{box-shadow:0 0 0 12px rgba(255,84,104,0)}
+}
+.cardtop .iconbtn{width:38px;height:38px;font-size:15px}
+.composer{gap:7px}
+.composer .iconbtn{width:42px;height:42px;flex:0 0 auto}
+.topbar .actions{gap:8px}
+
+/* ---------- Нижнее меню ---------- */
+.navbtn{gap:4px;font-weight:700;transition:color .2s ease}
+.navbtn i{
+  width:54px;height:32px;border-radius:16px;
+  display:grid;place-items:center;font-size:18px;
+  transition:background .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.navbtn:active i{transform:scale(.9)}
+.navbtn.active{color:#fff}
+.navbtn.active i{
+  color:#fff;
+  background:linear-gradient(135deg, var(--blue), #5b6dff);
+  box-shadow:0 10px 18px -8px var(--blue), inset 0 1px 0 rgba(255,255,255,.4);
+}
+
+/* ---------- Кнопка «добавить сторис» ---------- */
+.story-add{
+  width:48px;height:48px;flex:0 0 auto;border-radius:50%;
+  display:grid;place-items:center;font-size:18px;color:#fff;cursor:pointer;
+  border:2px dashed rgba(96,176,255,.7);
+  background:radial-gradient(circle at 30% 25%, rgba(96,176,255,.45), rgba(42,157,244,.12));
+  transition:transform .15s ease, filter .2s ease;
+}
+.story-add:hover{filter:brightness(1.2)}
+.story-add:active{transform:scale(.9)}
+
+/* ---------- Меню скрепки ---------- */
+.attachmenu{
+  min-width:262px;padding:8px;border-radius:22px;
+  background:rgba(13,25,41,.98);border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 24px 50px -12px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.12);
+}
+.attachmenu button{
+  gap:12px;padding:8px 10px;border-radius:15px;font-size:14.5px;font-weight:600;
+  transition:background .15s ease, transform .12s ease;
+}
+.attachmenu button:active{transform:scale(.97)}
+.attachmenu button i{
+  width:36px;height:36px;border-radius:50%;flex:0 0 auto;
+  display:grid;place-items:center;font-size:15px;color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
+}
+.attachmenu button:nth-child(1) i{background:linear-gradient(135deg,#3fb0ff,#2f6bff)}
+.attachmenu button:nth-child(2) i{background:linear-gradient(135deg,#ff6a7a,#e0243a)}
+.attachmenu button:nth-child(3) i{background:linear-gradient(135deg,#b878ff,#7b3fe4)}
+.attachmenu button:nth-child(4) i{background:linear-gradient(135deg,#ffb23f,#ff6a1a)}
+.attachmenu button:nth-child(5) i{background:linear-gradient(135deg,#43e08a,#12a150)}
+
+/* ---------- Мелкие кнопки внутри сообщений ---------- */
+.mact{
+  width:26px;height:26px;padding:0;border-radius:50%;
+  display:grid;place-items:center;font-size:12px;transition:background .15s ease, color .15s ease, transform .12s ease;
+}
+.mact:hover{background:rgba(255,255,255,.14)}
+.mact:active{transform:scale(.88)}
+.locbtn{
+  min-height:38px;display:grid;place-items:center;border-radius:13px;
+  background:linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.1));
+  border:1px solid rgba(255,255,255,.26);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .12s ease, filter .2s ease;
+}
+.locbtn:active{transform:scale(.96)}
+
+/* ---------- Чипы и переключатели ---------- */
+.tagchip{
+  min-height:36px;padding:0 14px;font-weight:700;
+  transition:transform .12s ease, background .2s ease;
+}
+.tagchip:active{transform:scale(.95)}
+.tagchip.active{
+  color:#fff;border-color:rgba(255,255,255,.3);
+  background:linear-gradient(135deg, var(--blue), #5b6dff);
+  box-shadow:0 8px 16px -8px var(--blue);
+}
+.emojitab{width:42px;height:38px;display:grid;place-items:center;padding:0;border-radius:13px;transition:background .15s ease}
+.emojitab.active{background:linear-gradient(135deg, rgba(42,157,244,.5), rgba(91,109,255,.5))}
+.statusbtn{transition:transform .12s ease, background .15s ease}
+.statusbtn:hover{transform:scale(1.06)}
+.statusbtn:active{transform:scale(.94)}
+.gift-emoji-btn{width:50px;height:50px;border-radius:50%;font-size:22px;transition:transform .12s ease}
+.gift-emoji-btn:active{transform:scale(.9)}
+.wallswatch, .colorswatch{transition:transform .12s ease}
+.wallswatch:hover, .colorswatch:hover{transform:scale(1.07)}
+.wallswatch:active, .colorswatch:active{transform:scale(.94)}
+
+/* ---------- Экран входа: переключатель «Вход / Регистрация» ---------- */
+.tabs{
+  display:flex;gap:4px;padding:5px;border-radius:19px;
+  background:rgba(255,255,255,.06);border:1px solid var(--line);
+}
+.tabs .tab{
+  min-height:44px;border:none;border-radius:15px;background:transparent;
+  color:var(--muted);font:inherit;font-weight:700;cursor:pointer;
+  transition:background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.tabs .tab.active{
+  color:#fff;
+  background:linear-gradient(135deg, var(--blue), #5b6dff);
+  box-shadow:0 10px 18px -10px var(--blue), inset 0 1px 0 rgba(255,255,255,.4);
+}
+
+/* ---------- Фокус с клавиатуры ---------- */
+.btn:focus-visible, .iconbtn:focus-visible, .navbtn:focus-visible,
+.tagchip:focus-visible, .story-add:focus-visible, .attachmenu button:focus-visible{
+  outline:3px solid rgba(96,176,255,.6);outline-offset:2px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  .btn, .iconbtn, .navbtn i, .story-add{transition:none}
+  #voiceBtn.recording{animation:none}
+}
+
+.inboxbtns .btn.small{flex:1}
+
+/* поле ввода сообщения должно сжиматься, чтобы все кнопки помещались в строку */
+.composer .text{min-width:0;flex:1 1 0}
+
+/* отступ у кнопки на странице входа */
+.auth-card .form .btn{margin-top:16px}
+
+
+/* ================================================================
+   ДИЗАЙН v4 — интерфейс в стиле Телеграма
+   Шапка профиля с градиентом и узором, круглые кнопки действий,
+   карточки «подпись + значение», плоский список чатов, обои с узором.
+   ================================================================ */
+
+:root{
+  --tg-card:#17212b;          /* карточка */
+  --tg-sep:rgba(255,255,255,.07);
+  --tg-label:#7f92a8;
+  --tg-link:#62b6ff;
+}
+
+/* ---------- Шапка профиля ---------- */
+.tgscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:26px}
+.tghead{
+  position:relative;padding:12px 16px 20px;text-align:center;
+  background:linear-gradient(160deg,#6a5cff 0%, #4b8bff 55%, #2a9df4 100%);
+  border-radius:0 0 30px 30px;overflow:hidden;
+  box-shadow:0 18px 34px -22px rgba(0,0,0,.9);
+}
+/* лёгкий узор из кружков — как «эмодзи-фон» профиля в Телеграме */
+.tghead::before{
+  content:"";position:absolute;top:0;right:0;bottom:0;left:0;opacity:.5;pointer-events:none;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.28) 2.5px, transparent 3px),
+    radial-gradient(circle, rgba(255,255,255,.18) 2px, transparent 2.5px);
+  background-size:62px 62px, 62px 62px;
+  background-position:0 0, 31px 31px;
+}
+.tghead > *{position:relative;z-index:1}
+.tgheadbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px}
+.tgheadtitle{font-weight:800;font-size:17px;color:#fff}
+.tgheadbtn{
+  width:38px;height:38px;border-radius:50%;flex:0 0 auto;
+  display:grid;place-items:center;font-size:15px;cursor:pointer;
+  color:#fff;border:none;background:rgba(255,255,255,.22);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:transform .12s ease, background .2s ease;
+}
+.tgheadbtn:hover{background:rgba(255,255,255,.34)}
+.tgheadbtn:active{transform:scale(.9)}
+
+.tghead .avatar.big{
+  width:104px;height:104px;margin:6px auto 12px;
+  border:4px solid rgba(255,255,255,.38);
+  box-shadow:0 16px 30px -12px rgba(0,0,0,.6);
+}
+.tghead .avatar.big .letterava{font-size:42px}
+.tgname{
+  font-size:23px;font-weight:800;color:#fff;
+  display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;
+  text-shadow:0 2px 10px rgba(0,0,0,.28);
+}
+.tgname .uname{color:#fff}
+.tgname .verified-badge{color:#fff}
+.tgstatus{margin-top:3px;color:rgba(255,255,255,.85);font-size:14px}
+
+/* ---------- Круглые кнопки действий ---------- */
+.tgactions{
+  display:flex;gap:9px;margin-top:18px;
+  overflow-x:auto;scrollbar-width:none;padding-bottom:2px;
+}
+.tgactions::-webkit-scrollbar{display:none}
+.tgact{
+  flex:1 0 74px;min-width:74px;
+  display:flex;flex-direction:column;align-items:center;gap:7px;
+  padding:12px 6px 10px;border-radius:18px;cursor:pointer;
+  font:inherit;font-size:11.5px;font-weight:700;color:#fff;
+  border:1px solid rgba(255,255,255,.26);
+  background:rgba(255,255,255,.2);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transition:transform .12s ease, background .2s ease;
+}
+.tgact:hover{background:rgba(255,255,255,.32)}
+.tgact:active{transform:scale(.94)}
+.tgact i{font-size:18px}
+.tgact span{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+/* цветные кружки-иконки (используются и в шапке чата) */
+.headicon{
+  width:100%;height:100%;border-radius:50%;
+  display:grid;place-items:center;color:#fff;font-size:16px;
+}
+.act-blue .headicon, .headicon.act-blue{background:linear-gradient(135deg,#3fb0ff,#2f6bff)}
+.act-green .headicon, .headicon.act-green{background:linear-gradient(135deg,#43e08a,#12a150)}
+.act-pink .headicon, .headicon.act-pink{background:linear-gradient(135deg,#ff7ab8,#e0248f)}
+.act-orange .headicon, .headicon.act-orange{background:linear-gradient(135deg,#ffb23f,#ff6a1a)}
+.act-violet .headicon, .headicon.act-violet{background:linear-gradient(135deg,#b878ff,#7b3fe4)}
+
+/* ---------- Карточки «подпись + значение» ---------- */
+.tginfo{padding:0}
+.tgcard{
+  margin:12px 14px 0;padding:4px 16px;
+  background:var(--tg-card);border:1px solid var(--tg-sep);border-radius:20px;
+  box-shadow:0 12px 24px -20px rgba(0,0,0,.9);
+}
+.tgcardtitle{padding:14px 0 10px;font-weight:800;font-size:15px}
+.tgcard .stories-grid, .tgcard .gifts-row{padding-bottom:14px}
+.tgrow{padding:13px 0;border-bottom:1px solid var(--tg-sep)}
+.tgrow:last-child{border-bottom:none}
+.tglabel{font-size:12.5px;color:var(--tg-label);margin-bottom:3px}
+.tgvalue{font-size:15.5px;word-break:break-word}
+.tglink{color:var(--tg-link);font-weight:600}
+.tgverified{color:var(--blue);display:inline-flex;align-items:center;gap:6px}
+.giftcard .gifts-row{justify-content:flex-start;min-height:26px}
+.giftcard .gifts-row:empty::after{content:"Пока нет подарков";color:var(--tg-label);font-size:13.5px}
+
+/* окно чужого профиля */
+.tgcard-modal{max-height:92vh;overflow-y:auto;padding-bottom:16px}
+.tgcard-modal .tghead{border-radius:24px 24px 30px 30px;margin:-1px -1px 0}
+.tgcard-modal .giftpicker{margin-top:12px}
+
+/* ---------- Шапка чата с аватаркой ---------- */
+.topbar{gap:10px}
+.chatava{
+  width:40px;height:40px;min-width:40px;border-radius:50%;overflow:hidden;
+  cursor:pointer;flex:0 0 auto;background:rgba(255,255,255,.06);
+}
+.topbar .title{flex:1;min-width:0}
+.topbar .title .h{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- Список чатов: плоский, как в Телеграме ---------- */
+.chatlist{padding:0 0 10px}
+.chatitem{
+  border-radius:0;border:none;padding:9px 14px;gap:12px;
+  background:transparent;box-shadow:none;
+}
+.chatitem::after{
+  content:"";position:absolute;left:70px;right:0;bottom:0;height:1px;background:var(--tg-sep);
+}
+.chatitem:last-child::after{display:none}
+.chatitem:hover{background:rgba(255,255,255,.045)}
+.chatitem.active{
+  background:linear-gradient(135deg, rgba(42,157,244,.25), rgba(91,109,255,.2));
+  border:none;box-shadow:none;
+}
+.chatitem .avatar{width:54px;height:54px}
+.chatitem .avatar .letterava{font-size:21px}
+.chatitem .meta .name{font-size:15.5px;font-weight:700}
+.chatitem .meta .preview{font-size:13.5px;margin-top:3px}
+.chatitem .dot{position:absolute;left:54px;bottom:12px;width:14px;height:14px;border:3px solid var(--panel2)}
+.chatitem .dot.offline{display:none}
+#searchResults .chatitem::after{display:none}
+
+/* быстрые действия — компактнее, ближе к Телеграму */
+.sidebar-actions{gap:7px;margin-top:10px}
+.sidebar-actions .btn.small{min-height:74px;border-radius:18px}
+.sidebar-actions .btn.small i{width:36px;height:36px;font-size:15px}
+
+/* ---------- Обои по умолчанию: мягкий узор ---------- */
+body:not([data-wallpaper]) .messages,
+body[data-wallpaper="default"] .messages{
+  background-color:#0d1826;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,.055) 2px, transparent 2.5px),
+    radial-gradient(circle, rgba(96,176,255,.075) 3px, transparent 3.5px),
+    radial-gradient(760px 520px at 85% 0%, rgba(42,157,244,.16), transparent 62%);
+  background-size:54px 54px, 54px 54px, 100% 100%;
+  background-position:0 0, 27px 27px, 0 0;
+}
+
+/* ---------- Пузыри с «хвостиком» ---------- */
+.bubble{border-radius:18px 18px 18px 6px}
+.mrow.mine .bubble{border-radius:18px 18px 6px 18px}
+
+@media (max-width:640px){
+  .tgact{flex:1 0 68px;min-width:68px;font-size:11px}
+  .tghead .avatar.big{width:92px;height:92px}
+  .tgname{font-size:21px}
+}
+
+/* плашка официального аккаунта: текст и кнопка в столбик, чтобы не сжималось */
+.gatenotice{flex-direction:column;align-items:stretch;text-align:center;gap:8px;border-radius:18px}
+.gatenotice .gatetext{line-height:1.45}
+.gatenotice .btn.small{width:100%}

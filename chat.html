@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <script src="splash.js?v=3"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Zumo — мессенджер</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="features-v5.css?v=3" />
+  <link rel="icon" href="/icon-192.png?v=5" />
+  <link rel="apple-touch-icon" href="/icon-192.png?v=5" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0b132b" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    /* ---- Реакции и просмотры историй ---- */
+    .storyviewer-footer { padding: 10px 14px 16px; display: flex; justify-content: center; }
+    .storyviewer-reactbar {
+      display: flex; gap: 8px; background: rgba(0,0,0,.35); backdrop-filter: blur(6px);
+      padding: 8px 10px; border-radius: 999px;
+    }
+    .storyviewer-reactbtn {
+      background: transparent; border: none; font-size: 22px; line-height: 1; cursor: pointer;
+      padding: 4px 6px; border-radius: 999px; transition: transform .12s ease, background .12s ease;
+    }
+    .storyviewer-reactbtn:hover { transform: scale(1.15); }
+    .storyviewer-reactbtn.active { background: rgba(106,92,255,.35); transform: scale(1.1); }
+    .storyviewer-viewsbtn {
+      display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.35); backdrop-filter: blur(6px);
+      border: none; color: #fff; padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: 14px;
+    }
+    .storyviewer-viewsbtn i { color: #9aa7c7; }
+    .storyviewer-reactcount { color: #ffb3c6; font-size: 13px; }
+    .storyviewer-viewslabel { color: #9aa7c7; font-size: 13px; margin-left: 2px; }
+    .storyviewer-viewer-reaction { font-size: 18px; margin-left: auto; }
+    #storyViewersModal .card { max-height: 70vh; overflow-y: auto; }
+  </style>
+  <link rel="stylesheet" href="telegram-ui.css?v=1" />
+</head>
+<body>
+  <!-- DEVICE PASSCODE LOCK -->
+  <div id="passcodeOverlay" class="passcode-overlay hidden">
+    <div class="passcode-box">
+      <img class="logo" src="/icon-192.png?v=5" alt="Zumo">
+      <h2 data-i18n="passcode.enter">Введи код-пароль</h2>
+      <input id="passcodeInput" type="password" inputmode="numeric" maxlength="8" autofocus onkeydown="passcodeKeydown(event)">
+      <div id="passcodeError" class="passcode-error"></div>
+      <button class="btn primary full" onclick="unlockAttempt()" data-i18n="passcode.unlock">Разблокировать</button>
+    </div>
+  </div>
+
+  <div class="appshell">
+
+    <!-- ================= TAB: CHATS ================= -->
+    <section id="screenChats" class="screen">
+      <div class="screen-header">
+        <div class="search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="searchInput" data-i18n-placeholder="chats.searchPlaceholder" placeholder="Поиск: люди, группы, каналы, истории" oninput="searchUsers(this.value)" />
+        </div>
+
+        <div class="stories">
+          <button class="story-add" onclick="openStoryComposer()" data-i18n-title="story.newStory" title="Добавить сторис">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+          <div id="storiesList" class="stories-list"></div>
+        </div>
+
+      </div>
+
+      <div id="contactInbox" class="contactinbox hidden"></div>
+      <div id="birthdayBanner" class="banner bdaybanner hidden"></div>
+
+      <div class="chatlist" id="chatList">
+        <button class="chatitem active" data-chat="global" onclick="openChat('global')">
+          <div class="avatar circle"><i class="fa-solid fa-earth-americas"></i></div>
+          <div class="meta">
+            <div class="name" data-i18n="chats.globalChat">Общий чат</div>
+            <div class="preview" data-i18n="chats.globalChatSub">общение со всеми</div>
+          </div>
+          <span class="dot online" title="Онлайн"></span>
+        </button>
+
+        <button class="chatitem" data-chat="support" onclick="openChat('support')">
+          <div class="avatar circle"><img src="/icon-192.png?v=5" alt="Zumo" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%"></div>
+          <div class="meta">
+            <div class="name" data-i18n="chats.support">Поддержка</div>
+            <div class="preview" data-i18n="chats.supportSub">Zumo Support</div>
+          </div>
+        </button>
+
+        <div id="privateChats"></div>
+        <div id="searchResults"></div>
+      </div>
+    </section>
+
+    <!-- ================= TAB: STORIES (лента как Shorts / Reels) ================= -->
+    <section id="screenStories" class="screen hidden">
+      <div class="reels-top">
+        <div class="reels-title" data-i18n="nav.stories">Сторис</div>
+        <button class="reels-add" onclick="openStoryComposer()" data-i18n-title="story.newStory" title="Добавить сторис"><i class="fa-solid fa-plus"></i></button>
+      </div>
+      <div id="reelsFeed" class="reels-feed"></div>
+    </section>
+
+    <!-- ================= TAB: MY PROFILE ================= -->
+    <section id="screenProfile" class="screen hidden">
+      <div class="tgscroll">
+        <div class="tghead">
+          <div class="tgheadbar">
+            <div class="tgheadtitle" data-i18n="profile.title">Профиль</div>
+            <button class="tgheadbtn" onclick="switchTab('settings')" data-i18n-title="profile.editProfile" title="Редактировать"><i class="fa-solid fa-pen"></i></button>
+          </div>
+          <div class="avatar big" id="myProfileAvatar"></div>
+          <div class="tgname" id="myProfileName"></div>
+          <div class="tgstatus" id="myProfileStatus"></div>
+          <div class="tgactions" id="myProfileActions"></div>
+        </div>
+
+        <div class="tginfo" id="myProfileInfo"></div>
+
+        <div class="tgcard">
+          <div class="tgcardtitle">Аналитика историй</div>
+          <div id="myStoriesStats" class="storystats"></div>
+        </div>
+
+        <div class="tgcard">
+          <div class="tgcardtitle" data-i18n="profile.myStories">Мои истории</div>
+          <div id="myStoriesGrid" class="stories-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TAB: SETTINGS ================= -->
+    <section id="screenSettings" class="screen hidden">
+      <div class="screen-header"><h2 class="screentitle" data-i18n="settings.title">Настройки</h2></div>
+
+      <div class="settingsscroll">
+
+        <!-- ===== КАТЕГОРИЯ: Функционал (те же 4 действия, что у круглой кнопки) ===== -->
+        <div class="settingscategory" data-cat="features">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">🧩</span>
+            <span class="cathead-label" data-i18n="settings.catFeatures">Функционал</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock zx-feat-list">
+              <button type="button" class="btn ghost full" onclick="zxAction('bot')"><i class="fa-solid fa-robot"></i> <span data-i18n="fab.bot">Создать бота</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('group')"><i class="fa-solid fa-users"></i> <span data-i18n="fab.group">Создать группу</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('channel')"><i class="fa-solid fa-bullhorn"></i> <span data-i18n="fab.channel">Создать канал</span></button>
+              <button type="button" class="btn ghost full" onclick="zxAction('nearby')"><i class="fa-solid fa-location-dot"></i> <span data-i18n="fab.nearby">Люди рядом</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Профиль ===== -->
+        <div class="settingscategory open" data-cat="profile">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">👤</span>
+            <span class="cathead-label" data-i18n="settings.catProfile">Профиль</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="formgrid">
+                <label data-i18n="settings.displayName">Имя</label>
+                <input id="setDisplayName" data-i18n-placeholder="settings.displayName" placeholder="Имя" />
+
+                <label data-i18n="settings.bio">О себе</label>
+                <input id="setBio" data-i18n-placeholder="settings.bio" placeholder="О себе" />
+
+                <label data-i18n="settings.birthDate">Дата рождения (YYYY-MM-DD)</label>
+                <input id="setBirthDate" type="date" />
+
+                <label data-i18n="settings.avatar">Аватар</label>
+                <div class="row">
+                  <input id="setAvatarUrl" placeholder="https://..." />
+                  <button class="btn ghost" onclick="document.getElementById('avatarFileInput').click()"><i class="fa-solid fa-image"></i> <span data-i18n="settings.fromGallery">Из галереи</span></button>
+                </div>
+                <input id="avatarFileInput" type="file" hidden accept="image/*" onchange="uploadAvatarFile(this)" />
+
+                <button class="btn primary full" onclick="saveProfile()" data-i18n="settings.saveProfile">Сохранить профиль</button>
+              </div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.username">Юзернейм</div>
+              <div id="usernameSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.google">Google-аккаунт</div>
+              <div id="googleSection" class="formgrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Контакты ===== -->
+        <div class="settingscategory" data-cat="contacts">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">📇</span>
+            <span class="cathead-label" data-i18n="settings.catContacts">Контакты</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.savedContacts">Сохранённые контакты</div>
+              <div id="contactsSection" class="formgrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Оформление ===== -->
+        <div class="settingscategory" data-cat="appearance">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">🎨</span>
+            <span class="cathead-label" data-i18n="settings.catAppearance">Оформление</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.appearance">Обои и цвет</div>
+              <div id="wallpaperSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.profileHeader">Шапка профиля</div>
+              <div id="profileHeaderSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.emojiStatus">Эмодзи-статус</div>
+              <div id="emojiStatusSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.language">Язык</div>
+              <div id="languageSection" class="formgrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Конфиденциальность ===== -->
+        <div class="settingscategory" data-cat="privacy">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">🔒</span>
+            <span class="cathead-label" data-i18n="settings.catPrivacy">Конфиденциальность</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.privacy">Приватность</div>
+              <div id="privacySection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.friends">Друзья</div>
+              <div id="friendsSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.blacklist">Чёрный список</div>
+              <div id="blacklistSection" class="formgrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Безопасность ===== -->
+        <div class="settingscategory" data-cat="security">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">🛡️</span>
+            <span class="cathead-label" data-i18n="settings.catSecurity">Безопасность</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="blocktitle">Сквозное шифрование</div>
+              <div id="e2eSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.passcode">Код-пароль устройства</div>
+              <div id="passcodeSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.twoFA">Двухэтапная аутентификация</div>
+              <div id="twoFASection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.verification">Официальная верификация</div>
+              <div id="verificationSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.sessions">Мои сессии</div>
+              <div id="sessionsSection" class="formgrid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: Аккаунт ===== -->
+        <div class="settingscategory" data-cat="account">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">⚙️</span>
+            <span class="cathead-label" data-i18n="settings.catAccount">Аккаунт</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="legal.title">Политика использования</div>
+              <div id="legalSection" class="formgrid"></div>
+            </div>
+
+            <div class="settingsblock">
+              <div class="blocktitle" data-i18n="settings.account">Аккаунт</div>
+              <div id="accountsSection" class="formgrid"></div>
+              <div class="formgrid">
+                <button class="btn ghost full" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> <span data-i18n="settings.logout">Выйти из аккаунта</span></button>
+                <div id="deleteAccountSection"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== КАТЕГОРИЯ: О приложении ===== -->
+        <div class="settingscategory" data-cat="about">
+          <button type="button" class="categoryhead" onclick="toggleSettingsCategory(this)">
+            <span class="cathead-icon">ℹ️</span>
+            <span class="cathead-label" data-i18n="settings.catAbout">О приложении</span>
+            <i class="fa-solid fa-chevron-down cathead-chevron"></i>
+          </button>
+          <div class="categorybody">
+            <div class="settingsblock">
+              <div class="aboutapp">
+                <img src="/icon-192.png?v=5" alt="Zumo" class="aboutapp-logo">
+                <div class="aboutapp-name">Zumo</div>
+                <div class="aboutapp-tag" data-i18n="about.tagline">Мессенджер без номера телефона</div>
+              </div>
+              <div class="formgrid">
+                <button type="button" class="aboutrow" onclick="openProfile('asadbek')">
+                  <span class="aboutrow-label" data-i18n="about.founder">Основатель</span>
+                  <span class="aboutrow-value">Асадбек Абдумаликов</span>
+                  <span class="aboutrow-sub">@asadbek</span>
+                </button>
+                <button type="button" class="aboutrow" onclick="openChat('support')">
+                  <span class="aboutrow-label" data-i18n="about.support">Поддержка</span>
+                  <span class="aboutrow-value" data-i18n="about.supportValue">Написать в чат поддержки</span>
+                </button>
+              </div>
+              <div class="aboutapp-copy">© 2024–2026 Zumo. Все права защищены.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= CHAT CONVERSATION (opens over the tabs) ================= -->
+    <section id="screenChat" class="screen chatscreen hidden">
+      <header class="topbar">
+        <button class="iconbtn" onclick="backToChats()" data-i18n-title="common.back" title="Назад"><i class="fa-solid fa-arrow-left"></i></button>
+
+        <div class="chatava" id="chatHeadAvatar" onclick="openCurrentProfile()"></div>
+
+        <div class="title" onclick="openCurrentProfile()" data-i18n-title="profile.openProfile" title="Открыть профиль" style="cursor:pointer;">
+          <div id="chatTitle" class="h" data-i18n="chats.globalChat">Общий чат</div>
+          <div class="sline">
+            <div id="chatSub" class="s" data-i18n="chats.globalChatSub">общение со всеми</div>
+            <div id="typingLine" class="typing hidden" data-i18n="common.typing">печатает…</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="iconbtn" onclick="openChatWallpaperModal()" data-i18n-title="wallpaper.chatTitle" title="Обои чата">
+            <i class="fa-solid fa-palette"></i>
+          </button>
+          <button id="callBtn" class="iconbtn" onclick="startAudioCall()" data-i18n-title="call.audioCall" title="Аудиозвонок">
+            <i class="fa-solid fa-phone"></i>
+          </button>
+        </div>
+      </header>
+
+      <div id="gateNotice" class="gatenotice hidden"></div>
+      <div id="favTagBar" class="favtagbar hidden"></div>
+
+      <section id="messages" class="messages"></section>
+
+      <div id="emojiPanel" class="emojipanel hidden"></div>
+
+      <div id="replyBar" class="replybar hidden">
+        <div class="replybar-line"></div>
+        <div class="replybar-body">
+          <div id="replyBarTitle" class="replybar-title" data-i18n="reply.title">Ответ</div>
+          <div id="replyBarText" class="replybar-text"></div>
+        </div>
+        <button class="iconbtn" onclick="cancelReplyOrEdit()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <footer class="composer">
+        <div class="attachwrap">
+          <button class="iconbtn" onclick="toggleAttachMenu()" data-i18n-title="attach.title" title="Прикрепить">
+            <i class="fa-solid fa-paperclip"></i>
+          </button>
+          <div id="attachMenu" class="attachmenu hidden">
+            <button onclick="attachPickMedia()"><i class="fa-solid fa-image"></i> <span data-i18n="attach.photoVideo">Фото/Видео</span></button>
+            <button onclick="attachPickLocation()"><i class="fa-solid fa-location-dot"></i> <span data-i18n="attach.location">Геолокация</span></button>
+            <button onclick="attachPickGif()"><i class="fa-solid fa-film"></i> <span data-i18n="attach.gif">GIF</span></button>
+            <button onclick="attachPickDoc()"><i class="fa-solid fa-file-lines"></i> <span data-i18n="attach.doc">Документ или файл</span></button>
+            <button onclick="attachPickList()"><i class="fa-solid fa-list-check"></i> <span data-i18n="attach.list">Список (покупки, дела)</span></button>
+          </div>
+        </div>
+        <input id="fileInput" type="file" hidden accept="image/*,video/*" onchange="sendMedia(this)" />
+        <input id="gifInput" type="file" hidden accept="image/gif" onchange="sendMedia(this)" />
+        <input id="docInput" type="file" hidden onchange="sendMedia(this)" />
+
+        <button class="iconbtn" onclick="toggleEmojiPanel()" data-i18n-title="attach.emoji" title="Эмодзи">
+          <i class="fa-regular fa-face-smile"></i>
+        </button>
+
+        <input id="textInput" class="text" data-i18n-placeholder="common.messagePlaceholder" placeholder="Сообщение..." onkeydown="onEnter(event)" oninput="typing(true)" />
+
+        <button id="roundBtn" class="iconbtn" onclick="openRoundRecorder()" data-i18n-title="round.title" title="Видеосообщение (кружочек)">
+          <i class="fa-solid fa-video"></i>
+        </button>
+
+        <button id="voiceBtn" class="iconbtn" style="touch-action:none" data-i18n-title="attach.voice" title="Голосовое (удерживай)">
+          <i class="fa-solid fa-microphone"></i>
+        </button>
+
+        <button class="iconbtn send" onclick="sendText()" data-i18n-title="common.send" title="Отправить">
+          <i class="fa-solid fa-arrow-up"></i>
+        </button>
+      </footer>
+    </section>
+
+    <!-- BOTTOM NAVIGATION lives INSIDE the app frame now — it's the bottom
+         bar of the device card, not a separate floating element. -->
+    <nav id="bottomNav" class="bottomnav">
+      <button class="navbtn active" data-tab="chats" onclick="switchTab('chats')">
+        <i class="fa-solid fa-comments"></i><span data-i18n="nav.chats">Чаты</span>
+      </button>
+      <button class="navbtn" data-tab="stories" onclick="switchTab('stories')">
+        <i class="fa-solid fa-clapperboard"></i><span data-i18n="nav.stories">Сторис</span>
+      </button>
+      <button class="navbtn" data-tab="profile" onclick="switchTab('profile')">
+        <i class="fa-solid fa-user"></i><span data-i18n="nav.profile">Профиль</span>
+      </button>
+      <button class="navbtn" data-tab="settings" onclick="switchTab('settings')">
+        <i class="fa-solid fa-gear"></i><span data-i18n="nav.settings">Настройки</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- PROFILE MODAL (for viewing OTHER people; your own profile lives in the Профиль tab) -->
+  <div id="profileModal" class="modal hidden">
+    <div class="card tgcard-modal">
+      <div class="tghead">
+        <div class="tgheadbar">
+          <div class="tgheadtitle" id="profileTitle2" data-i18n="profile.title">Профиль</div>
+          <button class="tgheadbtn" onclick="closeProfile()" data-i18n-title="common.close" title="Закрыть"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="avatar big" id="profileAvatar"></div>
+        <div class="tgname" id="profileName"></div>
+        <div class="tgstatus" id="profileLastSeen"></div>
+        <div class="tgactions" id="profileActions"></div>
+      </div>
+
+      <div class="tginfo" id="profileInfo"></div>
+
+      <div id="profileStoriesGrid"></div>
+
+      <div id="giftPickerBox" class="giftpicker hidden">
+        <div class="hint" data-i18n="gift.pickerHint">Подарить эмодзи-подарок на профиль:</div>
+        <div id="giftEmojiRow" class="gift-emoji-row"></div>
+        <label data-i18n="gift.codeLabel">Секретный код (не нужен по пятницам)</label>
+        <input id="giftCodeInput" placeholder="•••" maxlength="10">
+      </div>
+    </div>
+  </div>
+
+  <!-- ЗАПИСЬ ВИДЕОСООБЩЕНИЯ (кружочек, как в Telegram) -->
+  <div id="roundRecorderModal" class="roundrec hidden"></div>
+
+  <!-- MESSAGE ACTIONS (долгое нажатие на сообщение) -->
+  <div id="msgActionsSheet" class="modal hidden" onclick="if(event.target===this) closeMsgActions()">
+    <div class="card sheet">
+      <div id="msgActionsList" class="msgactions"></div>
+    </div>
+  </div>
+
+  <!-- READ INFO (кто и когда прочитал) -->
+  <div id="readInfoModal" class="modal hidden" onclick="if(event.target===this) closeReadInfo()">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="readInfo.title">Прочитано</div>
+        <button class="iconbtn" onclick="closeReadInfo()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="readInfoBody" class="formgrid"></div>
+    </div>
+  </div>
+
+  <!-- FORWARD PICKER -->
+  <div id="forwardModal" class="modal hidden" onclick="if(event.target===this) closeForwardPicker()">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="forward.title">Переслать</div>
+        <button class="iconbtn" onclick="closeForwardPicker()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="forwardList" class="formgrid"></div>
+    </div>
+  </div>
+
+  <!-- SAVE CONTACT -->
+  <div id="saveContactModal" class="modal hidden" onclick="if(event.target===this) closeSaveContactModal()">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="contact.title">Сохранить контакт</div>
+        <button class="iconbtn" onclick="closeSaveContactModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <input id="saveContactUsername" type="hidden" value="">
+        <label data-i18n="contact.username">Юзернейм</label>
+        <div id="saveContactUsernameLabel" class="hint"></div>
+
+        <label data-i18n="contact.name">Имя контакта</label>
+        <input id="saveContactName" maxlength="40" data-i18n-placeholder="contact.namePlaceholder" placeholder="Например, Мама">
+
+        <label data-i18n="contact.note">Заметка (необязательно)</label>
+        <input id="saveContactNote" maxlength="120" data-i18n-placeholder="contact.notePlaceholder" placeholder="Например, близкий человек">
+
+        <button class="btn primary full" onclick="submitSaveContact()" data-i18n="common.save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ПОЛИТИКА ИСПОЛЬЗОВАНИЯ -->
+  <div id="legalModal" class="modal hidden" onclick="if(event.target===this) closeLegalModal()">
+    <div class="card" style="max-height:82vh;overflow-y:auto">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="legal.title">Политика использования</div>
+        <button class="iconbtn" onclick="closeLegalModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="tabs" id="legalLangTabs" style="margin-bottom:8px">
+        <button class="tab" id="legalLangRu" onclick="switchLegalLang('ru')">Русский</button>
+        <button class="tab" id="legalLangUz" onclick="switchLegalLang('uz')">O'zbekcha</button>
+        <button class="tab" id="legalLangEn" onclick="switchLegalLang('en')">English</button>
+      </div>
+      <div class="tabs" id="legalTabs">
+        <button class="tab active" id="legalTabTerms" onclick="switchLegalTab('terms')" data-i18n="legal.tabTerms">Условия использования</button>
+        <button class="tab" id="legalTabPrivacy" onclick="switchLegalTab('privacy')" data-i18n="legal.tabPrivacy">Конфиденциальность</button>
+      </div>
+      <div id="legalTermsBody" class="hint" style="white-space:pre-wrap;line-height:1.55;margin-top:12px"></div>
+      <div id="legalPrivacyBody" class="hint hidden" style="white-space:pre-wrap;line-height:1.55;margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- CREATE GROUP/CHANNEL -->
+  <div id="groupModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" id="groupModalTitle" data-i18n="group.newGroup">Новая группа</div>
+        <button class="iconbtn" onclick="closeCreateGroupModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <input id="groupIsChannel" type="hidden" value="0">
+        <label data-i18n="group.name">Название</label>
+        <input id="groupName" data-i18n-placeholder="group.name" placeholder="Например: Семья">
+
+        <label data-i18n="group.desc">Описание (не обязательно)</label>
+        <input id="groupDesc" data-i18n-placeholder="group.desc" placeholder="Пара слов о группе">
+
+        <label data-i18n="group.members">Друзья/родные для добавления (через запятую, @username)</label>
+        <input id="groupMembers" data-i18n-placeholder="group.members" placeholder="@friend1, @friend2">
+
+        <label class="checkrow"><input type="checkbox" id="groupDiscoverable"> <span data-i18n="group.discoverableLabel">Показывать в публичном поиске (популярное)</span></label>
+
+        <button class="btn primary full" onclick="submitCreateGroup()" data-i18n="group.create">Создать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISCOVER PUBLIC GROUPS/CHANNELS -->
+  <div id="discoverModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="discover.title">Популярные группы и каналы</div>
+        <button class="iconbtn" onclick="closeDiscoverModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <input id="discoverSearchInput" data-i18n-placeholder="discover.searchPlaceholder" placeholder="Поиск по названию..." oninput="searchDiscover(this.value)">
+        <div id="discoverList" class="partner-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GROUP INFO -->
+  <div id="groupInfoModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" id="groupInfoTitle">Группа</div>
+        <button class="iconbtn" onclick="closeGroupInfo()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <div class="grphead">
+          <div class="avatar" id="groupInfoAvatar"></div>
+          <div class="grphead-meta">
+            <div id="groupInfoSub" class="grphead-sub"></div>
+            <div id="groupInfoDesc" class="hint"></div>
+          </div>
+        </div>
+
+        <div id="groupManageBox" class="hidden"></div>
+
+        <div id="groupAddMemberRow" class="row hidden">
+          <input id="groupAddMemberInput" data-i18n-placeholder="group.addMemberPlaceholder" placeholder="@username">
+          <button class="btn ghost" onclick="addGroupMember()" data-i18n="settings.add">Добавить</button>
+        </div>
+
+        <div id="groupMembersList"></div>
+
+        <div id="groupBansList" class="hidden"></div>
+
+        <button id="groupLeaveBtn" class="btn danger full" data-i18n="group.leave">Покинуть группу</button>
+        <button id="groupDeleteBtn" class="btn danger full hidden" data-i18n="group.deleteGroup">Удалить группу</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ВСТУПЛЕНИЕ ПО ССЫЛКЕ-ПРИГЛАШЕНИЮ -->
+  <div id="inviteJoinModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle">Приглашение</div>
+        <button class="iconbtn" onclick="closeInviteJoin()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="invitejoin">
+        <div class="avatar" id="inviteJoinAvatar"></div>
+        <div class="invitejoin-name" id="inviteJoinName"></div>
+        <div class="invitejoin-sub" id="inviteJoinSub"></div>
+        <div class="hint" id="inviteJoinDesc"></div>
+        <button class="btn primary full" id="inviteJoinBtn">Вступить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR-КОД ПРИГЛАШЕНИЯ -->
+  <div id="inviteQrModal" class="modal hidden" onclick="if(event.target===this) closeInviteQr()">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle">QR-код приглашения</div>
+        <button class="iconbtn" onclick="closeInviteQr()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="invitejoin">
+        <div id="inviteQrBox" class="inviteqr"></div>
+        <div class="hint" id="inviteQrLink"></div>
+        <button class="btn ghost full" id="inviteQrCopy">Скопировать ссылку</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHOPPING / TO-DO LIST COMPOSER -->
+  <div id="listModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="list.newList">Новый список</div>
+        <button class="iconbtn" onclick="closeListComposer()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <label data-i18n="list.title">Название списка</label>
+        <input id="listTitle" data-i18n-placeholder="list.title" placeholder="Например: Список покупок">
+
+        <label data-i18n="list.items">Пункты</label>
+        <div id="listItemRows"></div>
+        <button class="btn ghost" onclick="addListRow()"><i class="fa-solid fa-plus"></i> <span data-i18n="list.addItem">Добавить пункт</span></button>
+
+        <button class="btn primary full" onclick="publishList()" data-i18n="list.send">Отправить список</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY VIEWER (full screen, animated) -->
+  <div id="storyViewerModal" class="modal storyviewer hidden" onclick="if(event.target===this) closeStoryViewer()">
+    <div class="storyviewer-inner">
+      <div class="storyviewer-progress"><div id="storyProgressBar" class="storyviewer-progress-fill"></div></div>
+      <div class="storyviewer-head">
+        <div class="avatar" id="storyViewerAvatar"></div>
+        <div class="meta">
+          <div class="name" id="storyViewerName"></div>
+        </div>
+        <button class="iconbtn" onclick="closeStoryViewer()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="storyViewerMedia" class="storyviewer-media"></div>
+      <div id="storyViewerCaption" class="storyviewer-caption"></div>
+      <div id="storyViewerFooter" class="storyviewer-footer"></div>
+    </div>
+  </div>
+
+  <!-- ПРОСМОТРЫ И РЕАКЦИИ НА ИСТОРИЮ (видит автор истории) -->
+  <div id="storyViewersModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle">Статистика истории</div>
+        <button class="iconbtn" onclick="closeStoryViewersModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="storyViewersList"></div>
+    </div>
+  </div>
+
+  <!-- КОММЕНТАРИИ К ИСТОРИИ (открывается из ленты «Сторис») -->
+  <div id="reelCommentsModal" class="modal hidden" onclick="if(event.target===this) closeReelComments()">
+    <div class="card reelcomments-card">
+      <div class="cardtop">
+        <div class="cardtitle">Комментарии <span id="reelCommentsCount" class="reelcomments-count"></span></div>
+        <button class="iconbtn" onclick="closeReelComments()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="reelCommentsList" class="reelcomments-list"></div>
+      <div class="reelcomments-inputrow">
+        <input id="reelCommentInput" placeholder="Оставить комментарий..." maxlength="300" onkeydown="if(event.key==='Enter') submitReelComment()">
+        <button class="iconbtn send" onclick="submitReelComment()"><i class="fa-solid fa-paper-plane"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY COMPOSER -->
+  <div id="storyModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="story.newStory">Новая сторис</div>
+        <button class="iconbtn" onclick="closeStoryComposer()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div class="formgrid">
+        <label data-i18n="story.file">Файл (не обязательно)</label>
+        <input id="storyFile" type="file" accept="image/*,video/*" />
+
+        <label data-i18n="story.text">Текст (не обязательно)</label>
+        <input id="storyText" maxlength="120" data-i18n-placeholder="story.text" placeholder="Текст..." />
+
+        <button class="btn primary full" onclick="publishStory()" data-i18n="story.publish">Опубликовать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ОБОИ ДЛЯ ЧАТА -->
+  <div id="wallpaperModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" data-i18n="wallpaper.chatTitle">Обои для этого чата</div>
+        <button class="iconbtn" onclick="closeChatWallpaperModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <label data-i18n="wallpaper.presets">Готовые</label>
+        <div id="wpPresetRow" class="swatchrow"></div>
+
+        <button class="btn ghost full" onclick="document.getElementById('chatWpInput').click()"><i class="fa-solid fa-image"></i> <span data-i18n="wallpaper.ownPhoto">Своё фото из галереи</span></button>
+        <input id="chatWpInput" type="file" hidden accept="image/*" onchange="uploadChatWallpaper(this)" />
+
+        <label id="wpForBothRow" class="checkrow"><input type="checkbox" id="wpForBoth"> <span data-i18n="wallpaper.forBoth">Поставить эти обои и собеседнику</span></label>
+
+        <button class="btn ghost full" onclick="saveChatWallpaper('')" data-i18n="wallpaper.reset">Сбросить обои чата</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ЗАЯВКА ОФИЦИАЛЬНОМУ АККАУНТУ ЧЕРЕЗ АДМИНИСТРАЦИЮ -->
+  <div id="contactRequestModal" class="modal hidden">
+    <div class="card">
+      <div class="cardtop">
+        <div class="cardtitle" id="contactRequestTitle">Написать</div>
+        <button class="iconbtn" onclick="closeContactRequest()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="formgrid">
+        <div class="hint" data-i18n="contactReq.hint">Этот аккаунт официально подтверждён. Напиши сообщение — администрация проверит его и передаст. Ответ придёт в чат «Поддержка».</div>
+        <textarea id="contactRequestText" class="requestarea" maxlength="1000" rows="5" data-i18n-placeholder="contactReq.placeholder" placeholder="Здравствуйте! Пишу по вопросу..."></textarea>
+        <button class="btn primary full" onclick="submitContactRequest()"><i class="fa-solid fa-paper-plane"></i> <span data-i18n="contactReq.send">Отправить через администрацию</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ПОЗДРАВЛЕНИЕ С ДНЁМ РОЖДЕНИЯ -->
+  <div id="bdayModal" class="modal hidden">
+    <div class="card bdaycard">
+      <div id="confetti" class="confetti"></div>
+      <div class="bdaybody">
+        <div class="bdaycake">🎂</div>
+        <h2 id="bdayTitle" data-i18n="bday.title">С днём рождения!</h2>
+        <p data-i18n="bday.text">Zumo поздравляет тебя! Пусть этот год будет самым счастливым 🎉</p>
+        <button class="btn primary full" onclick="closeBdayModal()" data-i18n="bday.thanks">Спасибо! 🎈</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUDIO CALL -->
+  <audio id="remoteAudio" autoplay playsinline></audio>
+
+  <div id="incomingCallModal" class="modal hidden">
+    <div class="card callcard">
+      <div class="callbg"></div>
+      <div class="callbody callbody-incoming">
+        <div class="call-avatar-ring">
+          <div class="call-avatar" id="incomingCallAvatar"></div>
+        </div>
+        <div id="incomingCallText" class="callstatus" data-i18n="call.someoneCalling">Кто-то звонит…</div>
+        <div class="call-sub" data-i18n="call.audioCall">Аудиозвонок</div>
+        <div class="row call-actions-row">
+          <button class="callbtn callbtn-reject" onclick="declineIncomingCall()" data-i18n-title="call.decline" title="Отклонить"><i class="fa-solid fa-phone-slash"></i></button>
+          <button class="callbtn callbtn-accept" onclick="acceptIncomingCall()" data-i18n-title="call.accept" title="Принять"><i class="fa-solid fa-phone"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="callModal" class="modal hidden">
+    <div class="card callcard">
+      <div class="callbg"></div>
+      <div class="callbody">
+        <div class="call-avatar-ring" id="callAvatarRing">
+          <div class="call-avatar" id="callAvatar"></div>
+        </div>
+        <div id="callTitle" class="calltitle" data-i18n="call.audioCall">Аудиозвонок</div>
+        <div id="callStatus" class="callstatus" data-i18n="call.connecting">Соединение...</div>
+        <div id="callTimer" class="call-timer hidden">00:00</div>
+        <div class="row call-actions-row">
+          <button id="muteBtn" class="callbtn callbtn-ghost" onclick="toggleMute()" data-i18n-title="call.mic" title="Микрофон"><i class="fa-solid fa-microphone"></i></button>
+          <button class="callbtn callbtn-reject" onclick="endCall()" data-i18n-title="call.end" title="Завершить"><i class="fa-solid fa-phone-slash"></i></button>
+          <button id="speakerBtn" class="callbtn callbtn-ghost" onclick="toggleSpeaker()" data-i18n-title="call.speaker" title="Звук"><i class="fa-solid fa-volume-high"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=22"></script>
+  <script src="e2e.js?v=4"></script>
+  <script src="calls-client.js?v=4"></script>
+  <script src="features-v5.js?v=4"></script>
+</body>
+</html>

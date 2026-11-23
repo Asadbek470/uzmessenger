@@ -1,0 +1,102 @@
+/* ================================================================
+   Zumo — оформление в стиле Telegram (telegram-ui.css)
+   ТОЛЬКО внешний вид: никакие функции и настройки не затронуты.
+   Подключается в chat.html последним. Акцентный цвет берётся из
+   настройки «Оформление» (--z-accent), поэтому смена цвета работает.
+   ================================================================ */
+:root{
+  --tgx-bg:#0e1621;
+  --tgx-panel:#17212b;
+  --tgx-field:#242f3d;
+  --tgx-hover:#202b36;
+  --tgx-line:rgba(255,255,255,.06);
+  --tgx-muted:#708499;
+  --tgx-in:#182533;
+  --tgx-out:#2b5278;
+  --tgx-out:color-mix(in srgb, var(--z-accent,#3a86ff) 52%, #17212b);
+}
+
+/* фон: плоский, без «жидких» пятен */
+body::before,body::after{display:none !important}
+html body{background:var(--tgx-bg) !important;font-family:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.screen,.chatscreen{background:var(--tgx-panel) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
+
+/* ---- список чатов ---- */
+#screenChats .screen-header{padding:10px 12px 6px;background:var(--tgx-panel)}
+.search{background:var(--tgx-field) !important;border:none !important;border-radius:22px !important;box-shadow:none !important;min-height:40px}
+.search input{font-size:15px}
+.search i{color:var(--tgx-muted)}
+
+/* кнопки «Группа / Канал / Быстрый контакт / Боты» — лента «пилюль» */
+.sidebar-actions{display:flex !important;gap:8px !important;overflow-x:auto;margin:8px 0 0 !important;padding:0 0 2px;scrollbar-width:none}
+.sidebar-actions::-webkit-scrollbar{display:none}
+.sidebar-actions .btn.small{
+  flex:0 0 auto;min-height:0 !important;height:34px;width:auto !important;
+  display:inline-flex !important;flex-direction:row !important;align-items:center;gap:7px !important;
+  padding:0 14px !important;border-radius:999px !important;border:none !important;
+  background:rgba(var(--z-accent-rgb,58,134,255),.16) !important;color:rgb(var(--z-accent-rgb,58,134,255)) !important;
+  font-size:13px !important;font-weight:600 !important;white-space:nowrap;box-shadow:none !important;
+}
+.sidebar-actions .btn.small i{width:auto !important;height:auto !important;background:none !important;font-size:13px !important;color:inherit !important}
+.sidebar-actions .btn.small span{color:inherit}
+
+/* строка чата */
+.chatlist{background:var(--tgx-panel)}
+.chatitem{
+  gap:12px !important;padding:8px 14px !important;border-radius:0 !important;border:none !important;
+  background:transparent !important;box-shadow:none !important;min-height:72px;
+}
+.chatitem:hover{background:var(--tgx-hover) !important}
+.chatitem.active{background:var(--tgx-hover) !important}
+.chatitem:active{transform:none !important;background:var(--tgx-field) !important}
+.chatitem .avatar{width:54px !important;height:54px !important}
+.chatitem .meta .name{font-size:16px !important;font-weight:600 !important}
+.chatitem .meta .preview{font-size:14.5px !important;color:var(--tgx-muted) !important;margin-top:3px !important}
+.chatitem + .chatitem .meta,#privateChats .chatitem .meta{position:relative}
+.dot.online{background:#4cd964 !important;box-shadow:0 0 0 2px var(--tgx-panel)}
+.unread,.badge,.unreadbadge{background:rgb(var(--z-accent-rgb,58,134,255)) !important;color:#fff !important;box-shadow:none !important}
+.avatar,.avatar.circle,.avatar.circle.group{background:rgba(var(--z-accent-rgb,58,134,255),.2)}
+.avatar.circle.group{background:rgba(255,138,61,.2)}
+
+/* ---- нижняя панель ---- */
+.bottomnav{background:var(--tgx-panel) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;border-top:1px solid var(--tgx-line) !important;box-shadow:none !important}
+.navbtn{color:var(--tgx-muted) !important;font-size:11px;font-weight:500;padding:9px 4px 7px !important}
+.navbtn i{font-size:22px !important}
+.navbtn.active{color:rgb(var(--z-accent-rgb,58,134,255)) !important}
+
+/* ---- шапка чата ---- */
+.topbar{background:var(--tgx-panel) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;border-bottom:1px solid var(--tgx-line) !important;box-shadow:none !important;min-height:56px}
+.topbar .h,#chatTitle{font-size:16px;font-weight:600}
+.topbar .s,#chatSub{font-size:13px;color:var(--tgx-muted)}
+.iconbtn{background:transparent !important;border:none !important;box-shadow:none !important;border-radius:50% !important;color:var(--tgx-muted)}
+.iconbtn:hover{background:var(--tgx-hover) !important;color:#fff}
+
+/* ---- сообщения ---- */
+.messages{background:var(--tgx-bg) !important}
+#messages .bubble,.bubble{
+  background:var(--tgx-in) !important;border:none !important;box-shadow:0 1px 1px rgba(0,0,0,.2) !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  border-radius:18px 18px 18px 5px !important;padding:7px 11px 6px !important;
+}
+#messages .mrow.mine .bubble,.mrow.mine .bubble{background:var(--tgx-out) !important;border-radius:18px 18px 5px 18px !important}
+#messages .mtext{font-size:16px;line-height:1.32}
+.mtime{font-size:11.5px !important;opacity:.6}
+
+/* ---- поле ввода ---- */
+.composer{background:var(--tgx-panel) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;border-top:1px solid var(--tgx-line) !important;gap:8px !important;padding:8px 10px !important}
+.composer .text{background:var(--tgx-field) !important;border:none !important;border-radius:22px !important;padding:11px 16px !important;font-size:16px}
+.composer .iconbtn{color:var(--tgx-muted)}
+.composer .iconbtn.send{background:rgb(var(--z-accent-rgb,58,134,255)) !important;color:#fff !important;width:44px;height:44px}
+
+/* ---- окна, карточки, кнопки ---- */
+.modal .card,.card{background:var(--tgx-panel) !important;border:none !important;box-shadow:0 12px 40px rgba(0,0,0,.5) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;border-radius:16px}
+.btn{border-radius:12px;font-weight:600;box-shadow:none}
+.btn.primary{background:rgb(var(--z-accent-rgb,58,134,255)) !important;color:#fff !important;border:none !important;box-shadow:none !important}
+.btn.ghost{background:var(--tgx-field) !important;border:none !important;color:#f5f5f5}
+.btn.ghost.small{background:rgba(var(--z-accent-rgb,58,134,255),.16) !important;color:rgb(var(--z-accent-rgb,58,134,255)) !important}
+.tabs .tab{border-radius:10px}
+
+/* тонкие полосы прокрутки */
+*{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+*::-webkit-scrollbar{width:6px;height:6px}
+*::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:6px}
