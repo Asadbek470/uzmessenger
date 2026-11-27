@@ -1,0 +1,74 @@
+/* Pro theme: синий / чёрный / белый, плоский стиль как у Telegram. Грузится последним. */
+:root{
+  --z-accent:#2a7fff; --z-accent-hi:#5b9dff; --z-accent-rgb:42,127,255; --z-on-accent:#fff;
+  --z-grad:#2a7fff;
+  --bg:#07090d; --panel:#0e1218; --panel2:#0a0d12; --line:rgba(255,255,255,.07);
+  --text:#fff; --muted:#8b97a8; --blue:#2a7fff;
+  --bubbleMe:#2a7fff; --bubbleOther:#171c24;
+  --tg-bg:#07090d; --tg-card:#0e1218; --tg-sep:rgba(255,255,255,.07); --tg-in:#171c24; --tg-out:#2a7fff;
+  --glass-bg:#0e1218; --glass-bg-strong:#0e1218; --glass-border:rgba(255,255,255,.07); --glass-blur:0px;
+  --shadow:0 8px 28px rgba(0,0,0,.5); --r:12px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+html,body{background:#07090d !important;color:#fff;font-family:"Onest","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body *{backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
+body::before,body::after{display:none !important}
+
+/* вход */
+body.auth{background:#07090d !important}
+.auth-card{background:#0e1218 !important;border:1px solid rgba(255,255,255,.08) !important;border-radius:16px !important;box-shadow:0 24px 60px rgba(0,0,0,.55) !important;width:min(400px,100%);padding:28px 24px !important;animation:proRise .5s var(--ease) both}
+.auth-card .brand{flex-direction:column;align-items:center;text-align:center;gap:12px;margin-bottom:18px}
+.auth-card .logo{width:72px !important;height:72px !important;border-radius:50% !important;box-shadow:0 0 0 4px rgba(42,127,255,.18);animation:proPop .6s var(--ease) .1s both}
+.auth-card h1{font-size:26px;font-weight:700;letter-spacing:-.2px;margin:0}
+.auth-card .brand p{color:#8b97a8;font-size:14px;margin:4px 0 0}
+.tabs{background:#0a0d12;border-radius:12px;padding:4px;gap:4px}
+.tab{border:0 !important;border-radius:9px !important;background:transparent !important;color:#8b97a8;font-weight:600;transition:background .2s,color .2s}
+.tab.active{background:#2a7fff !important;color:#fff}
+.form label{color:#8b97a8;font-size:13px;font-weight:500}
+.form input[type=text],.form input[type=password],.form input:not([type]),.auth-card input:not([type=checkbox]){background:#0a0d12 !important;border:1px solid rgba(255,255,255,.1) !important;border-radius:12px !important;color:#fff;height:50px;font-size:16px;padding:0 14px;transition:border-color .2s,box-shadow .2s}
+.auth-card input:focus{outline:0;border-color:#2a7fff !important;box-shadow:0 0 0 3px rgba(42,127,255,.25)}
+.btn.primary{background:#2a7fff !important;color:#fff !important;border:0 !important;border-radius:12px !important;height:50px;font-size:16px;font-weight:600;box-shadow:none !important;transition:transform .12s,background .2s}
+.btn.primary:hover{background:#3d8bff !important}
+.btn.primary:active,.navbtn:active,.chatitem:active{transform:scale(.97)}
+.pwrap{position:relative}
+.pwrap input{width:100%;padding-right:48px !important;box-sizing:border-box}
+.pwrap button{position:absolute;right:6px;top:6px;width:38px;height:38px;border:0;border-radius:10px;background:transparent;color:#8b97a8;cursor:pointer;font-size:15px}
+.pwrap button:hover{color:#fff;background:rgba(255,255,255,.06)}
+.terms-line{font-size:12.5px;color:#8b97a8;line-height:1.5;margin:4px 0 2px}
+.terms-line a{color:#5b9dff}
+.hint{color:#6f7b8c}
+.seoabout{display:none !important}
+
+/* чаты, как в Telegram */
+.screen-header,.topbar,.composer,.bottomnav{background:#0e1218 !important;border-color:rgba(255,255,255,.07) !important;box-shadow:none !important}
+.search{background:#171c24 !important;border:0 !important;border-radius:22px !important}
+.chatitem{background:transparent !important;border:0 !important;border-radius:0 !important;border-bottom:1px solid rgba(255,255,255,.04) !important;padding:10px 14px !important;transition:background .15s,transform .12s;animation:proSlide .35s var(--ease) both}
+.chatitem:hover{background:rgba(255,255,255,.04) !important}
+.chatitem.active{background:#2a7fff !important}
+.chatitem.active .preview,.chatitem.active .name{color:#fff !important}
+.avatar,.avatar.circle{background:#1b2a44 !important;color:#5b9dff;border-radius:50% !important}
+.chatitem .name{font-weight:600;font-size:15.5px}
+.chatitem .preview{color:#8b97a8}
+.navbtn{color:#8b97a8;transition:color .2s,transform .12s}
+.navbtn.active{color:#2a7fff !important;background:transparent !important}
+#messages{background:#07090d !important}
+#messages .bubble,.bubble{background:#171c24 !important;color:#fff;border:0 !important;border-radius:16px 16px 16px 4px !important;box-shadow:none !important;animation:proBubble .28s var(--ease) both}
+#messages .mrow.mine .bubble,.mrow.mine .bubble{background:#2a7fff !important;border-radius:16px 16px 4px 16px !important}
+#messages .bubble:has(.bigemoji){background:transparent !important}
+.composer input,.composer textarea,#msgInput{background:#171c24 !important;border:0 !important;border-radius:22px !important;color:#fff}
+.iconbtn{transition:background .15s,color .15s,transform .12s}
+.iconbtn:hover{background:rgba(255,255,255,.07) !important}
+.screen{animation:proFade .25s ease both}
+.modal .modal-card,.modal>div{background:#0e1218 !important;border:1px solid rgba(255,255,255,.08) !important;border-radius:16px !important}
+
+/* приветствие */
+.pro-welcome{position:fixed;left:50%;top:18px;transform:translate(-50%,-140%);z-index:9999;background:#0e1218;color:#fff;border:1px solid rgba(42,127,255,.5);border-radius:14px;padding:12px 18px;font-size:14.5px;box-shadow:0 12px 36px rgba(0,0,0,.55);transition:transform .5s var(--ease);max-width:92vw;text-align:center}
+.pro-welcome.show{transform:translate(-50%,0)}
+.pro-welcome b{color:#5b9dff}
+
+@keyframes proRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes proPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes proSlide{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@keyframes proBubble{from{opacity:0;transform:scale(.92) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes proFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}

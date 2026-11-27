@@ -1343,7 +1343,7 @@ app.post("/api/auth/register", rateLimit(10, 60 * 1000), async (req, res) => {
   if (usernameRaw.endsWith("_bot")) {
     return res.status(400).json({ ok: false, error: "Юзернеймы на _bot — только для ботов из конструктора" });
   }
-  if (password.length < 6) return res.status(400).json({ ok: false, error: "Пароль минимум 6 символов" });
+  if (password.length < 4) return res.status(400).json({ ok: false, error: "Пароль минимум 4 символа" });
   if (req.body.acceptedTerms !== true) {
     return res.status(400).json({ ok: false, error: "Нужно принять Условия использования и Политику конфиденциальности" });
   }
