@@ -30,6 +30,9 @@ const PORT = process.env.PORT || 3000;
 
 // Юзернеймы ботов из конструктора (заполняется при старте и при создании бота)
 const BOT_USERNAMES = new Set();
+// Дополнительные юзернеймы: алиас → основной юзернейм аккаунта (кэш из таблицы user_aliases)
+const ALIAS_MAP = new Map();
+function resolveAlias(name) { return ALIAS_MAP.get(name) || name; }
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
 
 // Часовой пояс для дней рождения (в минутах от UTC). По умолчанию Ташкент (UTC+5).
@@ -552,6 +555,11 @@ async function initSchema() {
   await dbRun(`INSERT OR IGNORE INTO post_reactions (postId, username, emoji, createdAt) SELECT postId, username, '❤️', createdAt FROM post_likes`);
   await dbRun(`DELETE FROM post_likes`);
   await addColumn("users", "verified", "INTEGER NOT NULL DEFAULT 0");
+  await addColumn("users", "level", "INTEGER NOT NULL DEFAULT 0");
+  await dbRun(`CREATE TABLE IF NOT EXISTS user_aliases (alias TEXT PRIMARY KEY, owner TEXT NOT NULL, createdAt INTEGER NOT NULL)`);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_aliases_owner ON user_aliases(owner)`);
+  await dbRun(`CREATE TABLE IF NOT EXISTS alias_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, alias TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', createdAt INTEGER NOT NULL, decidedAt INTEGER NOT NULL DEFAULT 0)`);
+  await dbRun(`UPDATE users SET level=1 WHERE verified=1 AND level=0`); // старые галочки → уровень 1
   await addColumn("users", "totpSecret", "TEXT NOT NULL DEFAULT ''");
   await addColumn("users", "totpEnabled", "INTEGER NOT NULL DEFAULT 0");
   await addColumn("users", "settings", "TEXT NOT NULL DEFAULT '{}'");
@@ -909,6 +917,13 @@ async function initSchema() {
     )
   `);
   await dbRun(`CREATE INDEX IF NOT EXISTS idx_bots_owner ON bots(owner)`);
+  await addColumn("bots", "tokenHash", "TEXT NOT NULL DEFAULT ''");
+  await addColumn("bots", "mode", "TEXT NOT NULL DEFAULT 'builder'");
+  // очередь входящих сообщений для HTTP API бота (getUpdates)
+  await dbRun(`CREATE TABLE IF NOT EXISTS bot_updates (id INTEGER PRIMARY KEY AUTOINCREMENT, bot TEXT NOT NULL, payload TEXT NOT NULL, createdAt INTEGER NOT NULL)`);
+  await dbRun(`CREATE INDEX IF NOT EXISTS idx_bot_updates_bot ON bot_updates(bot, id)`);
+  // системный аккаунт BotFather: обычный пользователь без DM-gate, писать ему можно сразу
+  await dbRun(`INSERT OR IGNORE INTO users (username, passwordHash, displayName, bio, createdAt, verified, level) VALUES ('botfather','!bot-account-no-login','BotFather','Создание и управление ботами',?,0,0)`, [now()]);
   await dbRun(`
     CREATE TABLE IF NOT EXISTS bot_sessions (
       bot TEXT NOT NULL,
@@ -925,6 +940,9 @@ async function initSchema() {
   try {
     const botRows = await dbAll(`SELECT username FROM bots`);
     botRows.forEach(b => BOT_USERNAMES.add(b.username));
+    BOT_USERNAMES.add("botfather");
+    const aliasRows = await dbAll(`SELECT alias, owner FROM user_aliases`);
+    aliasRows.forEach(a => ALIAS_MAP.set(a.alias, a.owner));
   } catch {}
 }
 
@@ -974,7 +992,8 @@ function safeUser(u) {
     bio: u.bio || "",
     avatarUrl: u.avatarUrl || "",
     birthDate: u.birthDate || "",
-    verified: !!u.verified,
+    verified: userLevel(u) >= 1,
+    level: userLevel(u),
     totpEnabled: !!u.totpEnabled,
     googleLinked: !!u.googleSub,
     tosAcceptedAt: u.tosAcceptedAt || 0,
@@ -1031,6 +1050,7 @@ const SUPPORT_CARD = {
   displayName: "Поддержка Zumo",
   avatarUrl: "/icon-192.png?v=5",
   verified: true,
+  level: 4,
   emojiStatus: "",
   birthdayToday: false
 };
@@ -1041,7 +1061,8 @@ function userCardFromRow(u) {
     username: u.username,
     displayName: u.displayName || u.username,
     avatarUrl: u.avatarUrl || "",
-    verified: !!u.verified,
+    verified: userLevel(u) >= 1,
+    level: userLevel(u),
     isBot: BOT_USERNAMES.has(u.username),
     emojiStatus: cleanEmojiStatus(s.emojiStatus || ""),
     birthdayToday: isBirthdayToday(u.birthDate),
@@ -1058,7 +1079,7 @@ async function getUserCards(usernames) {
   const rest = uniq.filter(u => u !== "support");
   if (rest.length) {
     const rows = await dbAll(
-      `SELECT username, displayName, avatarUrl, verified, settings, birthDate FROM users WHERE username IN (${rest.map(() => "?").join(",")})`,
+      `SELECT username, displayName, avatarUrl, verified, level, settings, birthDate FROM users WHERE username IN (${rest.map(() => "?").join(",")})`,
       rest
     );
     rows.forEach(r => { out[r.username] = userCardFromRow(r); });
@@ -1204,7 +1225,7 @@ async function storyPromoUsed(username) {
 async function fetchVisibleStories(me) {
   const rows = await dbAll(
     `
-    SELECT s.*, u.displayName, u.avatarUrl, u.verified, u.settings AS ownerSettings,
+    SELECT s.*, u.displayName, u.avatarUrl, u.verified, u.level, u.settings AS ownerSettings,
            COALESCE(sv.reaction, '') AS myReaction,
            COALESCE((SELECT value FROM story_likes ml WHERE ml.storyId=s.id AND ml.username=?), 0) AS myLike,
            ${STORY_COUNTS_SQL}
@@ -1328,7 +1349,7 @@ function otpauthUrl(username, secret) {
 }
 
 // ---------------- AUTH ----------------
-const RESERVED_USERNAMES = ["global", "support", "admin", "one", "onemessenger", "uz", "uzmessenger", "zumo", "zumomessenger"];
+const RESERVED_USERNAMES = ["global", "support", "admin", "one", "onemessenger", "uz", "uzmessenger", "zumo", "zumomessenger", "botfather"];
 
 app.post("/api/auth/register", rateLimit(10, 60 * 1000), async (req, res) => {
   const usernameRaw = String(req.body.username || "").trim().replace(/^@+/, "").toLowerCase();
@@ -1378,7 +1399,7 @@ async function recordSession(req, username) {
 }
 
 app.post("/api/auth/login", rateLimit(10, 60 * 1000), (req, res) => {
-  const usernameRaw = String(req.body.identifier || req.body.username || "").trim().replace(/^@+/, "").toLowerCase();
+  const usernameRaw = resolveAlias(String(req.body.identifier || req.body.username || "").trim().replace(/^@+/, "").toLowerCase());
   const password = String(req.body.password || "").trim();
 
   db.get(`SELECT * FROM users WHERE username=?`, [usernameRaw], async (err, user) => {
@@ -1527,6 +1548,14 @@ function plainRow(row) {
 
 // Юзернейм удалённого (ещё не восстановленного) аккаунта занят навсегда —
 // чтобы его не перехватил кто-то другой и аккаунт можно было вернуть.
+// Имя занято, если это основной юзернейм, дополнительный, зарезервированный или удалённый аккаунт
+async function isNameTaken(name) {
+  if (RESERVED_USERNAMES.includes(name)) return true;
+  if (await dbGet(`SELECT username FROM users WHERE username=?`, [name])) return true;
+  if (ALIAS_MAP.has(name)) return true;
+  return await isUsernameReserved(name);
+}
+
 async function isUsernameReserved(name) {
   const r = await dbGet(`SELECT id FROM deleted_accounts WHERE username=? AND complete=1 AND restoredAt=0 LIMIT 1`, [name]);
   return !!r;
@@ -1700,7 +1729,7 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
   const old = req.user.username;
   if (newUsername === old) return res.json({ ok: true, username: old });
 
-  const taken = (await dbGet(`SELECT username FROM users WHERE username=?`, [newUsername])) || ((await isUsernameReserved(newUsername)) ? { username: newUsername } : null);
+  const taken = (await isNameTaken(newUsername)) ? { username: newUsername } : null;
   if (taken) return res.status(409).json({ ok: false, error: "Этот юзернейм уже занят" });
 
   try {
@@ -1713,6 +1742,9 @@ app.post("/api/me/username", verifyAuth, rateLimit(3, 60 * 60 * 1000), async (re
     await dbRun(`UPDATE story_comments SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE story_likes SET username=? WHERE username=?`, [newUsername, old]);
     await dbRun(`UPDATE story_promos SET owner=? WHERE owner=?`, [newUsername, old]);
+    await dbRun(`UPDATE user_aliases SET owner=? WHERE owner=?`, [newUsername, old]);
+    await dbRun(`UPDATE alias_requests SET username=? WHERE username=?`, [newUsername, old]);
+    for (const [a, o] of ALIAS_MAP) if (o === old) ALIAS_MAP.set(a, newUsername);
     await dbRun(`UPDATE posts SET owner=? WHERE owner=?`, [newUsername, old]);
     await dbRun(`UPDATE posts SET repostOfOwner=? WHERE repostOfOwner=?`, [newUsername, old]);
     await dbRun(`UPDATE post_reactions SET username=? WHERE username=?`, [newUsername, old]);
@@ -1920,7 +1952,7 @@ app.put("/api/me/settings", verifyAuth, (req, res) => {
 // ---------------- FRIENDS ----------------
 app.get("/api/friends", verifyAuth, async (req, res) => {
   const rows = await dbAll(
-    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.settings, u.birthDate
+    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.level, u.settings, u.birthDate
      FROM friends f JOIN users u ON u.username=f.friend
      WHERE f.owner=? ORDER BY u.username ASC`,
     [req.user.username]
@@ -1929,7 +1961,7 @@ app.get("/api/friends", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/friends", verifyAuth, async (req, res) => {
-  const friend = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const friend = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
   if (friend === req.user.username) return res.status(400).json({ ok: false, error: "Нельзя добавить самого себя" });
 
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [friend]);
@@ -1940,7 +1972,7 @@ app.post("/api/friends", verifyAuth, async (req, res) => {
 });
 
 app.delete("/api/friends/:username", verifyAuth, async (req, res) => {
-  const friend = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const friend = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   await dbRun(`DELETE FROM friends WHERE owner=? AND friend=?`, [req.user.username, friend]);
   res.json({ ok: true });
 });
@@ -1948,7 +1980,7 @@ app.delete("/api/friends/:username", verifyAuth, async (req, res) => {
 // ---------------- ЛИЧНЫЕ КОНТАКТЫ (свой ярлык на чужой юзернейм) ----------------
 app.get("/api/contacts", verifyAuth, async (req, res) => {
   const rows = await dbAll(
-    `SELECT c.username, c.name, c.note, c.createdAt, u.displayName, u.avatarUrl, u.verified, u.settings, u.birthDate
+    `SELECT c.username, c.name, c.note, c.createdAt, u.displayName, u.avatarUrl, u.verified, u.level, u.settings, u.birthDate
      FROM contacts c JOIN users u ON u.username=c.username
      WHERE c.owner=? ORDER BY c.name COLLATE NOCASE ASC, u.username ASC`,
     [req.user.username]
@@ -1965,7 +1997,7 @@ app.get("/api/contacts", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/contacts", verifyAuth, async (req, res) => {
-  const u = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
   const name = String(req.body.name || "").trim().slice(0, 40);
   const note = String(req.body.note || "").trim().slice(0, 120);
   if (!u || u === req.user.username) return res.status(400).json({ ok: false, error: "Неверный юзернейм" });
@@ -1982,7 +2014,7 @@ app.post("/api/contacts", verifyAuth, async (req, res) => {
 });
 
 app.delete("/api/contacts/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   await dbRun(`DELETE FROM contacts WHERE owner=? AND username=?`, [req.user.username, u]);
   res.json({ ok: true });
 });
@@ -1990,7 +2022,7 @@ app.delete("/api/contacts/:username", verifyAuth, async (req, res) => {
 // ---------------- ЧЁРНЫЙ СПИСОК ----------------
 app.get("/api/me/blocked", verifyAuth, async (req, res) => {
   const rows = await dbAll(
-    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.settings, u.birthDate
+    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.level, u.settings, u.birthDate
      FROM blocked_users b JOIN users u ON u.username=b.blocked
      WHERE b.owner=? ORDER BY u.username ASC`,
     [req.user.username]
@@ -1999,7 +2031,7 @@ app.get("/api/me/blocked", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/me/blocked", verifyAuth, async (req, res) => {
-  const u = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
   if (!u || u === req.user.username) return res.status(400).json({ ok: false, error: "Неверный юзернейм" });
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
   if (!exists) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
@@ -2010,7 +2042,7 @@ app.post("/api/me/blocked", verifyAuth, async (req, res) => {
 });
 
 app.delete("/api/me/blocked/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   await dbRun(`DELETE FROM blocked_users WHERE owner=? AND blocked=?`, [req.user.username, u]);
   res.json({ ok: true });
 });
@@ -2051,9 +2083,32 @@ async function canCallUser(ownerUsername, callerUsername) {
   return isAllowedByPrivacy(owner, callerUsername, "callsPrivacy");
 }
 
+// ---------------- УРОВНИ АККАУНТОВ ----------------
+// Чем выше уровень, тем официальнее аккаунт и тем больше у него возможностей.
+// Названия и лимиты — настраиваемые. Уровень 0 — обычный аккаунт.
+const LEVELS = {
+  0: { name: "Обычный",        maxUsernames: 1, maxBots: 5,   badge: "" },
+  1: { name: "Подтверждённый", maxUsernames: 1, maxBots: 10,  badge: "verified" },
+  2: { name: "Официальный",    maxUsernames: 2, maxBots: 25,  badge: "verified" },
+  3: { name: "Партнёр",        maxUsernames: 3, maxBots: 50,  badge: "gold" },
+  4: { name: "Главный",        maxUsernames: 5, maxBots: 100, badge: "gold" }
+};
+const MAX_LEVEL = 4;
+
+// Уровень пользователя. Старые записи без level читаются по флагу verified.
+function userLevel(u) {
+  if (!u) return 0;
+  const l = Number(u.level);
+  if (Number.isFinite(l) && l > 0) return Math.min(MAX_LEVEL, Math.trunc(l));
+  return u.verified ? 1 : 0;
+}
+function levelPerks(u) {
+  return LEVELS[userLevel(u)];
+}
+
 // ---------------- OFFICIAL ACCOUNT DM GATE ----------------
 function dmGateOn(u) {
-  return !!(u && u.verified) && parseSettings(u).dmGate !== false;
+  return userLevel(u) >= 1 && parseSettings(u).dmGate !== false;
 }
 
 async function dmAllowed(target, sender) {
@@ -2067,7 +2122,7 @@ async function dmAllowed(target, sender) {
 
 app.get("/api/me/dm-exceptions", verifyAuth, async (req, res) => {
   const rows = await dbAll(
-    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.settings, u.birthDate
+    `SELECT u.username, u.displayName, u.avatarUrl, u.verified, u.level, u.settings, u.birthDate
      FROM dm_exceptions e JOIN users u ON u.username=e.allowed
      WHERE e.owner=? ORDER BY e.createdAt DESC`,
     [req.user.username]
@@ -2076,7 +2131,7 @@ app.get("/api/me/dm-exceptions", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/me/dm-exceptions", verifyAuth, async (req, res) => {
-  const u = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
   if (!u || u === req.user.username) return res.status(400).json({ ok: false, error: "Неверный юзернейм" });
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
   if (!exists) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
@@ -2085,18 +2140,18 @@ app.post("/api/me/dm-exceptions", verifyAuth, async (req, res) => {
 });
 
 app.delete("/api/me/dm-exceptions/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   await dbRun(`DELETE FROM dm_exceptions WHERE owner=? AND allowed=?`, [req.user.username, u]);
   res.json({ ok: true });
 });
 
 app.post("/api/contact-requests", verifyAuth, rateLimit(10, 60 * 60 * 1000), async (req, res) => {
-  const to = String(req.body.to || "").replace(/^@+/, "").toLowerCase();
+  const to = resolveAlias(String(req.body.to || "").replace(/^@+/, "").toLowerCase());
   const text = String(req.body.text || "").trim().slice(0, 1000);
   if (!text) return res.status(400).json({ ok: false, error: "Напиши, по какому вопросу обращаешься" });
   if (req.user.muted) return res.status(403).json({ ok: false, error: "Тебе временно запрещено отправлять сообщения" });
 
-  const target = await dbGet(`SELECT username, verified, settings FROM users WHERE username=? AND banned=0`, [to]);
+  const target = await dbGet(`SELECT username, verified, level, settings FROM users WHERE username=? AND banned=0`, [to]);
   if (!target) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
   if (await dmAllowed(target, req.user.username)) return res.status(400).json({ ok: false, error: "Этому человеку можно писать напрямую" });
 
@@ -2223,11 +2278,11 @@ app.get("/api/users/search", verifyAuth, async (req, res) => {
   if (!q) return res.json({ ok: true, users: [] });
 
   const rows = await dbAll(
-    `SELECT username, displayName, bio, avatarUrl, verified, settings, birthDate
+    `SELECT username, displayName, bio, avatarUrl, verified, level, settings, birthDate
      FROM users
-     WHERE username LIKE ? AND username != ? AND banned=0
+     WHERE (username LIKE ? OR username IN (SELECT owner FROM user_aliases WHERE alias LIKE ?)) AND username != ? AND banned=0
      ORDER BY username ASC LIMIT 20`,
-    [`%${q}%`, req.user.username]
+    [`%${q}%`, `%${q}%`, req.user.username]
   );
   res.json({ ok: true, users: rows.map(userCardFromRow) });
 });
@@ -2245,7 +2300,7 @@ app.get("/api/search", verifyAuth, async (req, res) => {
 
   const [userRows, contactRows, groupRows] = await Promise.all([
     dbAll(
-      `SELECT username, displayName, bio, avatarUrl, verified, settings, birthDate
+      `SELECT username, displayName, bio, avatarUrl, verified, level, settings, birthDate
        FROM users WHERE banned=0 AND username != ? ORDER BY username ASC LIMIT 3000`,
       [me]
     ),
@@ -2282,11 +2337,11 @@ app.get("/api/search", verifyAuth, async (req, res) => {
 });
 
 app.get("/api/users/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   if (u === "support") return res.json({ ok: true, user: { ...SUPPORT_CARD, bio: "Официальная поддержка Zumo", online: true, canMessage: true, dmGated: false } });
 
   const row = await dbGet(
-    `SELECT username, displayName, bio, avatarUrl, verified, settings, birthDate, lastSeen FROM users WHERE username=? AND banned=0`,
+    `SELECT username, displayName, bio, avatarUrl, verified, level, settings, birthDate, lastSeen FROM users WHERE username=? AND banned=0`,
     [u]
   );
   if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
@@ -2328,7 +2383,7 @@ async function ratingOf(target, viewer) {
   return { up: r.up || 0, down: r.down || 0, mine: mine ? mine.value : 0 };
 }
 app.post("/api/users/:username/rate", verifyAuth, rateLimit(40, 60 * 1000), async (req, res) => {
-  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const me = req.user.username;
   if (target === me) return res.status(400).json({ ok: false, error: "Себе рейтинг поставить нельзя" });
   const exists = await dbGet(`SELECT username FROM users WHERE username=? AND banned=0`, [target]);
@@ -2438,7 +2493,7 @@ app.post("/api/report/messages", verifyAuth, rateLimit(10, 10 * 60 * 1000), asyn
 // У поста есть реакции (эмодзи), комментарии, репосты и отправка в чат.
 const POST_EMOJIS = ["❤️", "👍", "😂", "😮", "😢", "👎"];
 const POST_SELECT = `
-  SELECT p.id, p.owner, p.text, p.mediaUrl, p.createdAt, p.repostOfId, p.repostOfOwner, u.displayName, u.avatarUrl, u.verified,
+  SELECT p.id, p.owner, p.text, p.mediaUrl, p.createdAt, p.repostOfId, p.repostOfOwner, u.displayName, u.avatarUrl, u.verified, u.level,
          (SELECT COUNT(*) FROM post_comments c WHERE c.postId=p.id) AS commentCount,
          (SELECT COUNT(*) FROM posts r WHERE r.repostOfId=(CASE WHEN p.repostOfId>0 THEN p.repostOfId ELSE p.id END)) AS repostCount
   FROM posts p JOIN users u ON u.username=p.owner`;
@@ -2594,7 +2649,7 @@ app.post("/api/posts/:id/repost", verifyAuth, rateLimit(20, 60 * 60 * 1000), asy
 // отправить пост в чат — как обычное сообщение с картинкой и подписью
 app.post("/api/posts/:id/share", verifyAuth, rateLimit(30, 60 * 1000), async (req, res) => {
   const me = req.user.username;
-  const to = String(req.body.to || "").replace(/^@+/, "").toLowerCase();
+  const to = resolveAlias(String(req.body.to || "").replace(/^@+/, "").toLowerCase());
   if (!to) return res.status(400).json({ ok: false, error: "Не указан чат" });
   const post = await dbGet(`SELECT * FROM posts WHERE id=?`, [Number(req.params.id)]);
   if (!post) return res.status(404).json({ ok: false, error: "Пост не найден" });
@@ -2617,6 +2672,75 @@ app.post("/api/posts/:id/share", verifyAuth, rateLimit(30, 60 * 1000), async (re
     duration: 0, id: result.lastID, chatType, sender: me, receiver: to, text, mediaType, mediaUrl: post.mediaUrl || "",
     createdAt, fileName: "", fileSize: 0, forwardedFrom: "", replyTo: 0
   });
+  res.json({ ok: true });
+});
+
+// ---------------- ДОПОЛНИТЕЛЬНЫЕ ЮЗЕРНЕЙМЫ ----------------
+// Основной юзернейм остаётся ключом аккаунта. Дополнительный (алиас) ведёт в тот же аккаунт.
+// Выдаёт администрация по заявке. Количество зависит от уровня: LEVELS[..].maxUsernames включает основной.
+function aliasLimitFor(u) {
+  return Math.max(0, levelPerks(u).maxUsernames - 1);
+}
+
+app.get("/api/me/usernames", verifyAuth, async (req, res) => {
+  const aliases = await dbAll(`SELECT alias, createdAt FROM user_aliases WHERE owner=? ORDER BY createdAt ASC`, [req.user.username]);
+  const requests = await dbAll(`SELECT id, alias, status, createdAt FROM alias_requests WHERE username=? ORDER BY createdAt DESC LIMIT 10`, [req.user.username]);
+  res.json({ ok: true, primary: req.user.username, aliases, requests, limit: aliasLimitFor(req.user) });
+});
+
+app.post("/api/me/usernames/request", verifyAuth, rateLimit(5, 24 * 3600 * 1000), async (req, res) => {
+  const alias = String(req.body.username || "").trim().replace(/^@+/, "").toLowerCase();
+  if (!/^[a-z0-9_]{4,20}$/.test(alias)) {
+    return res.status(400).json({ ok: false, error: "Юзернейм: 4-20 символов, латиница/цифры/подчёркивание" });
+  }
+  if (alias.endsWith("_bot")) return res.status(400).json({ ok: false, error: "Юзернеймы на _bot — только для ботов" });
+  if (await isNameTaken(alias)) return res.status(409).json({ ok: false, error: "Этот юзернейм уже занят" });
+
+  const limit = aliasLimitFor(req.user);
+  if (limit === 0) return res.status(400).json({ ok: false, error: "На твоём уровне доступен только основной юзернейм. Повысить уровень можно через администрацию" });
+  const used = await dbGet(`SELECT COUNT(*) AS c FROM user_aliases WHERE owner=?`, [req.user.username]);
+  const pending = await dbGet(`SELECT COUNT(*) AS c FROM alias_requests WHERE username=? AND status='pending'`, [req.user.username]);
+  if ((used.c || 0) + (pending.c || 0) >= limit) {
+    return res.status(400).json({ ok: false, error: `Лимит дополнительных юзернеймов на твоём уровне: ${limit}` });
+  }
+  const dup = await dbGet(`SELECT id FROM alias_requests WHERE username=? AND alias=? AND status='pending'`, [req.user.username, alias]);
+  if (dup) return res.status(400).json({ ok: false, error: "Заявка на этот юзернейм уже отправлена" });
+
+  await dbRun(`INSERT INTO alias_requests (username, alias, status, createdAt) VALUES (?,?,'pending',?)`, [req.user.username, alias, now()]);
+  res.json({ ok: true });
+});
+
+app.delete("/api/me/usernames/:alias", verifyAuth, async (req, res) => {
+  const alias = String(req.params.alias || "").replace(/^@+/, "").toLowerCase();
+  const row = await dbGet(`SELECT alias FROM user_aliases WHERE alias=? AND owner=?`, [alias, req.user.username]);
+  if (!row) return res.status(404).json({ ok: false, error: "Такого юзернейма нет" });
+  await dbRun(`DELETE FROM user_aliases WHERE alias=? AND owner=?`, [alias, req.user.username]);
+  ALIAS_MAP.delete(alias);
+  res.json({ ok: true });
+});
+
+app.get("/api/admin/alias-requests", verifySuperAdmin, async (req, res) => {
+  const rows = await dbAll(`SELECT r.id, r.username, r.alias, r.createdAt, u.level FROM alias_requests r LEFT JOIN users u ON u.username=r.username WHERE r.status='pending' ORDER BY r.createdAt ASC LIMIT 100`);
+  res.json({ ok: true, requests: rows });
+});
+
+app.post("/api/admin/alias-requests/:id/approve", verifySuperAdmin, async (req, res) => {
+  const r = await dbGet(`SELECT * FROM alias_requests WHERE id=? AND status='pending'`, [Number(req.params.id)]);
+  if (!r) return res.status(404).json({ ok: false, error: "Заявка не найдена" });
+  if (await isNameTaken(r.alias)) return res.status(409).json({ ok: false, error: "Юзернейм уже занят" });
+  const owner = await dbGet(`SELECT username, level, verified FROM users WHERE username=?`, [r.username]);
+  if (!owner) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
+  const used = await dbGet(`SELECT COUNT(*) AS c FROM user_aliases WHERE owner=?`, [r.username]);
+  if ((used.c || 0) >= aliasLimitFor(owner)) return res.status(400).json({ ok: false, error: "У пользователя уже лимит по уровню" });
+
+  await dbRun(`INSERT INTO user_aliases (alias, owner, createdAt) VALUES (?,?,?)`, [r.alias, r.username, now()]);
+  await dbRun(`UPDATE alias_requests SET status='approved', decidedAt=? WHERE id=?`, [now(), r.id]);
+  ALIAS_MAP.set(r.alias, r.username);
+  res.json({ ok: true });
+});
+
+app.post("/api/admin/alias-requests/:id/reject", verifySuperAdmin, async (req, res) => {
+  await dbRun(`UPDATE alias_requests SET status='rejected', decidedAt=? WHERE id=? AND status='pending'`, [now(), Number(req.params.id)]);
   res.json({ ok: true });
 });
 
@@ -2664,7 +2788,7 @@ app.post("/api/admin/verification-requests/:id/approve", verifySuperAdmin, (req,
     if (!reqRow || reqRow.status !== "pending") return res.status(404).json({ ok: false, error: "Заявка не найдена" });
 
     db.run(`UPDATE verification_requests SET status='approved', decidedAt=? WHERE id=?`, [now(), id]);
-    db.run(`UPDATE users SET verified=1 WHERE username=?`, [reqRow.username], (e2) => {
+    db.run(`UPDATE users SET verified=1, level=CASE WHEN level<1 THEN 1 ELSE level END WHERE username=?`, [reqRow.username], (e2) => {
       if (e2) return res.status(500).json({ ok: false, error: "Ошибка" });
       res.json({ ok: true });
     });
@@ -2677,6 +2801,19 @@ app.post("/api/admin/verification-requests/:id/reject", verifySuperAdmin, (req, 
     if (err || this.changes === 0) return res.status(404).json({ ok: false, error: "Заявка не найдена" });
     res.json({ ok: true });
   });
+});
+
+// Админ задаёт уровень аккаунта (0…MAX_LEVEL). verified синхронизируется: уровень ≥ 1 = галочка.
+app.post("/api/admin/users/:username/level", verifySuperAdmin, async (req, res) => {
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
+  const level = Math.trunc(Number(req.body.level));
+  if (!Number.isFinite(level) || level < 0 || level > MAX_LEVEL) {
+    return res.status(400).json({ ok: false, error: `Уровень должен быть от 0 до ${MAX_LEVEL}` });
+  }
+  const row = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
+  if (!row) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
+  await dbRun(`UPDATE users SET level=?, verified=? WHERE username=?`, [level, level >= 1 ? 1 : 0, u]);
+  res.json({ ok: true, level });
 });
 
 // ================================================================
@@ -2766,7 +2903,7 @@ app.put("/api/e2e/backup", verifyAuth, rateLimit(20, 60 * 1000), async (req, res
 
 // Открытый ключ собеседника: текущий, либо конкретный по keyId (для старых сообщений)
 app.get("/api/e2e/key/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   let keyId = String(req.query.keyId || "");
   if (!keyId) {
     const user = await dbGet(`SELECT e2eKeyId FROM users WHERE username=?`, [u]);
@@ -2866,7 +3003,7 @@ app.get("/api/groups/:id", verifyAuth, async (req, res) => {
   if (!group) return res.status(404).json({ ok: false, error: "Не найдено" });
 
   const members = await dbAll(
-    `SELECT gm.username, gm.role, u.displayName, u.avatarUrl, u.verified, u.settings, u.birthDate
+    `SELECT gm.username, gm.role, u.displayName, u.avatarUrl, u.verified, u.level, u.settings, u.birthDate
      FROM group_members gm JOIN users u ON u.username=gm.username
      WHERE gm.groupId=? ORDER BY (gm.role='owner') DESC, (gm.role='admin') DESC, gm.username ASC`,
     [groupId]
@@ -2896,7 +3033,7 @@ app.post("/api/groups/:id/members", verifyAuth, async (req, res) => {
   const role = await isMember(groupId, req.user.username);
   if (role !== "owner" && role !== "admin") return res.status(403).json({ ok: false, error: "Недостаточно прав" });
 
-  const username = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const username = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [username]);
   if (!exists) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
   if (await isBanned(groupId, username)) return res.status(403).json({ ok: false, error: "Этот пользователь забанен — сначала разбань его" });
@@ -2907,7 +3044,7 @@ app.post("/api/groups/:id/members", verifyAuth, async (req, res) => {
 
 app.delete("/api/groups/:id/members/:username", verifyAuth, async (req, res) => {
   const groupId = Number(req.params.id);
-  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const role = await isMember(groupId, req.user.username);
 
   const selfLeave = target === req.user.username;
@@ -2938,7 +3075,7 @@ app.delete("/api/groups/:id/members/:username", verifyAuth, async (req, res) => 
 
 app.post("/api/groups/:id/members/:username/ban", verifyAuth, async (req, res) => {
   const groupId = Number(req.params.id);
-  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const role = await isMember(groupId, req.user.username);
   if (role !== "owner" && role !== "admin") return res.status(403).json({ ok: false, error: "Недостаточно прав" });
   if (target === req.user.username) return res.status(400).json({ ok: false, error: "Нельзя забанить самого себя" });
@@ -2958,7 +3095,7 @@ app.post("/api/groups/:id/members/:username/ban", verifyAuth, async (req, res) =
 
 app.post("/api/groups/:id/members/:username/unban", verifyAuth, async (req, res) => {
   const groupId = Number(req.params.id);
-  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const role = await isMember(groupId, req.user.username);
   if (role !== "owner" && role !== "admin") return res.status(403).json({ ok: false, error: "Недостаточно прав" });
 
@@ -3022,7 +3159,7 @@ app.post("/api/groups/:id/avatar", verifyAuth, singleUpload("file"), async (req,
 app.post("/api/groups/:id/transfer", verifyAuth, async (req, res) => {
   const groupId = Number(req.params.id);
   const me = req.user.username;
-  const target = String(req.body.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.body.username || "").replace(/^@+/, "").toLowerCase());
 
   if ((await isMember(groupId, me)) !== "owner") return res.status(403).json({ ok: false, error: "Передать права может только владелец" });
   if (!target || target === me) return res.status(400).json({ ok: false, error: "Выбери другого участника" });
@@ -3119,7 +3256,7 @@ app.post("/api/invite/:code/join", verifyAuth, rateLimit(30, 60 * 1000), async (
 
 app.post("/api/groups/:id/members/:username/role", verifyAuth, async (req, res) => {
   const groupId = Number(req.params.id);
-  const target = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const target = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const newRole = String(req.body.role || "");
 
   if (!["admin", "member"].includes(newRole)) return res.status(400).json({ ok: false, error: "Недопустимая роль" });
@@ -3159,7 +3296,7 @@ app.get("/api/chats", verifyAuth, async (req, res) => {
 
   const placeholders = others.map(() => "?").join(",");
   const users = await dbAll(
-    `SELECT username, displayName, avatarUrl, verified, settings, birthDate, lastSeen FROM users WHERE username IN (${placeholders})`,
+    `SELECT username, displayName, avatarUrl, verified, level, settings, birthDate, lastSeen FROM users WHERE username IN (${placeholders})`,
     others
   );
   const map = new Map(users.map(u => [u.username, u]));
@@ -3284,7 +3421,7 @@ app.put("/api/messages/:id", verifyAuth, async (req, res) => {
 app.post("/api/messages/:id/forward", verifyAuth, async (req, res) => {
   const id = Number(req.params.id);
   const me = req.user.username;
-  const to = String(req.body.to || "").replace(/^@+/, "").toLowerCase();
+  const to = resolveAlias(String(req.body.to || "").replace(/^@+/, "").toLowerCase());
   if (!to) return res.status(400).json({ ok: false, error: "Не указан чат" });
 
   const row = await dbGet(`SELECT * FROM messages WHERE id=?`, [id]);
@@ -3453,7 +3590,7 @@ app.post("/api/upload", verifyAuth, singleUpload("file"), async (req, res) => {
 
   if (req.user.muted) return res.status(403).json({ ok: false, error: "Тебе временно запрещено отправлять сообщения" });
 
-  const receiver = String(req.body.receiver || "global").replace(/^@+/, "").toLowerCase();
+  const receiver = resolveAlias(String(req.body.receiver || "global").replace(/^@+/, "").toLowerCase());
   const chatType = resolveChatType(receiver);
   const text = String(req.body.text || "").trim().slice(0, 2000);
 
@@ -3631,7 +3768,7 @@ app.post("/api/stories/:id/promote", verifyAuth, rateLimit(10, 60 * 1000), async
 });
 
 app.get("/api/stories/user/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const me = req.user.username;
   const owner = await dbGet(`SELECT username, settings FROM users WHERE username=? AND banned=0`, [u]);
   if (!owner) return res.status(404).json({ ok: false, error: "Не найден" });
@@ -4038,7 +4175,7 @@ app.post("/api/stories", verifyAuth, singleUpload("story"), async (req, res) => 
 
 // ---------------- GIFTS ----------------
 app.get("/api/gifts/:username", verifyAuth, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const rows = await dbAll(
     `SELECT sender, emoji, createdAt FROM gifts WHERE recipient=? ORDER BY createdAt DESC LIMIT 100`,
     [u]
@@ -4208,7 +4345,7 @@ app.get("/api/admin/users", verifySuperAdmin, (req, res) => {
   const params = q ? [`%${q}%`] : [];
 
   db.all(
-    `SELECT username, displayName, avatarUrl, banned, muted, bannedUntil, mutedUntil, verified, createdAt FROM users ${where} ORDER BY createdAt DESC LIMIT 200`,
+    `SELECT username, displayName, avatarUrl, banned, muted, bannedUntil, mutedUntil, verified, level, createdAt FROM users ${where} ORDER BY createdAt DESC LIMIT 200`,
     params,
     (err, rows) => res.json({ ok: true, users: rows || [] })
   );
@@ -4218,9 +4355,9 @@ app.get("/api/admin/users", verifySuperAdmin, (req, res) => {
 // Личные данные (переписки/сессии/контакты/удаление аккаунта) — через отдельные,
 // закрытые кодом эндпоинты ниже.
 app.get("/api/admin/user/:username", verifySuperAdmin, (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   db.get(
-    `SELECT username, displayName, bio, avatarUrl, birthDate, banned, muted, bannedUntil, mutedUntil, banReason, muteReason, verified, createdAt, lastSeen FROM users WHERE username=?`,
+    `SELECT username, displayName, bio, avatarUrl, birthDate, banned, muted, bannedUntil, mutedUntil, banReason, muteReason, verified, level, createdAt, lastSeen FROM users WHERE username=?`,
     [u],
     async (err, row) => {
       if (!row) return res.status(404).json({ ok: false, error: "Не найден" });
@@ -4232,7 +4369,7 @@ app.get("/api/admin/user/:username", verifySuperAdmin, (req, res) => {
 });
 
 app.get("/api/admin/user/:username/overview", verifySuperAdmin, requireMsgUnlock, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
 
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
   if (!exists) return res.status(404).json({ ok: false, error: "Не найден" });
@@ -4339,7 +4476,7 @@ app.get("/api/admin/support/conversations", verifySuperAdmin, async (req, res) =
 });
 
 app.get("/api/admin/support/:username", verifySuperAdmin, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const rows = await dbAll(
     `SELECT * FROM messages WHERE chatType='support' AND ((sender=? AND receiver='support') OR (sender='support' AND receiver=?)) ORDER BY createdAt ASC LIMIT 500`,
     [u, u]
@@ -4348,7 +4485,7 @@ app.get("/api/admin/support/:username", verifySuperAdmin, async (req, res) => {
 });
 
 app.post("/api/admin/support/:username/reply", verifySuperAdmin, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const text = String(req.body.text || "").trim().slice(0, 2000);
   if (!text) return res.status(400).json({ ok: false, error: "Пустое сообщение" });
 
@@ -4479,7 +4616,7 @@ function adminSanction(kind, on) {
   const untilCol = kind === "ban" ? "bannedUntil" : "mutedUntil";
   const reasonCol = kind === "ban" ? "banReason" : "muteReason";
   return async (req, res) => {
-    const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+    const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
     const body = req.body || {};
     let hours = Number(body.hours) || 0;
     if (hours < 0) hours = 0;
@@ -4543,7 +4680,7 @@ app.post("/api/admin/reports/:id/delete-content", verifySuperAdmin, async (req, 
 // тоже закрыто кодом разблокировки (в отличие от бана/мута — это не
 // повседневный инструмент модерации).
 app.delete("/api/admin/delete/:username", verifySuperAdmin, requireMsgUnlock, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const exists = await dbGet(`SELECT username FROM users WHERE username=?`, [u]);
   if (!exists) return res.status(404).json({ ok: false, error: "Пользователь не найден" });
 
@@ -4575,7 +4712,7 @@ app.get("/api/admin/deleted-accounts", verifySuperAdmin, async (req, res) => {
 // Восстановление удалённого аккаунта — без ограничения по времени.
 // Тело (необязательно): { newPassword, resetTwoFactor }
 app.post("/api/admin/restore/:username", verifySuperAdmin, requireMsgUnlock, async (req, res) => {
-  const u = String(req.params.username || "").replace(/^@+/, "").toLowerCase();
+  const u = resolveAlias(String(req.params.username || "").replace(/^@+/, "").toLowerCase());
   const archive = await dbGet(
     `SELECT * FROM deleted_accounts WHERE username=? AND complete=1 AND restoredAt=0 ORDER BY deletedAt DESC LIMIT 1`, [u]);
   if (!archive) return res.status(404).json({ ok: false, error: "Удалённый аккаунт не найден" });
@@ -4643,7 +4780,7 @@ async function canPostTo(chatType, receiver, username) {
   if (chatType === "support") return { canPost: true, canRead: true };
   if (chatType === "private") {
     if (receiver === username) return { canPost: true, canRead: true };
-    const target = await dbGet(`SELECT username, verified, settings FROM users WHERE username=?`, [receiver]);
+    const target = await dbGet(`SELECT username, verified, level, settings FROM users WHERE username=?`, [receiver]);
     if (!target) return { canPost: false, canRead: false, error: "Пользователь не найден" };
     if (!(await dmAllowed(target, username))) {
       return {
@@ -4727,7 +4864,7 @@ const quickContact = require("./quick-contact-server")({
 const bots = require("./bots-server")({
   app, verifyAuth, rateLimit, dbGet, dbAll, dbRun, now,
   broadcastMessage, wsSendToUser, isUsernameReserved,
-  BOT_USERNAMES, RESERVED_USERNAMES
+  BOT_USERNAMES, RESERVED_USERNAMES, levelPerks, isNameTaken
 });
 
 wss.on("connection", (ws, req) => {
@@ -4757,7 +4894,7 @@ wss.on("connection", (ws, req) => {
         const from = ws.username;
 
         if (data.type === "typing") {
-          const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
+          const to = resolveAlias(String(data.to || "").replace(/^@+/, "").toLowerCase());
           if (to === from) return;
           if (to.startsWith("group:")) {
             const groupId = Number(to.slice(6));
@@ -4775,7 +4912,7 @@ wss.on("connection", (ws, req) => {
           const user = applySanctionExpiry(await dbGet(`SELECT username, muted, banned, mutedUntil, bannedUntil, muteReason FROM users WHERE username=?`, [from]));
           if (!user || user.banned) return;
 
-          const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
+          const receiver = resolveAlias(String(data.receiver || "global").replace(/^@+/, "").toLowerCase());
           const chatType = resolveChatType(receiver);
           // в муте писать можно только в поддержку
           if (user.muted && chatType !== "support") return wsSend(ws, { type: "post-error", to: receiver, muted: true, message: muteMessage(user) });
@@ -4819,7 +4956,7 @@ wss.on("connection", (ws, req) => {
         }
 
         if (data.type === "mark-read") {
-          const to = String(data.to || "").replace(/^@+/, "").toLowerCase();
+          const to = resolveAlias(String(data.to || "").replace(/^@+/, "").toLowerCase());
           const upToId = Number(data.upToId) || 0;
           if (!to || !upToId || to === from) return;
           const chatType = resolveChatType(to);
@@ -4864,7 +5001,7 @@ wss.on("connection", (ws, req) => {
           if (!user || user.banned) return;
           if (user.muted) return wsSend(ws, { type: "post-error", muted: true, message: muteMessage(user) });
 
-          const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
+          const receiver = resolveAlias(String(data.receiver || "global").replace(/^@+/, "").toLowerCase());
           const chatType = resolveChatType(receiver);
           const title = String(data.title || "Список").trim().slice(0, 80);
           const items = (Array.isArray(data.items) ? data.items : [])
@@ -4893,7 +5030,7 @@ wss.on("connection", (ws, req) => {
           if (!user || user.banned) return;
           if (user.muted) return wsSend(ws, { type: "post-error", muted: true, message: muteMessage(user) });
 
-          const receiver = String(data.receiver || "global").replace(/^@+/, "").toLowerCase();
+          const receiver = resolveAlias(String(data.receiver || "global").replace(/^@+/, "").toLowerCase());
           const chatType = resolveChatType(receiver);
           const lat = Number(data.lat), lng = Number(data.lng);
           const acc = Math.max(0, Math.min(100000, Math.round(Number(data.accuracy) || 0)));

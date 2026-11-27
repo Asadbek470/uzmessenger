@@ -181,7 +181,8 @@ async function openUser(username) {
   document.getElementById("userAvatar").src = user.avatarUrl || "/icon-192.png?v=5";
   const r = user.rating || { up: 0, down: 0 };
   document.getElementById("userFlags").innerText =
-    `${user.verified ? "подтверждён ✅" : "не подтверждён"} · рейтинг: 👍 ${r.up} / 👎 ${r.down}` + (user.openReports ? ` · жалоб: ${user.openReports}` : "");
+    `${LEVEL_NAMES[user.level || 0]} (ур. ${user.level || 0}) · рейтинг: 👍 ${r.up} / 👎 ${r.down}` + (user.openReports ? ` · жалоб: ${user.openReports}` : "");
+  setupLevelButton(user);
   document.getElementById("userSanctions").innerHTML =
     (user.banned
       ? `<div class="bad">🚫 Забанен ${untilLabel(user.bannedUntil)}${user.banReason ? " — " + esc(user.banReason) : ""}</div>`
@@ -485,6 +486,7 @@ async function deleteUser() {
 async function loadVerificationRequests() {
   const box = document.getElementById("verificationList");
   if (!box) return;
+  loadAliasRequests();
 
   const res = await fetch("/api/admin/verification-requests", { headers: adminHeaders() });
   const data = await res.json();
@@ -670,4 +672,60 @@ async function restoreAccount(username) {
 
   alert(`Аккаунт @${username} восстановлен.` + (d.warnings && d.warnings.length ? "\n\n" + d.warnings.join("\n") : ""));
   loadDeletedAccounts();
+}
+
+const LEVEL_NAMES = ["Обычный", "Подтверждённый", "Официальный", "Партнёр", "Главный"];
+
+function setupLevelButton(user) {
+  let btn = document.getElementById("userLevelBtn");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.id = "userLevelBtn";
+    btn.type = "button";
+    document.getElementById("userFlags").after(btn);
+  }
+  btn.textContent = "Изменить уровень";
+  btn.onclick = async () => {
+    const v = prompt("Уровень от 0 до 4:\n0 — обычный, 1 — подтверждённый, 2 — официальный, 3 — партнёр, 4 — главный", String(user.level || 0));
+    if (v === null) return;
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/level`, {
+      method: "POST",
+      headers: { ...adminHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ level: Number(v) })
+    });
+    const d = await res.json();
+    if (!d.ok) return alert(d.error || "Ошибка");
+    openUser(user.username);
+  };
+}
+
+// ---------------- ДОПОЛНИТЕЛЬНЫЕ ЮЗЕРНЕЙМЫ ----------------
+async function loadAliasRequests() {
+  const verBox = document.getElementById("verificationList");
+  let box = document.getElementById("aliasRequestList");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "aliasRequestList";
+    box.className = "ver-list";
+    verBox.after(box);
+  }
+  const res = await fetch("/api/admin/alias-requests", { headers: adminHeaders() });
+  const data = await res.json();
+  if (!data.ok) { box.innerHTML = "<p>Ошибка загрузки заявок на юзернеймы</p>"; return; }
+  if (data.requests.length === 0) { box.innerHTML = "<p class='hint'>Нет заявок на дополнительные юзернеймы</p>"; return; }
+  box.innerHTML = "<h4>Дополнительные юзернеймы</h4>" + data.requests.map(r => `
+    <div class="ver-item" data-id="${r.id}">
+      <div><b>@${esc(r.alias)}</b> → аккаунт @${esc(r.username)} (ур. ${r.level || 0})</div>
+      <div class="ver-actions">
+        <button class="success" onclick="decideAlias(${r.id}, 'approve')">Выдать</button>
+        <button class="danger" onclick="decideAlias(${r.id}, 'reject')">Отклонить</button>
+      </div>
+    </div>`).join("");
+}
+
+async function decideAlias(id, action) {
+  const res = await fetch(`/api/admin/alias-requests/${id}/${action}`, { method: "POST", headers: adminHeaders() });
+  const data = await res.json();
+  if (!data.ok) return alert(data.error || "Ошибка");
+  loadAliasRequests();
 }
