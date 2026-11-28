@@ -10,7 +10,6 @@
       if (localStorage.getItem("token") && !/[?&](add|install)=1/.test(location.search)) location.replace("chat.html" + location.search);
     } catch (e) {}
   </script>
-  <script src="splash.js?v=3"></script>
   <script>try{var _d=document.documentElement,_t=localStorage.getItem("zumoTheme")||"dark";if(["auto","dark","amoled","light","ocean","dusk"].indexOf(_t)<0)_t="dark";if(_t==="auto")_t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";_d.setAttribute("data-theme",_t);_d.setAttribute("data-bubble",localStorage.getItem("zumoBubble")||"round");_d.setAttribute("data-fontsize",localStorage.getItem("zumoFont")||"m");if(localStorage.getItem("zumoAnim")==="off")_d.className+=" no-anim"}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Zumo (Зумо) — мессенджер без номера телефона</title>
@@ -71,6 +70,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="stylesheet" href="pro-theme.css?v=1" />
   <link rel="stylesheet" href="themes.css?v=1" />
+  <link rel="stylesheet" href="tg-final.css?v=1" />
 </head>
 <body class="auth">
   <!-- Установка Zumo как приложения (Windows, Chrome OS, Android). Появляется, когда браузер готов установить -->

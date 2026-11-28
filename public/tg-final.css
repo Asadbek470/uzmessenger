@@ -1,0 +1,288 @@
+/* ================================================================
+   tg-final.css — итоговое оформление в стиле Telegram.
+   Подключается ПОСЛЕДНИМ (после всех остальных css) и перекрывает их.
+   Только внешний вид: ни одна функция не затронута.
+
+   Принципы:
+   - плоские цвета, без градиентов, свечения, стекла и размытия
+   - системный шрифт, как в Telegram (никаких загрузок шрифтов)
+   - без анимаций появления у чатов, сообщений и экранов
+   - акцентный цвет по-прежнему выбирается в настройках
+   ================================================================ */
+
+/* ---------- палитра ---------- */
+html[data-theme="dark"]{
+  --t-bg:#0e1621; --t-panel:#17212b; --t-panel2:#0e1621; --t-field:#242f3d;
+  --t-line:rgba(255,255,255,.06); --t-line2:rgba(255,255,255,.09); --t-hover:#202b36;
+  --t-text:#f5f5f5; --t-muted:#708499; --t-avatar:#2b5278; --t-shadow:rgba(0,0,0,.4);
+  --t-in:#182533; --t-card:#17212b; --t-splash:#0e1621;
+  --t-out:color-mix(in srgb, var(--z-accent,#3390ec) 55%, #17212b);
+}
+html[data-theme="amoled"]{
+  --t-bg:#000; --t-panel:#0a0a0a; --t-panel2:#000; --t-field:#1a1a1a;
+  --t-line:rgba(255,255,255,.08); --t-line2:rgba(255,255,255,.12); --t-hover:#141414;
+  --t-text:#f5f5f5; --t-muted:#7d8590; --t-avatar:#1e3550; --t-shadow:rgba(0,0,0,.6);
+  --t-in:#141414; --t-card:#0a0a0a; --t-splash:#000;
+  --t-out:color-mix(in srgb, var(--z-accent,#3390ec) 55%, #0a0a0a);
+}
+html[data-theme="light"]{
+  --t-bg:#e7ebf0; --t-panel:#fff; --t-panel2:#f4f4f5; --t-field:#f1f3f4;
+  --t-line:rgba(0,0,0,.08); --t-line2:rgba(0,0,0,.12); --t-hover:#f1f3f4;
+  --t-text:#000; --t-muted:#707579; --t-avatar:#3390ec; --t-shadow:rgba(0,0,0,.18);
+  --t-in:#fff; --t-card:#fff; --t-splash:#fff;
+  --t-out:color-mix(in srgb, var(--z-accent,#3390ec) 17%, #fff);
+}
+html[data-theme="ocean"],html[data-theme="dusk"]{
+  --t-out:color-mix(in srgb, var(--z-accent,#3390ec) 55%, var(--t-panel));
+}
+html[data-theme]{
+  --tgx-bg:var(--t-bg); --tgx-panel:var(--t-panel); --tgx-field:var(--t-field); --tgx-hover:var(--t-hover);
+  --tgx-line:var(--t-line); --tgx-muted:var(--t-muted); --tgx-in:var(--t-in); --tgx-out:var(--t-out);
+  --t-radius-bubble:12px;
+  --glass-bg:var(--t-panel); --glass-bg-strong:var(--t-panel); --glass-border:var(--t-line); --glass-blur:0px;
+  --shadow:0 4px 16px var(--t-shadow);
+  --tg-font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+}
+
+/* ---------- шрифт ---------- */
+html body,html body button,html body input,html body textarea,html body select{
+  font-family:var(--tg-font) !important;
+}
+html body{font-size:16px;-webkit-font-smoothing:auto;letter-spacing:0}
+
+/* ---------- убираем «эффекты» ---------- */
+html body *,html body *::before,html body *::after{
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;text-shadow:none !important;
+}
+body::before,body::after{display:none !important;animation:none !important}
+
+/* анимации появления: у чатов, сообщений, экранов, карточек входа */
+.chatitem,.bubble,.pop,.screen,.auth-card,.auth-card .logo,.modal .card,.card,
+.mrow,.stories-list > *,.folderchip,.navbtn{animation:none !important}
+.chatitem,.chatitem:active,.navbtn,.navbtn:active,.iconbtn,.iconbtn:active,.btn,.btn:active,
+.bubble,.folderchip,.tab,.card{transition:none !important}
+.chatitem:active,.navbtn:active,.iconbtn:active,.btn:active,.btn.primary:active{transform:none !important}
+html.theme-fade,html.theme-fade *{transition:none !important}
+
+/* приветственная «плашка» сверху и прочие украшения */
+.pro-welcome{display:none !important}
+.seoabout{display:none !important}
+
+/* ---------- основа ---------- */
+html body,html[data-theme] body{background:var(--t-bg) !important;color:var(--t-text)}
+html body .screen,html body .chatscreen{background:var(--t-panel) !important}
+html body .appshell{background:var(--t-panel)}
+
+/* ---------- шапка списка чатов и поиск ---------- */
+html body #screenChats .screen-header{padding:8px 12px 6px;background:var(--t-panel) !important;border:none !important}
+html body .search{
+  background:var(--t-field) !important;border:none !important;box-shadow:none !important;
+  border-radius:22px !important;min-height:40px;padding:0 14px;
+}
+html body .search input{font-size:16px;color:var(--t-text)}
+html body .search i{color:var(--t-muted)}
+html body ::placeholder{color:var(--t-muted);opacity:1}
+
+/* истории — плоские кольца без свечения */
+html body .story-add{
+  background:var(--t-field) !important;border:none !important;box-shadow:none !important;color:var(--z-accent);
+}
+html body .stories-list *{box-shadow:none !important;filter:none !important}
+
+/* кнопки-«пилюли» (Группа / Канал / Боты) */
+html body .sidebar-actions .btn.small{
+  background:var(--t-field) !important;color:var(--z-accent) !important;box-shadow:none !important;
+  border:none !important;border-radius:18px !important;font-weight:500 !important;
+}
+
+/* ---------- папки над списком ---------- */
+html body .chatfolders{background:var(--t-panel) !important;border-bottom:1px solid var(--t-line) !important;padding:0 6px}
+html body .folderchip{font-weight:500 !important;font-size:15px !important;color:var(--t-muted) !important}
+html body .folderchip.active{color:var(--z-accent) !important}
+html body .folderchip.active::after{height:3px;border-radius:3px 3px 0 0;background:var(--z-accent)}
+html body .folderchip .fcount{background:transparent !important;color:inherit !important;min-width:0;padding:0;font-weight:500}
+html body .folderchip .fcount.unread{background:var(--z-accent) !important;color:var(--z-on-accent,#fff) !important;padding:0 6px;min-width:19px}
+
+/* ---------- список чатов ---------- */
+html body .chatlist{background:var(--t-panel) !important}
+html body .chatitem,html body #screenChats .chatitem{
+  background:transparent !important;border:none !important;border-radius:0 !important;box-shadow:none !important;
+  padding:8px 14px !important;min-height:72px;gap:12px !important;
+}
+html body .chatitem:hover{background:var(--t-hover) !important}
+html body .chatitem:active{background:var(--t-field) !important}
+html body #screenChats .chatitem.active{background:var(--t-hover) !important}
+html body #screenChats .chatitem.active .name,
+html[data-theme] body #screenChats .chatitem.active .name{color:var(--t-text) !important}
+html body #screenChats .chatitem.active .preview,
+html[data-theme] body #screenChats .chatitem.active .preview{color:var(--t-muted) !important}
+html body .chatitem .avatar{width:54px !important;height:54px !important}
+html body .chatitem .meta .name{font-size:16px !important;font-weight:500 !important;color:var(--t-text)}
+html body .chatitem .meta .preview{font-size:15px !important;color:var(--t-muted) !important;margin-top:2px !important}
+html body .ctime,html body .ctick{color:var(--t-muted)}
+html body .ctick.read{color:var(--z-accent)}
+html body .cbadge,html body .navbadge,html body .unread,html body .badge,html body .unreadbadge{
+  background:var(--z-accent) !important;color:var(--z-on-accent,#fff) !important;box-shadow:none !important;
+}
+html body .navbadge{box-shadow:0 0 0 2px var(--t-panel) !important}
+html body .dot.online{background:#4dcd5e !important;box-shadow:0 0 0 2px var(--t-panel) !important}
+html body #screenChats .chatitem .dot{width:12px;height:12px;left:56px;bottom:12px}
+
+/* аватарки — плоский цвет, без градиента и рамок */
+html body .avatar,html body .avatar.circle,html body .avatar.circle.group{
+  background:var(--t-avatar) !important;color:#fff !important;box-shadow:none !important;border:none !important;
+  border-radius:50% !important;
+}
+html body .avatar.circle.group{background:#e17076 !important}
+html body .avatar img{border-radius:50%}
+
+/* значки уровней — без свечения */
+html body .verified-badge.lvl{filter:none !important}
+
+/* ---------- нижняя панель: обычная, на всю ширину ---------- */
+html body .bottomnav{
+  left:0 !important;right:0 !important;bottom:0 !important;margin:0 !important;
+  padding:0 0 env(safe-area-inset-bottom,0px) !important;gap:0 !important;border-radius:0 !important;
+  background:var(--t-panel) !important;border:none !important;border-top:1px solid var(--t-line) !important;
+  box-shadow:none !important;
+}
+html body .bottomnav .navbtn{
+  border-radius:0 !important;padding:8px 4px 6px !important;gap:2px !important;font-size:11px;font-weight:500;
+  color:var(--t-muted) !important;background:none !important;box-shadow:none !important;
+}
+html body .bottomnav .navbtn i{font-size:22px !important;color:inherit !important;background:none !important;box-shadow:none !important}
+html body .bottomnav .navbtn.active{color:var(--z-accent) !important;background:none !important}
+html body #screenChats .chatlist{padding-bottom:8px}
+
+/* ---------- шапка чата ---------- */
+html body .topbar{
+  background:var(--t-panel) !important;border:none !important;border-bottom:1px solid var(--t-line) !important;
+  box-shadow:none !important;min-height:56px;padding:6px 8px;
+}
+html body .topbar .h,html body #chatTitle{font-size:16px;font-weight:500;color:var(--t-text)}
+html body .topbar .s,html body #chatSub{font-size:13px;color:var(--t-muted)}
+html body .topbar .typing,html body #typingLine{color:var(--z-accent)}
+html body .chatava,html body .chatava .avatar{width:42px;height:42px;box-shadow:none !important}
+
+html body .iconbtn{
+  background:transparent !important;border:none !important;box-shadow:none !important;
+  border-radius:50% !important;color:var(--t-muted);width:42px;height:42px;
+}
+html body .iconbtn:hover{background:var(--t-hover) !important;color:var(--t-text)}
+
+/* ---------- сообщения ---------- */
+html body .messages{padding:8px 10px}
+html body #messages:not([style*="background"]):not([data-wp]){background:var(--t-bg) !important}
+html body .mrow{margin:2px 0}
+html body #messages .bubble,html body .bubble{
+  max-width:min(480px,84%);
+  background:var(--t-in) !important;color:var(--t-text) !important;
+  border:none !important;box-shadow:none !important;filter:none !important;
+  border-radius:12px 12px 12px 4px !important;padding:6px 10px 5px !important;
+}
+html body #messages .mrow.mine .bubble,html body .mrow.mine .bubble{
+  background:var(--t-out) !important;border-radius:12px 12px 4px 12px !important;color:var(--t-text) !important;
+}
+html[data-theme="dark"] body #messages .mrow.mine .bubble,
+html[data-theme="amoled"] body #messages .mrow.mine .bubble,
+html[data-theme="ocean"] body #messages .mrow.mine .bubble,
+html[data-theme="dusk"] body #messages .mrow.mine .bubble{color:#fff !important}
+html body #messages .bubble.bare,html body #messages .bubble.bare-round,
+html body #messages .bubble:has(.bigemoji){background:transparent !important}
+html body #messages .mtext{font-size:16px;line-height:1.3;color:inherit}
+html body #messages .who{font-size:14px;font-weight:500;color:var(--z-accent)}
+html body #messages .mtime,html body #messages .mrow.mine .mtime{
+  font-size:12px;opacity:1;margin-top:1px;color:var(--t-muted);
+}
+html[data-theme="dark"] body #messages .mrow.mine .mtime,
+html[data-theme="amoled"] body #messages .mrow.mine .mtime,
+html[data-theme="ocean"] body #messages .mrow.mine .mtime,
+html[data-theme="dusk"] body #messages .mrow.mine .mtime{color:rgba(255,255,255,.62)}
+html body .ticks i{color:var(--t-muted)}
+html body .mrow.mine .ticks i{color:inherit;opacity:.8}
+html body .ticks.read i{color:var(--z-accent-hi) !important;opacity:1}
+html body .mimg,html body .mvid{border-radius:8px}
+html body .mrow.selected .bubble{outline:none;box-shadow:inset 0 0 0 2px var(--z-accent) !important}
+
+
+/* цвет текста в своих сообщениях: тёмный на светлом, белый на тёмном */
+html body #messages .mrow.mine .mtext,html body #messages .mrow.mine .ticks,
+html body #messages .mrow.mine .editedmark{color:var(--t-text)}
+html[data-theme="dark"] body #messages .mrow.mine .mtext,html[data-theme="amoled"] body #messages .mrow.mine .mtext,
+html[data-theme="ocean"] body #messages .mrow.mine .mtext,html[data-theme="dusk"] body #messages .mrow.mine .mtext{color:#fff}
+html body #messages .mrow.mine .bubble a{color:var(--z-accent);text-decoration:underline}
+html[data-theme="dark"] body #messages .mrow.mine .bubble a,html[data-theme="amoled"] body #messages .mrow.mine .bubble a,
+html[data-theme="ocean"] body #messages .mrow.mine .bubble a,html[data-theme="dusk"] body #messages .mrow.mine .bubble a{color:#fff}
+html body #messages .mrow.mine .bubble.bare .mtext{color:var(--t-text)}
+
+/* ответ на сообщение — как в Telegram: полоска слева */
+html body .replybar{background:var(--t-panel) !important;border-top:1px solid var(--t-line) !important;box-shadow:none !important}
+html body .replybar-line{background:var(--z-accent);width:2px;border-radius:2px}
+html body .replybar-title{color:var(--z-accent);font-weight:500}
+
+/* ---------- поле ввода ---------- */
+html body .composer{
+  background:var(--t-panel) !important;border:none !important;border-top:1px solid var(--t-line) !important;
+  box-shadow:none !important;gap:4px !important;padding:6px 8px !important;
+}
+html body .composer .text,html body .composer input.text{
+  background:var(--t-field) !important;border:none !important;border-radius:20px !important;box-shadow:none !important;
+  padding:10px 14px !important;font-size:16px;color:var(--t-text);
+}
+html body .composer .iconbtn{color:var(--t-muted)}
+html body .composer .iconbtn.send{
+  background:var(--z-accent) !important;color:var(--z-on-accent,#fff) !important;width:42px;height:42px;
+}
+html body #voiceBtn.recording{background:#e53935 !important;color:#fff !important}
+html body .attachmenu,html body .emojipanel{
+  background:var(--t-panel) !important;border:none !important;box-shadow:var(--shadow) !important;border-radius:12px;
+}
+html body .attachmenu button:hover{background:var(--t-hover)}
+
+/* ---------- окна, карточки, кнопки ---------- */
+html body .modal{background:rgba(0,0,0,.5) !important}
+html body .modal .card,html body .card,html body .modal .modal-card{
+  background:var(--t-panel) !important;border:none !important;border-radius:14px !important;
+  box-shadow:0 8px 32px rgba(0,0,0,.4) !important;color:var(--t-text);
+}
+html body .btn{border-radius:10px;font-weight:500;box-shadow:none !important;border:none}
+html body .btn.primary{
+  background:var(--z-accent) !important;color:var(--z-on-accent,#fff) !important;height:auto;min-height:44px;
+  font-size:16px;font-weight:500;
+}
+html body .btn.primary:hover{background:var(--z-accent) !important;filter:brightness(1.08)}
+html body .btn.ghost{background:var(--t-field) !important;color:var(--t-text) !important}
+html body .btn.ghost.small{background:transparent !important;color:var(--z-accent) !important}
+html body .btn.danger{background:transparent !important;color:#e53935 !important}
+html body input[type=text],html body input[type=password],html body input[type=search],
+html body input[type=tel],html body input[type=email],html body input:not([type]),html body textarea,html body select{
+  background:var(--t-field);color:var(--t-text);border:1px solid transparent;border-radius:10px;box-shadow:none;
+}
+html body input:focus,html body textarea:focus,html body select:focus{
+  outline:none;border-color:var(--z-accent) !important;box-shadow:none !important;
+}
+html body .tabs{background:var(--t-field);border-radius:10px}
+html body .tab.active{background:var(--z-accent) !important;color:var(--z-on-accent,#fff)}
+
+/* ---------- экран входа ---------- */
+html body.auth,html body .auth-wrap{background:var(--t-bg) !important}
+html body .auth-card{
+  background:var(--t-panel) !important;border:none !important;border-radius:14px !important;
+  box-shadow:none !important;padding:28px 22px !important;
+}
+html body .auth-card .logo{box-shadow:none !important;border-radius:50% !important}
+html body .auth-card h1{font-weight:600;letter-spacing:0;font-size:24px}
+html body .auth-card input:not([type=checkbox]){height:48px;background:var(--t-field) !important;border:1px solid transparent !important}
+html body .auth-card input:focus{box-shadow:none !important}
+
+/* ---------- профиль и настройки ---------- */
+html body #screenProfile .tgname,html body .profilehead{box-shadow:none !important}
+html body .settingsrow,html body .srow,html body .setrow{border-color:var(--t-line)}
+
+/* ---------- прокрутка ---------- */
+*{scrollbar-width:thin;scrollbar-color:var(--t-line2) transparent}
+*::-webkit-scrollbar{width:5px;height:5px}
+*::-webkit-scrollbar-thumb{background:var(--t-line2);border-radius:5px}
+
+/* ---------- настройки движения ---------- */
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}

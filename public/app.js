@@ -202,7 +202,7 @@ button.post-act:hover,button.post-act:active{background:rgba(160,185,255,.08);co
 
 // ================== АКЦЕНТНЫЙ ЦВЕТ ==================
 // Один выбранный цвет перекрашивает весь интерфейс: сообщения, нижнее меню, кнопки, значки, шапку профиля.
-const DEFAULT_ACCENT = "#3a86ff";
+const DEFAULT_ACCENT = "#3390ec";
 function setAccent(hex) {
   if (!/^#[0-9a-f]{6}$/i.test(hex || "")) hex = DEFAULT_ACCENT;
   const n = parseInt(hex.slice(1), 16);
@@ -4547,7 +4547,7 @@ const WALLPAPER_PRESETS = [
   { id: "lavender", label: "Лаванда" },
   { id: "mint", label: "Мята" }
 ];
-const ACCENT_PRESETS = ["#3a86ff", "#2a9df4", "#29d17d", "#ff8a3d", "#ff4d9d", "#a06bff", "#f5c542", "#00c2c7", "#ff5c5c", "#7c8cff", "#8bd450"];
+const ACCENT_PRESETS = ["#3390ec", "#2a9df4", "#29d17d", "#ff8a3d", "#ff4d9d", "#a06bff", "#f5c542", "#00c2c7", "#ff5c5c", "#7c8cff", "#8bd450"];
 const STATUS_EMOJIS = ["😎", "🔥", "⭐", "💎", "👑", "🎮", "🎧", "📚", "💼", "✈️", "🏖️", "❤️", "🌙", "☕", "🚀", "⚽", "🎨", "💻", "🤔", "😴", "🎉", "🍀", "🌸", "🐱", "🦁", "⚡", "🌈", "🎵"];
 
 function applyTheme(settings) {
