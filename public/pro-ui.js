@@ -36,6 +36,7 @@
   function chat(){
     try{
       if(sessionStorage.getItem("proHello"))return;
+      if(!localStorage.getItem("zumoWelcomeAny"))return; /* на новом устройстве вместо плашки — приветственный тур (welcome.js) */
       sessionStorage.setItem("proHello","1");
       setTimeout(function(){toast(hello()+"! Добро пожаловать в <b>Zumo</b>")},700);
     }catch(e){}

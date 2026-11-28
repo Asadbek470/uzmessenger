@@ -33,6 +33,12 @@ const BOT_USERNAMES = new Set();
 // Дополнительные юзернеймы: алиас → основной юзернейм аккаунта (кэш из таблицы user_aliases)
 const ALIAS_MAP = new Map();
 function resolveAlias(name) { return ALIAS_MAP.get(name) || name; }
+// Все юзернеймы одного аккаунта: основной первым, затем дополнительные
+function allUsernames(primary) {
+  const out = [primary];
+  for (const [a, o] of ALIAS_MAP) if (o === primary) out.push(a);
+  return out;
+}
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
 
 // Часовой пояс для дней рождения (в минутах от UTC). По умолчанию Ташкент (UTC+5).
@@ -994,6 +1000,8 @@ function safeUser(u) {
     birthDate: u.birthDate || "",
     verified: userLevel(u) >= 1,
     level: userLevel(u),
+    levelName: LEVELS[userLevel(u)].name,
+    usernames: allUsernames(u.username),
     totpEnabled: !!u.totpEnabled,
     googleLinked: !!u.googleSub,
     tosAcceptedAt: u.tosAcceptedAt || 0,
@@ -1063,6 +1071,8 @@ function userCardFromRow(u) {
     avatarUrl: u.avatarUrl || "",
     verified: userLevel(u) >= 1,
     level: userLevel(u),
+    levelName: LEVELS[userLevel(u)].name,
+    usernames: allUsernames(u.username),
     isBot: BOT_USERNAMES.has(u.username),
     emojiStatus: cleanEmojiStatus(s.emojiStatus || ""),
     birthdayToday: isBirthdayToday(u.birthDate),
@@ -3303,7 +3313,7 @@ app.get("/api/chats", verifyAuth, async (req, res) => {
 
   const msgs = await dbAll(
     `
-    SELECT sender, receiver, text, mediaType, fileName, createdAt
+    SELECT id, sender, receiver, text, mediaType, fileName, createdAt
     FROM messages
     WHERE chatType='private' AND (sender=? OR receiver=?)
     ORDER BY createdAt DESC
@@ -3311,11 +3321,25 @@ app.get("/api/chats", verifyAuth, async (req, res) => {
     `,
     [me, me]
   );
+  // непрочитанные: входящие, которые я ещё не открыл
+  const unreadRows = await dbAll(
+    `SELECT m.sender AS other, COUNT(*) AS c FROM messages m
+     WHERE m.chatType='private' AND m.receiver=? AND m.sender!=?
+       AND NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.messageId=m.id AND r.reader=?)
+     GROUP BY m.sender`,
+    [me, me, me]
+  );
+  const unread = new Map(unreadRows.map(r => [r.other, r.c]));
+  const lastInfo = new Map(); // время, моё ли последнее сообщение, прочитал ли его собеседник
+  const readIds = new Set((await dbAll(
+    `SELECT r.messageId AS id FROM message_reads r JOIN messages m ON m.id=r.messageId WHERE m.sender=? AND m.chatType='private'`, [me]
+  )).map(r => r.id));
   const preview = new Map();
   const previewEnc = new Map(); // зашифрованное последнее сообщение — расшифрует сам клиент
   msgs.forEach(m => {
     const other = m.sender === me ? m.receiver : m.sender;
     if (!preview.has(other)) {
+      lastInfo.set(other, { lastAt: m.createdAt, lastMine: m.sender === me, lastRead: m.sender === me && readIds.has(m.id) });
       preview.set(other, previewText(m));
       if (m.mediaType === "text" && isE2EText(m.text)) previewEnc.set(other, { text: m.text, sender: m.sender, receiver: m.receiver });
     }
@@ -3325,10 +3349,10 @@ app.get("/api/chats", verifyAuth, async (req, res) => {
   for (const o of others) {
     const u = map.get(o);
     if (!u) {
-      out.push({ username: o, displayName: o, avatarUrl: "", verified: false, emojiStatus: "", preview: preview.get(o) || "" });
+      out.push({ username: o, displayName: o, avatarUrl: "", verified: false, level: 0, usernames: [o], emojiStatus: "", preview: preview.get(o) || "", unread: unread.get(o) || 0, ...(lastInfo.get(o) || {}) });
       continue;
     }
-    out.push({ ...userCardFromRow(u), ...(await visibleLastSeen(u, me)), preview: preview.get(o) || "", previewEnc: previewEnc.get(o) || null });
+    out.push({ ...userCardFromRow(u), ...(await visibleLastSeen(u, me)), preview: preview.get(o) || "", previewEnc: previewEnc.get(o) || null, unread: unread.get(o) || 0, ...(lastInfo.get(o) || {}) });
   }
 
   res.json({ ok: true, chats: out });

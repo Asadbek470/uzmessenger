@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <script src="splash.js?v=3"></script>
+  <script>try{var _d=document.documentElement,_t=localStorage.getItem("zumoTheme")||"dark";if(["auto","dark","amoled","light","ocean","dusk"].indexOf(_t)<0)_t="dark";if(_t==="auto")_t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";_d.setAttribute("data-theme",_t);_d.setAttribute("data-bubble",localStorage.getItem("zumoBubble")||"round");_d.setAttribute("data-fontsize",localStorage.getItem("zumoFont")||"m");if(localStorage.getItem("zumoAnim")==="off")_d.className+=" no-anim"}catch(e){document.documentElement.setAttribute("data-theme","dark")}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Zumo — мессенджер</title>
   <meta name="robots" content="noindex" />
@@ -43,6 +44,9 @@
   </style>
   <link rel="stylesheet" href="telegram-ui.css?v=1" />
   <link rel="stylesheet" href="pro-theme.css?v=1" />
+  <link rel="stylesheet" href="tg-clone.css?v=1" />
+  <link rel="stylesheet" href="themes.css?v=1" />
+  <link rel="stylesheet" href="welcome.css?v=1" />
 </head>
 <body>
   <!-- DEVICE PASSCODE LOCK -->
@@ -75,6 +79,7 @@
 
       </div>
 
+      <div id="chatFolders" class="chatfolders hidden"></div>
       <div id="contactInbox" class="contactinbox hidden"></div>
       <div id="birthdayBanner" class="banner bdaybanner hidden"></div>
 
@@ -448,6 +453,7 @@
     <nav id="bottomNav" class="bottomnav">
       <button class="navbtn active" data-tab="chats" onclick="switchTab('chats')">
         <i class="fa-solid fa-comments"></i><span data-i18n="nav.chats">Чаты</span>
+        <b id="navChatsBadge" class="navbadge hidden"></b>
       </button>
       <button class="navbtn" data-tab="stories" onclick="switchTab('stories')">
         <i class="fa-solid fa-clapperboard"></i><span data-i18n="nav.stories">Сторис</span>
@@ -843,6 +849,8 @@
   <script src="e2e.js?v=4"></script>
   <script src="calls-client.js?v=4"></script>
   <script src="features-v5.js?v=4"></script>
-  <script src="pro-ui.js?v=1"></script>
+  <script src="pro-ui.js?v=2"></script>
+  <script src="themes.js?v=1"></script>
+  <script src="welcome.js?v=1"></script>
 </body>
 </html>

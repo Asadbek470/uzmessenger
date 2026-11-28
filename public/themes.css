@@ -1,0 +1,149 @@
+/* ================================================================
+   Zumo — темы оформления (themes.css). Подключается ПОСЛЕДНИМ.
+   Тема выбирается атрибутом <html data-theme="...">, его ставит themes.js.
+   Темы: dark (по умолчанию), amoled, light, ocean, dusk.
+   «Авто» = dark или light в зависимости от системной темы телефона.
+   Цвет акцента не входит в тему: он выбирается отдельно (setAccent в app.js).
+   ================================================================ */
+
+/* ---------- тёмная (как раньше) ---------- */
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --t-bg:#07090d; --t-panel:#0e1218; --t-panel2:#0a0d12; --t-field:#171c24;
+  --t-line:rgba(255,255,255,.07); --t-line2:rgba(255,255,255,.1); --t-hover:rgba(255,255,255,.04);
+  --t-text:#ffffff; --t-muted:#8b97a8; --t-avatar:#1b2a44; --t-shadow:rgba(0,0,0,.55);
+  --t-in:#171c24; --t-card:#0e1218; --t-splash:#07090d;
+}
+
+/* ---------- AMOLED: чистый чёрный, экономит батарею на OLED ---------- */
+html[data-theme="amoled"]{
+  color-scheme:dark;
+  --t-bg:#000000; --t-panel:#000000; --t-panel2:#050505; --t-field:#151515;
+  --t-line:rgba(255,255,255,.11); --t-line2:rgba(255,255,255,.16); --t-hover:rgba(255,255,255,.06);
+  --t-text:#ffffff; --t-muted:#8a8f98; --t-avatar:#1a1a1a; --t-shadow:rgba(0,0,0,.8);
+  --t-in:#161616; --t-card:#0a0a0a; --t-splash:#000;
+}
+
+/* ---------- светлая ---------- */
+html[data-theme="light"]{
+  color-scheme:light;
+  --t-bg:#eef1f6; --t-panel:#ffffff; --t-panel2:#f3f5f9; --t-field:#e8ecf2;
+  --t-line:rgba(15,23,34,.09); --t-line2:rgba(15,23,34,.14); --t-hover:rgba(15,23,34,.045);
+  --t-text:#0f1722; --t-muted:#667385; --t-avatar:#dbe7fb; --t-shadow:rgba(30,45,80,.18);
+  --t-in:#ffffff; --t-card:#ffffff; --t-splash:#eef1f6;
+}
+
+/* ---------- океан ---------- */
+html[data-theme="ocean"]{
+  color-scheme:dark;
+  --t-bg:#05121c; --t-panel:#0a1f2f; --t-panel2:#07192a; --t-field:#12304a;
+  --t-line:rgba(140,200,255,.12); --t-line2:rgba(140,200,255,.18); --t-hover:rgba(140,200,255,.07);
+  --t-text:#eaf6ff; --t-muted:#7fa6c2; --t-avatar:#14406a; --t-shadow:rgba(0,10,25,.6);
+  --t-in:#112b43; --t-card:#0a1f2f; --t-splash:#05121c;
+}
+
+/* ---------- сумерки ---------- */
+html[data-theme="dusk"]{
+  color-scheme:dark;
+  --t-bg:#0e0a19; --t-panel:#171128; --t-panel2:#120d21; --t-field:#241a3b;
+  --t-line:rgba(190,160,255,.12); --t-line2:rgba(190,160,255,.18); --t-hover:rgba(190,160,255,.07);
+  --t-text:#f4efff; --t-muted:#9d92bd; --t-avatar:#2d2152; --t-shadow:rgba(8,0,25,.6);
+  --t-in:#211835; --t-card:#171128; --t-splash:#0e0a19;
+}
+
+/* ---------- общие значения, зависящие от темы (переменные из style.css и других файлов) ---------- */
+html[data-theme]{
+  --z-ink:var(--t-bg); --z-surface:var(--t-panel); --z-raised:var(--t-field);
+  --z-line:var(--t-line); --z-text:var(--t-text); --z-muted:var(--t-muted);
+  --tg-label:var(--t-muted); --tg-link:var(--z-accent-hi);
+  --glass-border:var(--t-line);
+}
+html[data-theme] body{background:var(--t-bg) !important;color:var(--t-text)}
+html[data-theme] .zx-overlay,html[data-theme] .zx-sheet{
+  --zx-bg:var(--t-bg); --zx-panel:var(--t-panel); --zx-field:var(--t-field); --zx-hover:var(--t-hover);
+  --zx-line:var(--t-line); --zx-muted:var(--t-muted); --zx-text:var(--t-text);
+}
+
+/* ---------- светлая тема: места, где в других файлах зашит светлый текст или тёмный фон ---------- */
+html[data-theme="light"] .chatitem.active .preview,
+html[data-theme="light"] .chatitem.active .name{color:var(--z-on-accent) !important}
+html[data-theme="light"] #messages .bubble:not(.mine .bubble){box-shadow:0 1px 2px rgba(30,45,80,.12) !important}
+html[data-theme="light"] .mrow.mine .bubble a{color:inherit;text-decoration:underline}
+html[data-theme="light"] .avatar,html[data-theme="light"] .avatar.circle{color:var(--z-accent) !important}
+html[data-theme="light"] input,html[data-theme="light"] textarea,html[data-theme="light"] select{color:var(--t-text)}
+html[data-theme="light"] ::placeholder{color:var(--t-muted);opacity:.8}
+
+/* ---------- плавная смена темы (класс вешается на 0.4 с только в момент переключения) ---------- */
+html.theme-fade,html.theme-fade *{
+  transition:background-color .35s ease,color .35s ease,border-color .35s ease,box-shadow .35s ease,fill .35s ease !important;
+}
+
+/* ---------- дополнительные настройки ---------- */
+html[data-bubble="square"]{--t-radius-bubble:8px}
+html[data-bubble="round"]{--t-radius-bubble:16px}
+html[data-bubble="pill"]{--t-radius-bubble:22px}
+html[data-fontsize="s"]{--t-scale:.9}
+html[data-fontsize="m"]{--t-scale:1}
+html[data-fontsize="l"]{--t-scale:1.12}
+html[data-fontsize="xl"]{--t-scale:1.25}
+html[data-fontsize] #messages .bubble{font-size:calc(15px * var(--t-scale))}
+html.no-anim *,html.no-anim *::before,html.no-anim *::after{animation-duration:.001s !important;animation-delay:0s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
+
+/* ---------- блок «Тема» в настройках ---------- */
+.thm-block{display:flex;flex-direction:column;gap:14px}
+.thm-label{font-size:13px;font-weight:600;color:var(--t-muted);margin:0 0 -4px}
+.thm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.thm-card{
+  position:relative;display:flex;flex-direction:column;gap:7px;align-items:stretch;padding:7px 7px 9px;
+  border:2px solid var(--t-line2);border-radius:14px;background:var(--t-panel2);color:var(--t-text);
+  font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center;
+  transition:transform .15s ease,border-color .2s ease,box-shadow .2s ease;
+}
+.thm-card:active{transform:scale(.96)}
+.thm-card.on{border-color:var(--z-accent);box-shadow:0 0 0 3px rgba(var(--z-accent-rgb),.22)}
+.thm-card.on::after{
+  content:"✓";position:absolute;top:-7px;right:-7px;width:20px;height:20px;border-radius:50%;
+  background:var(--z-accent);color:var(--z-on-accent);font-size:12px;font-weight:800;display:grid;place-items:center;
+}
+/* мини-экран: цвета берутся из самой темы, а не из текущей */
+.thm-prev{border-radius:9px;padding:7px;height:68px;display:flex;flex-direction:column;gap:5px;justify-content:flex-end;overflow:hidden}
+.thm-prev i{display:block;height:13px;border-radius:7px 7px 7px 2px;width:62%}
+.thm-prev i.me{align-self:flex-end;width:50%;border-radius:7px 7px 2px 7px;background:var(--z-accent)}
+.thm-prev i.top{height:7px;width:100%;border-radius:3px;margin-bottom:auto}
+.thm-seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--t-panel2);border:1px solid var(--t-line)}
+.thm-seg button{
+  flex:1;border:0;border-radius:9px;padding:9px 4px;background:transparent;color:var(--t-muted);
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s,color .2s;
+}
+.thm-seg button.on{background:var(--z-accent);color:var(--z-on-accent)}
+.thm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14.5px;font-weight:500}
+.thm-switch{position:relative;width:46px;height:28px;border:0;border-radius:14px;background:var(--t-field);cursor:pointer;transition:background .2s;flex:none}
+.thm-switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s var(--ease,ease)}
+.thm-switch.on{background:var(--z-accent)}
+.thm-switch.on::after{transform:translateX(18px)}
+.thm-btn{
+  border:1px solid var(--t-line2);background:var(--t-panel2);color:var(--t-text);border-radius:12px;
+  padding:12px 14px;font:inherit;font-size:14.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.thm-btn:active{transform:scale(.98)}
+
+/* ================================================================
+   Исправления: в других css-файлах часть цветов жёстко белая/тёмная,
+   из-за чего светлая тема была нечитаемой. Здесь они привязаны к теме.
+   ================================================================ */
+html[data-theme] .blocktitle,
+html[data-theme] .categoryhead,
+html[data-theme] .cathead-label{color:var(--t-text)}
+html[data-theme] .categoryhead{background:var(--t-panel);border-color:var(--t-line)}
+
+/* плавающая нижняя панель */
+html[data-theme] body .bottomnav{
+  background:color-mix(in srgb,var(--t-panel) 92%,transparent) !important;
+  box-shadow:0 8px 28px var(--t-shadow),0 0 0 1px var(--t-line) !important;
+}
+
+/* на светлом фоне «светлый» оттенок акцента (он для тёмных тем) заменяем на более глубокий — иначе ссылки не читаются */
+html[data-theme="light"]{--z-accent-hi:color-mix(in srgb,var(--z-accent) 78%,#000) !important}
+html[data-theme] .reels-empty{color:var(--t-muted)}
+html[data-theme="light"] html body .bottomnav .navbtn.active,
+html[data-theme="light"] body .bottomnav .navbtn.active{color:var(--z-accent-hi) !important}

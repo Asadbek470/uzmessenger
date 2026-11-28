@@ -1,0 +1,105 @@
+/* ================================================================
+   Zumo — доводка под Telegram (tg-clone.css). Подключается ПОСЛЕДНИМ.
+   Только оформление: значки уровней, вкладки-папки, время / счётчики /
+   галочки в списке чатов, плавающая нижняя панель.
+   ================================================================ */
+
+/* ---------- значки уровней: видны у всех ---------- */
+html body .verified-badge.lvl{margin-left:3px;font-size:.82em;vertical-align:baseline}
+html body .verified-badge.lvl1{color:#3d9bf0}
+html body .verified-badge.lvl2{color:#2aa5ff;filter:drop-shadow(0 0 3px rgba(42,165,255,.55))}
+html body .verified-badge.lvl3{color:#f5b73b;filter:drop-shadow(0 0 3px rgba(245,183,59,.5))}
+html body .verified-badge.lvl4{color:#ffc933;filter:drop-shadow(0 0 4px rgba(255,201,51,.65))}
+/* на цветной шапке профиля значок остаётся белым, как раньше */
+html body .tgname .verified-badge.lvl{color:#fff;filter:none}
+
+.lvlrow{display:inline-flex;align-items:center;gap:7px;font-weight:600}
+.lvlrow.lvl0{color:var(--tgx-muted,#708499);font-weight:500}
+.lvlrow.lvl1,.lvlrow.lvl2{color:#3d9bf0}
+.lvlrow.lvl3,.lvlrow.lvl4{color:#f5b73b}
+
+/* несколько юзернеймов на одном аккаунте */
+.unamelist{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.unamemain{font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px;background:rgba(61,155,240,.18);color:#6cb7ff}
+.unamepending{margin-top:6px;font-size:12.5px;color:var(--tgx-muted,#708499)}
+
+/* ---------- вкладки-папки над списком чатов ---------- */
+.chatfolders{
+  display:flex;gap:2px;overflow-x:auto;padding:2px 10px 0;
+  background:var(--tgx-panel,#17212b);
+  border-bottom:1px solid var(--tgx-line,rgba(255,255,255,.06));
+  scrollbar-width:none;
+}
+.chatfolders::-webkit-scrollbar{display:none}
+.chatfolders.hidden{display:none}
+.folderchip{
+  flex:0 0 auto;position:relative;display:inline-flex;align-items:center;gap:6px;
+  background:none;border:none;box-shadow:none;cursor:pointer;white-space:nowrap;
+  padding:11px 11px 12px;font-family:inherit;font-size:14.5px;font-weight:600;line-height:1;
+  color:var(--tgx-muted,#708499);
+}
+.folderchip.active{color:rgb(var(--z-accent-rgb,58,134,255))}
+.folderchip.active::after{
+  content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;
+  border-radius:3px 3px 0 0;background:currentColor;
+}
+.folderchip .fcount{
+  min-width:19px;height:19px;padding:0 6px;border-radius:10px;display:grid;place-items:center;
+  background:var(--tgx-field,#242f3d);color:var(--tgx-muted,#708499);font-size:12px;font-weight:700;
+}
+.folderchip .fcount.unread{background:rgb(var(--z-accent-rgb,58,134,255));color:#fff}
+.chatitem.folder-hidden{display:none !important}
+
+/* ---------- строка чата: время, галочки, счётчик ---------- */
+html body #screenChats .chatitem{
+  border-radius:0;margin:0;padding:8px 14px;min-height:72px;
+}
+html body #screenChats .chatitem .meta{min-width:0;flex:1;padding-right:62px}
+html body #screenChats .chatitem .meta .name{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+html body #screenChats .chatitem .meta .preview{
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ctime{
+  position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:4px;
+  font-size:12.5px;color:var(--tgx-muted,#708499);
+}
+.ctick{font-size:11px;color:var(--tgx-muted,#708499)}
+.ctick.read{color:#4fa8f5}
+.cbadge{
+  position:absolute;right:14px;bottom:14px;min-width:22px;height:22px;padding:0 7px;border-radius:11px;
+  display:grid;place-items:center;background:rgb(var(--z-accent-rgb,58,134,255));color:#fff;
+  font-size:12.5px;font-weight:700;line-height:1;
+}
+/* точка «в сети» — на углу аватарки */
+html body #screenChats .chatitem .dot{
+  position:absolute;left:55px;bottom:11px;width:13px;height:13px;border-width:2.5px;box-shadow:none;
+}
+
+/* ---------- нижняя панель: плавающая «капсула» как в Telegram ---------- */
+html body .bottomnav{
+  left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+  padding:6px 8px;gap:2px;border-radius:30px !important;
+  background:rgba(28,39,52,.88) !important;
+  border:none !important;
+  backdrop-filter:blur(20px) saturate(1.5) !important;-webkit-backdrop-filter:blur(20px) saturate(1.5) !important;
+  box-shadow:0 8px 28px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.07) !important;
+}
+html body .bottomnav .navbtn{
+  position:relative;border-radius:24px;padding:8px 4px 7px;gap:3px;
+  color:var(--tgx-muted,#708499) !important;background:none !important;box-shadow:none !important;
+}
+html body .bottomnav .navbtn i{font-size:21px;color:inherit !important}
+html body .bottomnav .navbtn.active{
+  color:rgb(var(--z-accent-rgb,58,134,255)) !important;
+  background:rgba(var(--z-accent-rgb,58,134,255),.16) !important;
+}
+.navbadge{
+  position:absolute;top:1px;left:calc(50% + 3px);min-width:17px;height:17px;padding:0 4px;border-radius:10px;
+  display:grid;place-items:center;background:rgb(var(--z-accent-rgb,58,134,255));color:#fff;
+  font-size:11px;font-weight:700;line-height:1;font-style:normal;
+  box-shadow:0 0 0 2px rgba(28,39,52,1);
+}
+.navbadge.hidden{display:none}
+#screenChats .chatlist{padding-bottom:104px}

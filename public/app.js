@@ -349,8 +349,50 @@ function authHeaders() {
   return { Authorization: `Bearer ${token}` };
 }
 
-function verifiedBadge(isVerified) {
-  return isVerified ? ` <i class="fa-solid fa-circle-check verified-badge" title="Официально подтверждён"></i>` : "";
+// ---------- УРОВНИ АККАУНТОВ: чем выше уровень, тем официальнее аккаунт ----------
+const LEVEL_NAMES = ["Обычный", "Подтверждённый", "Официальный", "Партнёр", "Главный"];
+const LEVEL_ICONS = ["", "fa-circle-check", "fa-certificate", "fa-award", "fa-crown"];
+function levelOf(info) {
+  info = info || {};
+  const l = Number(info.level);
+  if (Number.isFinite(l) && l > 0) return Math.min(LEVEL_NAMES.length - 1, Math.trunc(l));
+  return info.verified ? 1 : 0;
+}
+function levelName(info) { return (info && info.levelName) || LEVEL_NAMES[levelOf(info)]; }
+function levelBadge(info) {
+  const l = levelOf(info);
+  if (!l) return "";
+  return ` <i class="fa-solid ${LEVEL_ICONS[l]} verified-badge lvl lvl${l}" title="Уровень ${l} — ${esc(levelName(info))}"></i>`;
+}
+// Старые вызовы: verifiedBadge(true) = уровень 1; можно передать и карточку пользователя
+function verifiedBadge(v) {
+  if (v && typeof v === "object") return levelBadge(v);
+  return v ? levelBadge({ level: 1 }) : "";
+}
+function levelRow(info) {
+  const l = levelOf(info);
+  const icon = l ? `<i class="fa-solid ${LEVEL_ICONS[l]}"></i> ` : "";
+  return infoRow("уровень", `<span class="lvlrow lvl${l}">${icon}Уровень ${l} — ${esc(levelName(info))}</span>`);
+}
+// Все юзернеймы одного аккаунта: основной и дополнительные
+function usernamesRow(info, extraHtml) {
+  const names = info.usernames && info.usernames.length ? info.usernames : [info.username];
+  const list = names.map((n, i) =>
+    `<span class="tglink">@${esc(n)}</span>${i === 0 && names.length > 1 ? ' <span class="unamemain">основной</span>' : ""}`
+  ).join("");
+  return infoRow(names.length > 1 ? "юзернеймы" : "юзернейм", `<div class="unamelist">${list}</div>${extraHtml || ""}`);
+}
+async function requestExtraUsername() {
+  const name = prompt("Какой дополнительный юзернейм хочешь? (латиница, цифры, _; от 4 до 20 символов)\nЗаявку рассмотрит администрация.");
+  if (!name) return;
+  try {
+    const d = await (await fetch("/api/me/usernames/request", {
+      method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ username: name })
+    })).json();
+    alert(d.ok ? "Заявка отправлена. Когда администрация одобрит, юзернейм появится в профиле." : (d.error || "Ошибка"));
+    if (d.ok) loadMyProfileTab();
+  } catch (e) { alert("Нет связи с сервером"); }
 }
 
 // ================== АВАТАРЫ И ИМЕНА ==================
@@ -403,7 +445,7 @@ function nameHtml(info, opts = {}) {
   const status = info.emojiStatus ? `<span class="emojistatus" title="Статус">${esc(info.emojiStatus)}</span>` : "";
   const bday = info.birthdayToday ? `<span class="bdaymark" title="Сегодня день рождения">🎂</span>` : "";
   const botMark = info.isBot ? `<span class="botbadge">БОТ</span>` : "";
-  return `<span class="uname">${name}</span>${botMark}${status}${verifiedBadge(info.verified)}${opts.noBday ? "" : bday}`;
+  return `<span class="uname">${name}</span>${botMark}${status}${levelBadge(info)}${opts.noBday ? "" : bday}`;
 }
 
 function mergeUserInfo(username, info) {
@@ -965,6 +1007,8 @@ function myCard() {
     displayName: me.displayName || me.username,
     avatarUrl: me.avatarUrl || "",
     verified: !!me.verified,
+    level: me.level || 0,
+    levelName: me.levelName,
     emojiStatus: s.emojiStatus || "",
     birthdayToday: isMyBirthdayToday(),
     headerTop: s.headerTop || "",
@@ -1282,6 +1326,7 @@ function connectWS() {
 
     if (data.type === "read") {
       if (data.chatKey === currentChat) markTicksRead(data.upToId);
+      scheduleChatsRefresh();
       return;
     }
 
@@ -1954,6 +1999,7 @@ async function sendText() {
 function markRead(upToId) {
   if (!ws || ws.readyState !== 1 || !upToId) return;
   ws.send(JSON.stringify({ type: "mark-read", to: currentChat, upToId }));
+  scheduleChatsRefresh();
 }
 
 function markTicksRead(upToId) {
@@ -2814,6 +2860,67 @@ function insertEmoji(e) {
 }
 
 // ================== CHAT LIST ==================
+let chatFolder = "all";
+let _chatsRefreshT = null;
+function scheduleChatsRefresh() {
+  clearTimeout(_chatsRefreshT);
+  _chatsRefreshT = setTimeout(() => { refreshChats().catch(() => {}); }, 800);
+}
+function fmtChatTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), n = new Date();
+  if (d.toDateString() === n.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if ((n - d) / 86400000 < 7) return d.toLocaleDateString([], { weekday: "short" });
+  return d.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+}
+function chatMetaHtml(c) {
+  const tick = c.lastMine ? `<i class="fa-solid ${c.lastRead ? "fa-check-double" : "fa-check"} ctick ${c.lastRead ? "read" : ""}"></i>` : "";
+  const time = c.lastAt ? `<span class="ctime">${tick}${esc(fmtChatTime(c.lastAt))}</span>` : "";
+  const badge = c.unread > 0 ? `<span class="cbadge">${c.unread > 99 ? "99+" : c.unread}</span>` : "";
+  return time + badge;
+}
+const FOLDERS = [["all", "Все"], ["private", "Личные"], ["group", "Группы"], ["channel", "Каналы"], ["bot", "Боты"]];
+function chatKindOfEl(el) {
+  if (el.dataset.kind) return el.dataset.kind;
+  const k = el.dataset.chat;
+  if (k === "global" || k === "support") return "pinned";
+  return "private";
+}
+function applyChatFolder() {
+  document.querySelectorAll("#chatList .chatitem").forEach(el => {
+    const kind = chatKindOfEl(el);
+    const show = chatFolder === "all" || kind === chatFolder;
+    el.classList.toggle("folder-hidden", !show);
+  });
+}
+function renderChatFolders() {
+  const box = document.getElementById("chatFolders");
+  if (!box) return;
+  const stats = { all: { n: 0, u: 0 } };
+  FOLDERS.forEach(([k]) => { stats[k] = { n: 0, u: 0 }; });
+  document.querySelectorAll("#privateChats .chatitem").forEach(el => {
+    const kind = chatKindOfEl(el);
+    if (kind === "saved") return;
+    const u = Number(el.dataset.unread || 0);
+    stats.all.n++; stats.all.u += u;
+    if (stats[kind]) { stats[kind].n++; stats[kind].u += u; }
+  });
+  const visible = FOLDERS.filter(([k]) => k === "all" || stats[k].n > 0);
+  if (!visible.some(([k]) => k === chatFolder)) chatFolder = "all";
+  box.classList.toggle("hidden", visible.length < 2);
+  box.innerHTML = visible.map(([k, label]) => {
+    const u = stats[k].u;
+    return `<button class="folderchip ${k === chatFolder ? "active" : ""}" onclick="setChatFolder('${k}')">${label}${u > 0 ? `<span class="fcount unread">${u > 99 ? "99+" : u}</span>` : ""}</button>`;
+  }).join("");
+  const nb = document.getElementById("navChatsBadge");
+  if (nb) { nb.textContent = stats.all.u > 99 ? "99+" : String(stats.all.u); nb.classList.toggle("hidden", stats.all.u === 0); }
+}
+function setChatFolder(k) {
+  chatFolder = k;
+  renderChatFolders();
+  applyChatFolder();
+}
+
 async function refreshChats() {
   const [chatsRes, groupsRes] = await Promise.all([
     fetch("/api/chats", { headers: authHeaders() }),
@@ -2839,6 +2946,7 @@ async function refreshChats() {
   const savedBtn = document.createElement("button");
   savedBtn.className = "chatitem";
   savedBtn.dataset.chat = me.username;
+  savedBtn.dataset.kind = "saved";
   savedBtn.onclick = () => openChat(me.username);
   savedBtn.innerHTML = `
     <div class="avatar circle saved"><i class="fa-solid fa-bookmark"></i></div>
@@ -2855,6 +2963,7 @@ async function refreshChats() {
       const btn = document.createElement("button");
       btn.className = "chatitem";
       btn.dataset.chat = chatKey;
+      btn.dataset.kind = g.isChannel ? "channel" : "group";
       btn.onclick = () => openChat(chatKey);
       btn.innerHTML = `
         <div class="avatar circle group">${g.avatarUrl ? `<img src="${esc(g.avatarUrl)}" alt="">` : `<i class="fa-solid ${g.isChannel ? "fa-bullhorn" : "fa-users"}"></i>`}</div>
@@ -2873,6 +2982,8 @@ async function refreshChats() {
       const btn = document.createElement("button");
       btn.className = "chatitem";
       btn.dataset.chat = c.username;
+      btn.dataset.kind = c.isBot ? "bot" : "private";
+      btn.dataset.unread = String(c.unread || 0);
       btn.onclick = () => openChat(c.username);
 
       const isOn = onlineSet.has(c.username);
@@ -2883,6 +2994,7 @@ async function refreshChats() {
           <div class="name">${nameHtml(c)}</div>
           <div class="preview">${esc(c.preview || "")}</div>
         </div>
+        ${chatMetaHtml(c)}
         <span class="dot ${isOn ? "online" : "offline"}" title="${isOn ? "Онлайн" : "Оффлайн"}"></span>
       `;
       wrap.appendChild(btn);
@@ -2891,6 +3003,8 @@ async function refreshChats() {
 
   document.querySelectorAll(".chatitem").forEach(b => b.classList.toggle("active", b.dataset.chat === currentChat));
   renderOnlineDots();
+  renderChatFolders();
+  applyChatFolder();
 }
 
 function renderOnlineDots() {
@@ -3595,9 +3709,9 @@ async function openProfile(username, isMe) {
   document.getElementById("profileActions").innerHTML = acts.join("");
 
   const rows = [];
-  rows.push(infoRow("юзернейм", `<span class="tglink">@${esc(p.username)}</span>`));
+  rows.push(usernamesRow(p));
+  rows.push(levelRow(p));
   if (p.bio) rows.push(infoRow("о себе", esc(p.bio)));
-  if (p.verified) rows.push(infoRow("статус", `<span class="tgverified"><i class="fa-solid fa-circle-check"></i> Официально подтверждён</span>`));
   if (p.birthdayToday) rows.push(infoRow("день рождения", "🎂 Сегодня!"));
   if (p.rating) rows.push(infoRow("рейтинг", ratingHtml(p.username, p.rating, true)));
   if (p.postCount) rows.push(infoRow("посты", `<button class="tglinkbtn" onclick="closeProfile(); openUserPosts('${esc(p.username)}')">${p.postCount} — открыть</button>`));
@@ -4949,10 +5063,21 @@ async function loadMyProfileTab() {
     actionBtn("fa-share-nodes", "Пригласить", "inviteToMessenger()", "act-green")
   ].join("");
 
-  const rows = [infoRow("юзернейм", `<span class="tglink">@${esc(me.username)}</span>`)];
+  let myNames = me.usernames && me.usernames.length ? me.usernames : [me.username];
+  let pendingAlias = "";
+  try {
+    const ud = await (await fetch("/api/me/usernames", { headers: authHeaders() })).json();
+    if (ud.ok) {
+      myNames = [ud.primary, ...ud.aliases.map(a => a.alias)];
+      const pend = (ud.requests || []).filter(r => r.status === "pending");
+      if (pend.length) pendingAlias = `<div class="unamepending">ждут решения: ${pend.map(r => "@" + esc(r.alias)).join(", ")}</div>`;
+    }
+  } catch (e) {}
+  const mineCard = { ...card, usernames: myNames, level: me.level || 0, levelName: me.levelName };
+  const rows = [usernamesRow(mineCard, `${pendingAlias}<button class="tglinkbtn" onclick="requestExtraUsername()">+ запросить дополнительный юзернейм</button>`)];
+  rows.push(levelRow(mineCard));
   if (me.bio) rows.push(infoRow("о себе", esc(me.bio)));
   if (me.birthDate) rows.push(infoRow("день рождения", esc(formatBirthDate(me.birthDate))));
-  if (me.verified) rows.push(infoRow("статус", `<span class="tgverified"><i class="fa-solid fa-circle-check"></i> Официально подтверждён</span>`));
   try {
     const rd = await (await fetch("/api/me/rating", { headers: authHeaders() })).json();
     if (rd.ok) {
