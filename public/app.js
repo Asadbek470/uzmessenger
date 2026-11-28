@@ -372,7 +372,10 @@ function verifiedBadge(v) {
 function levelRow(info) {
   const l = levelOf(info);
   const icon = l ? `<i class="fa-solid ${LEVEL_ICONS[l]}"></i> ` : "";
-  return infoRow("уровень", `<span class="lvlrow lvl${l}">${icon}Уровень ${l} — ${esc(levelName(info))}</span>`);
+  const act = Number(info && info.actLevel) || 0;
+  const actName = (info && info.actName) || "Новичок";
+  return infoRow("уровень", `<span class="lvlrow lvl${l}">${icon}Уровень ${l} — ${esc(levelName(info))}</span>`) +
+    infoRow("активность", `<span class="lvlrow">⚡ Ур. ${act + 1} — ${esc(actName)}</span>`);
 }
 // Все юзернеймы одного аккаунта: основной и дополнительные
 function usernamesRow(info, extraHtml) {
@@ -670,8 +673,8 @@ const LANG = {
     "settings.headerHint": "Цвет и узор шапки твоего профиля — их видят все, кто открывает твою страницу.",
     "settings.headerTop": "Цвет сверху", "settings.headerBottom": "Цвет снизу", "settings.headerPattern": "Узор фона",
     "settings.customEmoji": "Свой эмодзи", "settings.set": "Поставить",
-    "contactReq.hint": "Этот аккаунт официально подтверждён. Напиши сообщение — администрация проверит его и передаст. Ответ придёт в чат «Поддержка».",
-    "contactReq.placeholder": "Здравствуйте! Пишу по вопросу...", "contactReq.send": "Отправить через администрацию",
+    "contactReq.hint": "Этот аккаунт официально подтверждён. Напиши сообщение — человеку сразу придёт уведомление, что ты хочешь с ним пообщаться. Ответ придёт в чат «Поддержка».",
+    "contactReq.placeholder": "Здравствуйте! Пишу по вопросу...", "contactReq.send": "Отправить заявку",
     "bday.title": "С днём рождения!", "bday.text": "Zumo поздравляет тебя! Пусть этот год будет самым счастливым 🎉",
     "bday.thanks": "Спасибо! 🎈",
     "call.someoneCalling": "Кто-то звонит…", "call.decline": "Отклонить", "call.accept": "Принять",
@@ -1140,7 +1143,7 @@ function hideBootError() {
 // ================== НЕСКОЛЬКО АККАУНТОВ НА ОДНОМ УСТРОЙСТВЕ ==================
 // В браузере хранится список вошедших аккаунтов (до 5). Активный — тот, чей token лежит в "token".
 function loadAccounts() {
-  try { const l = JSON.parse(localStorage.getItem("zumoAccounts") || "[]"); return Array.isArray(l) ? l : []; }
+  try { const l = JSON.parse(localStorage.getItem("zumoAccounts") || "[]"); return Array.isArray(l) ? l.filter(a => a && typeof a === "object" && a.username) : []; }
   catch (_e) { return []; }
 }
 function saveAccounts(list) {
@@ -4857,7 +4860,7 @@ function renderVerificationSection() {
       <div class="hint">Аккаунт официально подтверждён ✅</div>
       <label class="checkrow"><input type="checkbox" id="dmGateToggle" ${on ? "checked" : ""} onchange="toggleDmGate(this.checked)">
         Незнакомые пишут мне только через администрацию</label>
-      <div class="hint">Когда включено, человек увидит «Этот аккаунт официально подтверждён» и сможет отправить заявку. Сначала её проверит администрация, а потом ты сам(а) решишь — «Принять» или «Отклонить» (кнопки появятся вверху списка чатов). Люди из исключений и те, кому ты уже писал(а) сам(а), пишут напрямую.</div>
+      <div class="hint">Когда включено, человек увидит «Этот аккаунт официально подтверждён» и сможет отправить заявку. Тебе сразу придёт уведомление, и ты сам(а) решишь — «Принять» или «Отклонить» (кнопки появятся вверху списка чатов). Люди из исключений и те, кому ты уже писал(а) сам(а), пишут напрямую.</div>
       <label>Исключения — могут писать напрямую</label>
       <div class="row">
         <input id="dmExceptionInput" placeholder="@username">

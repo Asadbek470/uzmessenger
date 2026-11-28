@@ -1001,6 +1001,7 @@ function safeUser(u) {
     verified: userLevel(u) >= 1,
     level: userLevel(u),
     levelName: LEVELS[userLevel(u)].name,
+    ...activityOf(u.username),
     usernames: allUsernames(u.username),
     totpEnabled: !!u.totpEnabled,
     googleLinked: !!u.googleSub,
@@ -1072,6 +1073,7 @@ function userCardFromRow(u) {
     verified: userLevel(u) >= 1,
     level: userLevel(u),
     levelName: LEVELS[userLevel(u)].name,
+    ...activityOf(u.username),
     usernames: allUsernames(u.username),
     isBot: BOT_USERNAMES.has(u.username),
     emojiStatus: cleanEmojiStatus(s.emojiStatus || ""),
@@ -2116,6 +2118,35 @@ function levelPerks(u) {
   return LEVELS[userLevel(u)];
 }
 
+// ---------- УРОВЕНЬ АКТИВНОСТИ: выдаётся автоматически по числу отправленных сообщений ----------
+// Не зависит от «официального» уровня (галочка, боты, юзернеймы) — тот по-прежнему выдаёт администрация.
+const ACT_LEVELS = [
+  { min: 0,    name: "Новичок" },
+  { min: 50,   name: "Активный" },
+  { min: 300,  name: "Общительный" },
+  { min: 1500, name: "Бывалый" },
+  { min: 6000, name: "Легенда" }
+];
+const actCache = new Map(); // username -> { level, count }
+function actLevelFromCount(n) {
+  let lvl = 0;
+  for (let i = 0; i < ACT_LEVELS.length; i++) if (n >= ACT_LEVELS[i].min) lvl = i;
+  return lvl;
+}
+function activityOf(username) {
+  const c = actCache.get(username);
+  const level = c ? c.level : 0;
+  return { actLevel: level, actName: ACT_LEVELS[level].name, actCount: c ? c.count : 0 };
+}
+async function refreshActivity() {
+  try {
+    const rows = await dbAll(`SELECT sender, COUNT(*) AS c FROM messages WHERE chatType IN ('private','group','global') GROUP BY sender`);
+    for (const r of rows) actCache.set(r.sender, { level: actLevelFromCount(r.c), count: r.c });
+  } catch (e) { console.error("[ACTIVITY]", e.message); }
+}
+setTimeout(refreshActivity, 8000);
+setInterval(refreshActivity, 5 * 60 * 1000);
+
 // ---------------- OFFICIAL ACCOUNT DM GATE ----------------
 function dmGateOn(u) {
   return userLevel(u) >= 1 && parseSettings(u).dmGate !== false;
@@ -2166,12 +2197,22 @@ app.post("/api/contact-requests", verifyAuth, rateLimit(10, 60 * 60 * 1000), asy
   if (await dmAllowed(target, req.user.username)) return res.status(400).json({ ok: false, error: "Этому человеку можно писать напрямую" });
 
   const pending = await dbGet(`SELECT id FROM contact_requests WHERE fromUser=? AND toUser=? AND status IN ('pending','forwarded')`, [req.user.username, to]);
-  if (pending) return res.status(400).json({ ok: false, error: "Заявка уже отправлена, дождись ответа администрации" });
+  if (pending) return res.status(400).json({ ok: false, error: "Заявка уже отправлена, дождись ответа" });
 
+  // Заявка сразу уходит адресату (без ожидания администрации): ему приходит уведомление
+  // «кто-то хочет с вами пообщаться» с кнопками «Принять» / «Отклонить».
   await dbRun(
-    `INSERT INTO contact_requests (fromUser, toUser, text, status, createdAt) VALUES (?,?,?,'pending',?)`,
+    `INSERT INTO contact_requests (fromUser, toUser, text, status, createdAt) VALUES (?,?,?,'forwarded',?)`,
     [req.user.username, to, text, now()]
   );
+  try {
+    const fromCard = await getUserCard(req.user.username);
+    await sendSupportMessage(
+      to,
+      `📨 ${fromCard.displayName} (@${req.user.username}) хочет с вами пообщаться. Откройте список чатов — там кнопки «Принять» и «Отклонить».`
+    );
+    wsSendToUser(to, { type: "contactRequest", from: req.user.username });
+  } catch (e) { console.error("[CONTACT-REQ notify]", e.message); }
   res.json({ ok: true });
 });
 

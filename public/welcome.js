@@ -16,8 +16,8 @@
   var L = {
     ru: {
       skip: "Пропустить", next: "Далее", start: "Начать", of: " из ",
-      hello: "Добро пожаловать в <b>Zumo</b>", helloName: "Привет, <b>{n}</b>!<br>Добро пожаловать в Zumo",
-      s1p: "Быстрый, удобный и защищённый мессенджер. Давайте за полминуты покажем, что здесь есть.",
+      hello: "Добро пожаловать в <b>мессенджер будущего</b>", helloName: "Привет, <b>{n}</b>!<br>Добро пожаловать в мессенджер будущего",
+      s1p: "Zumo — быстрый, умный и защищённый. Давайте за полминуты покажем, что здесь есть.",
       s2t: "Чаты, группы и <b>каналы</b>", s2p: "Личные переписки, группы и каналы в одном месте. Папки над списком, избранное, реакции на сообщения и счётчики непрочитанных.",
       s3t: "Звонки, голосовые и <b>кружки</b>", s3p: "Аудио- и видеозвонки, голосовые сообщения и видеокружки — всё одним касанием.",
       s4t: "Истории и <b>люди рядом</b>", s4p: "Публикуйте сторис и посты. «Быстрый контакт» находит людей рядом по GPS, координаты никому не показываются.",
@@ -27,7 +27,7 @@
     },
     en: {
       skip: "Skip", next: "Next", start: "Get started", of: " of ",
-      hello: "Welcome to <b>Zumo</b>", helloName: "Hi, <b>{n}</b>!<br>Welcome to Zumo",
+      hello: "Welcome to the <b>messenger of the future</b>", helloName: "Hi, <b>{n}</b>!<br>Welcome to the messenger of the future",
       s1p: "A fast, friendly and secure messenger. Here is a 30-second look at what you can do.",
       s2t: "Chats, groups and <b>channels</b>", s2p: "Private chats, groups and channels in one place. Folders above the list, favorites, message reactions and unread counters.",
       s3t: "Calls, voice and <b>video notes</b>", s3p: "Audio and video calls, voice messages and round video notes — all one tap away.",
@@ -38,7 +38,7 @@
     },
     uz: {
       skip: "O'tkazib yuborish", next: "Keyingi", start: "Boshlash", of: " / ",
-      hello: "<b>Zumo</b>'ga xush kelibsiz", helloName: "Salom, <b>{n}</b>!<br>Zumo'ga xush kelibsiz",
+      hello: "<b>Kelajak messenjeri</b>ga xush kelibsiz", helloName: "Salom, <b>{n}</b>!<br>Kelajak messenjeriga xush kelibsiz",
       s1p: "Tez, qulay va xavfsiz messenjer. 30 soniyada imkoniyatlar bilan tanishib chiqamiz.",
       s2t: "Chatlar, guruhlar va <b>kanallar</b>", s2p: "Shaxsiy yozishmalar, guruhlar va kanallar bir joyda. Papkalar, tanlanganlar, reaksiyalar va o'qilmagan hisoblagichlari.",
       s3t: "Qo'ng'iroqlar, ovozli xabarlar va <b>doiralar</b>", s3p: "Audio va video qo'ng'iroqlar, ovozli xabarlar va video-doiralar — bir bosishda.",
